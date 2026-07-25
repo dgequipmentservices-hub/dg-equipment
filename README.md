@@ -51,31 +51,30 @@ order. Apply them through the Supabase SQL editor or `supabase db push`.
 | `005_indexes_and_cleanup` | Indexes, backfills |
 | `006_security_rls` | RLS policies, `is_app_session_valid()` |
 | `007_session_backlog_indexes` | Session/backlog indexes |
-| `008a_password_kdf_columns` | Password salt/algo columns (**applied**) |
-| `008_auth_hardening` | JWT auth, drops the global session flag (**not applied yet**) |
+| `008a_password_kdf_columns` | Password salt/algo columns |
+| `008_auth_hardening` | JWT auth, drops the global session flag, storage writes |
 
-> **Deployment state:** `app-auth` is deployed and `008a` is applied. `008` is
-> **not** applied and must not be until `SUPABASE_JWT_SECRET` is set — see
-> below. Until then the app still runs on the old session flag.
+All applied. `app-auth` is deployed and `APP_JWT_SECRET` is set.
 
-### Finishing the auth migration
+### Required configuration
 
-One manual step is required, because the JWT secret cannot be set through the
-management API:
+`app-auth` needs the project's **legacy JWT secret** (Settings → JWT Keys) set
+as a function secret named **`APP_JWT_SECRET`**.
 
-1. Supabase dashboard → **Project Settings → API → JWT Secret**, copy it.
-2. **Edge Functions → Secrets** → add `SUPABASE_JWT_SECRET` with that value.
-3. Confirm it took:
-   `POST /functions/v1/app-auth` with `{"action":"health"}` should return
-   `{"ok":true,"jwt_secret_configured":true}`.
-4. Apply `20260725_008_auth_hardening.sql`.
-5. Everyone signs in again.
+Not `SUPABASE_JWT_SECRET`: Supabase reserves the `SUPABASE_` prefix for the
+variables it injects, and the platform does not inject the JWT secret itself.
 
-Until step 2, `app-auth` detects the missing secret and deliberately falls
-back to the old `session_active` flag rather than issuing tokens signed with a
-garbage key. Sign-in keeps working; the bypass below stays open. Applying
-`008` before step 2 would lock every user out, because it deletes the flag the
-fallback depends on.
+If that secret is ever lost or cleared, `app-auth` stops issuing tokens and
+falls back to setting a `session_active` row that no longer gates anything —
+meaning **nobody can read any data**. Check with:
+
+```
+POST /functions/v1/app-auth  {"action":"health"}
+→ {"ok":true,"jwt_secret_configured":true,"jwt_secret_source":"APP_JWT_SECRET"}
+```
+
+Do not rotate the JWT secret casually: it also signs the anon key embedded in
+`index.html`, so rotating means rebuilding and redeploying the client.
 
 Note that `001`–`007` had drifted from the live database — policies were added
 and renamed by hand outside of migrations. `008` drops every policy in `public`
@@ -159,6 +158,9 @@ Migration 008 removes the flag, the function, and all anon grants.
 - **Password minimum is 4 characters**, enforced only in the UI and the Edge
   Function's length check.
 - **Storage buckets `equipment-photos`, `invoice-photos` and `parts-diagrams`
-  are public and listable**, so anyone with the URL can enumerate every file.
-  Signed URLs would close this; not addressed here because it needs an upload
-  path change too.
+  are public and listable**, so anyone can enumerate every file. Migration 008
+  closed anonymous *writes* to these buckets — previously anyone could upload
+  to or delete from `parts-diagrams` — but left public reads alone, because
+  the app renders photos directly from bucket URLs and revoking reads would
+  break that. Closing it properly means switching to signed URLs, which is an
+  upload-path change as well.

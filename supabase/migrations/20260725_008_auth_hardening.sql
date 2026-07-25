@@ -48,6 +48,48 @@ BEGIN
   END LOOP;
 END $$;
 
+-- ── 2b. storage.objects ───────────────────────────────────────────────
+-- A storage policy also called is_app_session_valid(), so the function
+-- cannot be dropped until this is replaced. Storage had its own holes
+-- besides: "anon upload diagrams" and "anon delete diagrams" let any
+-- caller add or destroy files in the parts-diagrams bucket.
+--
+-- Writes now require a token. Public SELECT policies are deliberately left
+-- in place — the app renders photos straight from bucket URLs, and
+-- removing read access would break that. Bucket listing is still open;
+-- see the README follow-up.
+DROP POLICY IF EXISTS "session_read_backups" ON storage.objects;
+CREATE POLICY "authenticated_read_backups" ON storage.objects
+  FOR SELECT TO authenticated USING (bucket_id = 'backups');
+
+DROP POLICY IF EXISTS "anon upload diagrams" ON storage.objects;
+CREATE POLICY "authenticated_upload_diagrams" ON storage.objects
+  FOR INSERT TO authenticated WITH CHECK (bucket_id = 'parts-diagrams');
+
+DROP POLICY IF EXISTS "anon delete diagrams" ON storage.objects;
+CREATE POLICY "authenticated_delete_diagrams" ON storage.objects
+  FOR DELETE TO authenticated USING (bucket_id = 'parts-diagrams');
+
+DROP POLICY IF EXISTS "auth upload equipment photos" ON storage.objects;
+CREATE POLICY "authenticated_upload_equipment_photos" ON storage.objects
+  FOR INSERT TO authenticated WITH CHECK (bucket_id = 'equipment-photos');
+
+DROP POLICY IF EXISTS "auth delete equipment photos" ON storage.objects;
+CREATE POLICY "authenticated_delete_equipment_photos" ON storage.objects
+  FOR DELETE TO authenticated USING (bucket_id = 'equipment-photos');
+
+-- invoice_photos_all was ALL to public. Split it: reads stay open so the
+-- app can display them, writes require a token.
+DROP POLICY IF EXISTS "invoice_photos_all" ON storage.objects;
+CREATE POLICY "public_read_invoice_photos" ON storage.objects
+  FOR SELECT USING (bucket_id = 'invoice-photos');
+CREATE POLICY "authenticated_write_invoice_photos" ON storage.objects
+  FOR INSERT TO authenticated WITH CHECK (bucket_id = 'invoice-photos');
+CREATE POLICY "authenticated_update_invoice_photos" ON storage.objects
+  FOR UPDATE TO authenticated USING (bucket_id = 'invoice-photos');
+CREATE POLICY "authenticated_delete_invoice_photos" ON storage.objects
+  FOR DELETE TO authenticated USING (bucket_id = 'invoice-photos');
+
 -- ── 3. The session flag is gone ───────────────────────────────────────
 DROP FUNCTION IF EXISTS is_app_session_valid();
 DELETE FROM app_config WHERE key = 'session_active';
