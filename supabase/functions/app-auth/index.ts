@@ -29,7 +29,16 @@ const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // and we would happily sign tokens with it. Sign-in would look fine and every
 // subsequent request would fail signature verification, which is a far more
 // confusing failure than refusing to start.
-const JWT_SECRET = Deno.env.get("SUPABASE_JWT_SECRET") || "";
+// Named APP_JWT_SECRET, not SUPABASE_JWT_SECRET: Supabase reserves the
+// SUPABASE_ prefix for its own injected variables and rejects custom secrets
+// using it, so a secret set under that name never reaches the function.
+// SUPABASE_JWT_SECRET is still read as a fallback in case a future platform
+// version injects it.
+const JWT_SECRET = Deno.env.get("APP_JWT_SECRET") ||
+  Deno.env.get("SUPABASE_JWT_SECRET") || "";
+const JWT_SECRET_SOURCE = Deno.env.get("APP_JWT_SECRET")
+  ? "APP_JWT_SECRET"
+  : (Deno.env.get("SUPABASE_JWT_SECRET") ? "SUPABASE_JWT_SECRET" : "none");
 
 const SESSION_HOURS = 12;
 const PBKDF2_ITERATIONS = 210000;
@@ -163,7 +172,11 @@ serve(async (req) => {
     // secret is configured, never its value. Used to confirm a deploy is
     // sound before migration 008 makes JWTs mandatory.
     if (action === "health") {
-      return json({ ok: true, jwt_secret_configured: JWT_SECRET.length > 0 });
+      return json({
+        ok: true,
+        jwt_secret_configured: JWT_SECRET.length > 0,
+        jwt_secret_source: JWT_SECRET_SOURCE,
+      });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
