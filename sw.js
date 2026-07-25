@@ -1,12 +1,20 @@
-const CACHE = 'dg-equipment-v1';
+const CACHE = 'dg-equipment-v2';
 const SHELL = [
   './',
-  './index.html'
+  './index.html',
+  './manifest.json',
+  './icon.png'
 ];
 
 self.addEventListener('install', function(e) {
   e.waitUntil(
-    caches.open(CACHE).then(function(c) { return c.addAll(SHELL); })
+    // Cache each shell entry on its own — addAll() rejects the whole install
+    // if any single file 404s, which would leave the app with no worker at all.
+    caches.open(CACHE).then(function(c) {
+      return Promise.all(SHELL.map(function(url) {
+        return c.add(url).catch(function(){});
+      }));
+    })
   );
   self.skipWaiting();
 });

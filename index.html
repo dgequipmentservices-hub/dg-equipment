@@ -25,6 +25,8 @@
 <meta name="apple-mobile-web-app-title" content="DG Equipment">
 <meta name="theme-color" content="#101214">
 <link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Oswald:wght@400;500;600;700&family=Stardos+Stencil:wght@400;700&display=swap" rel="stylesheet">
 <style>
 /* ════════════════════════════════════════════════════════════════
@@ -787,45 +789,16 @@ body.tech-mode .owner-only{display:none!important}
   .toast{bottom:26px}
 }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
-// ── INLINE SERVICE WORKER (cache-first for app shell) ──────────────────
-if('serviceWorker' in navigator){
-  const swCode=`
-const CACHE='dg-app-v8';
-const SHELL=['/'];
-self.addEventListener('install',e=>{
-  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));
-});
-self.addEventListener('activate',e=>{
-  e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
-});
-self.addEventListener('fetch',e=>{
-  const url=new URL(e.request.url);
-  // Network-first for Supabase API calls
-  if(url.hostname.includes('supabase')){
-    e.respondWith(fetch(e.request).catch(()=>new Response(JSON.stringify([]),{headers:{'Content-Type':'application/json'}})));
-    return;
-  }
-  // Cache-first for same-origin (app shell)
-  if(url.origin===self.location.origin){
-    e.respondWith(caches.match(e.request).then(cached=>{
-      const net=fetch(e.request).then(r=>{
-        if(r.ok){const cl=r.clone();caches.open(CACHE).then(c=>c.put(e.request,cl));}
-        return r;
-      }).catch(()=>cached);
-      return cached||net;
-    }));
-  }
-});
-`;
-  const blob=new Blob([swCode],{type:'application/javascript'});
-  const swUrl=URL.createObjectURL(blob);
+// ── SERVICE WORKER ─────────────────────────────────────────────────────
+// One registration, one cache. This used to also build a second worker
+// from a blob URL; the two fought over the same scope and each one's
+// activate handler deleted the other's cache on every load, so nothing
+// stayed cached. sw.js is the only worker now — it also backs
+// notifications on phones (see sendNotif).
+if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
   window.addEventListener('load',function(){
-    navigator.serviceWorker.register(swUrl,{scope:'/'}).catch(function(){
-      // Fallback: try sw.js if blob URL fails (some browsers restrict blob SW)
-      navigator.serviceWorker.register('sw.js').catch(function(){});
-    });
+    navigator.serviceWorker.register('sw.js').catch(function(){});
   });
 }
 
@@ -1632,13 +1605,12 @@ const SK=window.__k;
 // Session token is set after login and added to every request
 var _sessionToken=null;
 function _getHeaders(){
+  // With a session token this is a real signed JWT (role=authenticated),
+  // which is what every RLS policy now checks. Without one the request goes
+  // out as anon, which since migration 008 can read nothing — that's the
+  // intent: no token, no data.
   var h={'apikey':SK,'Content-Type':'application/json','Accept':'application/json'};
-  if(_sessionToken){
-    h['Authorization']='Bearer '+_sessionToken;
-    h['x-dg-session']=_sessionToken;
-  } else {
-    h['Authorization']='Bearer '+SK;
-  }
+  h['Authorization']='Bearer '+(_sessionToken||SK);
   return h;
 }
 // H is kept for legacy inline fetch calls — updated after login
@@ -1748,6 +1720,20 @@ function fetchT(url,opts,ms){
   return fetch(url,fo).then(function(r){if(tid)clearTimeout(tid);return r;})
     .catch(function(e){if(tid)clearTimeout(tid);if(e.name==='AbortError')throw new Error('Request timed out');throw e;});
 }
+// A 401/403 now means the JWT expired or was rejected. Bounce to the login
+// screen once rather than letting every screen render its own error — the
+// token can't be refreshed from the browser, so signing in again is the
+// only way forward.
+var _authFailed=false;
+function _handleAuthFailure(status){
+  if(status!==401&&status!==403)return false;
+  if(_authFailed)return true;
+  _authFailed=true;
+  toast('Session expired — please sign in again','er');
+  setTimeout(function(){_authFailed=false;if(typeof logOut==='function')logOut();},1200);
+  return true;
+}
+
 // Sanitize raw Supabase/PostgREST errors before showing to user
 function _dbErr(raw){
   try{
@@ -1764,7 +1750,7 @@ function _dbErr(raw){
 }
 async function get(t,q=''){
   const r=await fetchT(SU+'/rest/v1/'+t+q,{headers:_getHeaders()});
-  if(!r.ok){const txt=await r.text();throw new Error(_dbErr(txt));}
+  if(!r.ok){_handleAuthFailure(r.status);const txt=await r.text();throw new Error(_dbErr(txt));}
   return r.json();
 }
 async function post(t,d){
@@ -1775,7 +1761,7 @@ async function post(t,d){
     return [fake];
   }
   const r=await fetchT(SU+'/rest/v1/'+t,{method:'POST',headers:{..._getHeaders(),Prefer:'return=representation'},body:JSON.stringify(d)});
-  if(!r.ok){const txt=await r.text();throw new Error(_dbErr(txt));}
+  if(!r.ok){_handleAuthFailure(r.status);const txt=await r.text();throw new Error(_dbErr(txt));}
   return r.json();
 }
 async function patch(t,d,q){
@@ -1785,7 +1771,7 @@ async function patch(t,d,q){
     return [d];
   }
   const r=await fetchT(SU+'/rest/v1/'+t+q,{method:'PATCH',headers:{..._getHeaders(),Prefer:'return=representation'},body:JSON.stringify(d)});
-  if(!r.ok){const txt=await r.text();throw new Error(_dbErr(txt));}
+  if(!r.ok){_handleAuthFailure(r.status);const txt=await r.text();throw new Error(_dbErr(txt));}
   return r.json();
 }
 async function del(t,q){
@@ -1795,22 +1781,33 @@ async function del(t,q){
     return;
   }
   const r=await fetchT(SU+'/rest/v1/'+t+q,{method:'DELETE',headers:_getHeaders()});
-  if(!r.ok){const txt=await r.text();throw new Error(_dbErr(txt));}
+  if(!r.ok){_handleAuthFailure(r.status);const txt=await r.text();throw new Error(_dbErr(txt));}
 }
 
 // ─────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────
+// The JWT carries its own expiry; trust that rather than a local clock
+// reading, so a stale token can't be revived by changing the device time.
+function _tokenExpired(tok){
+  try{
+    var p=JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    return !p.exp||p.exp*1000<=Date.now();
+  }catch(e){return true;}
+}
+
 async function checkAuth(){
   const saved=localStorage.getItem('dg_role');
   const user=localStorage.getItem('dg_user');
+  var st=localStorage.getItem('dg_st');
+  // Until SUPABASE_JWT_SECRET is set on the project, app-auth signs nobody in
+  // with a token — it falls back to the old session flag and returns none.
+  // Fall back to the 4-hour local window in that case, otherwise the app
+  // would demand a fresh login every time it opened.
   const loginTs=parseInt(localStorage.getItem('dg_login_ts')||'0');
-  const SESSION_MS=4*60*60*1000; // 4 hours
-  const expired=Date.now()-loginTs>SESSION_MS;
+  const expired=st?_tokenExpired(st):(Date.now()-loginTs>4*60*60*1000);
   if(saved&&!expired){
     userRole=saved;
-    // Restore session token if present
-    var st=localStorage.getItem('dg_st');
     if(st){_sessionToken=st;H=_getHeaders();}
     if(userRole==='tech')document.body.classList.add('tech-mode');
     document.getElementById('loginScr').style.display='none';
@@ -3013,40 +3010,10 @@ async function saveServiceRequest(){
   var problem=(document.getElementById('sr_problem').value||'').trim();
   var prefDate=document.getElementById('sr_date').value||'';
   var phone=(document.getElementById('sr_phone').value||'').trim();
-  var newName=(document.getElementById('sr_newname').value||'').trim();
-  if(!_srCustId&&!problem&&!phone&&!newName){toast('Add a customer or describe the call','er');return;}
-  var now=new Date();
-  var stampedNote='Requested '+now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-  if(newName)stampedNote+=' \u00b7 caller: '+newName;
-  if(phone)stampedNote+=' \u00b7 callback '+phone;
-  var body={
-    customer_id:_srCustId||null,
-    equipment_id:_srEqId||null,
-    status:'Request',
-    problem:problem,
-    scheduled_date:prefDate||null,
-    internal_notes:stampedNote
-  };
-  try{
-    var created=await post('work_orders',body);
-    if(created&&created[0]){
-      wos.unshift(created[0]);
-      closeM();
-      toast('Service request saved \u2713','ok');
-      if(_dashMode==='wolist')renderList();else renderDashboard();
-      counts();
-    }else{toast('Could not save request','er');}
-  }catch(e){toast('Could not save request','er');}
-}
-async function saveServiceRequest(){
-  var problem=(document.getElementById('sr_problem').value||'').trim();
-  var prefDate=document.getElementById('sr_date').value||'';
-  var phone=(document.getElementById('sr_phone').value||'').trim();
   // Also capture whatever name was typed in the search box — if the
   // caller isn't in the system yet, this is the only record of their name.
   var typedName='';
   if(!_srCustId){
-    var srSel=document.getElementById('sr_csel');
     var srSearch=document.getElementById('sr_csearch');
     typedName=(srSearch&&srSearch.value||'').trim();
   }
@@ -3056,7 +3023,8 @@ async function saveServiceRequest(){
   if(typedName)stampedNote+=' \u00b7 caller: '+typedName;
   if(phone)stampedNote+=' \u00b7 callback '+phone;
   var body={
-    customer_id:_srCustId,
+    customer_id:_srCustId||null,
+    equipment_id:_srEqId||null,
     status:'Request',
     problem:problem,
     scheduled_date:prefDate||null,
@@ -9877,8 +9845,9 @@ async function doLogin(){
 }
 
 function logOut(){
-  // Kill DB session before clearing local state
-  patch('app_config',{value:'false'},'?key=eq.session_active').catch(function(){});
+  // Nothing to tear down server-side: the JWT is per-device and expires on
+  // its own. The old global session_active flag meant one person signing
+  // out cut off everyone else who was still working.
   localStorage.removeItem('dg_role');
   localStorage.removeItem('dg_user');
   localStorage.removeItem('dg_login_ts');
@@ -9895,10 +9864,17 @@ function logOut(){
   S('S_list');
 }
 
-// Simple MD5 implementation
-async function md5(str){
-  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+// Passwords are hashed server-side now (PBKDF2 with a per-user salt, chosen
+// in the app-auth Edge Function). The browser only ever sends the plaintext
+// over TLS to that function — it can no longer write password_hash at all.
+async function setUserPassword(userId,password){
+  const res=await fetch(SU+'/functions/v1/app-auth',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
+    body:JSON.stringify({action:'set_password',user_id:userId,password:password})
+  });
+  const data=await res.json();
+  if(!data.ok)throw new Error(data.error||'Could not set password');
 }
 
 // ─────────────────────────────────────────
@@ -15598,14 +15574,6 @@ function sendNotif(title, body, opts) {
   }
 }
 
-// V25: register a lightweight service worker (sw.js next to this file) so
-// notifications work on phones. Fails silently if sw.js isn't hosted yet.
-(function(){
-  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
-    navigator.serviceWorker.register('sw.js').catch(function(){});
-  }
-})();
-
 function scheduleReminderCheck() {
   if (_reminderTimer) clearInterval(_reminderTimer);
   function runCheck() {
@@ -16172,10 +16140,18 @@ async function saveNewUser() {
   if (_settingsUsers.find(function(u) { return u.username === un; })) { toast('Username already taken', 'er'); return; }
   var btn = document.getElementById('suOk'); btn.disabled = true; btn.textContent = 'Saving...';
   try {
-    var hash = await md5(pw);
-    var result = await post('app_users', { username: un, password_hash: hash, role: ro, display_name: dn, active: true });
+    var result = await post('app_users', { username: un, role: ro, display_name: dn, active: true });
     var created = Array.isArray(result) ? result[0] : result;
-    if (created && created.id) _settingsUsers.push(created);
+    if (!created || !created.id) throw new Error('Could not create user');
+    // The row exists but has no password yet, so it cannot be signed into
+    // until this succeeds. Roll it back if it doesn't.
+    try {
+      await setUserPassword(created.id, pw);
+    } catch (e) {
+      await del('app_users', '?id=eq.' + created.id).catch(function(){});
+      throw e;
+    }
+    _settingsUsers.push(created);
     closeM(); renderSettings(); toast('User added \u2713', 'ok');
   } catch(e) { toast('Failed: ' + e.message, 'er'); btn.disabled = false; btn.textContent = 'Add User'; }
 }
@@ -16220,11 +16196,9 @@ async function saveEditUser(id) {
       toast('Username already taken', 'er'); btn.disabled=false; btn.textContent='Save'; return;
     }
     var updates = { display_name: dn, username: newUn, role: ro, active: ac };
-    if (pw) {
-      if (pw.length < 4) { toast('Password must be at least 4 characters', 'er'); btn.disabled = false; btn.textContent = 'Save'; return; }
-      updates.password_hash = await md5(pw);
-    }
+    if (pw && pw.length < 4) { toast('Password must be at least 4 characters', 'er'); btn.disabled = false; btn.textContent = 'Save'; return; }
     await patch('app_users', updates, '?id=eq.' + id);
+    if (pw) await setUserPassword(id, pw);
     var idx = _settingsUsers.findIndex(function(x) { return x.id === id; });
     if (idx >= 0) Object.assign(_settingsUsers[idx], updates);
     closeM(); renderSettings(); toast('Saved \u2713', 'ok');
