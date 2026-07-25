@@ -3774,7 +3774,7 @@ async function doScan(gallery){
       // Call Claude Vision via secure Edge Function proxy (Sonnet for best accuracy)
       const resp=await fetch('https://ddxjszzceaullxheejnq.supabase.co/functions/v1/ai-proxy',{
         method:'POST',
-        headers:{'Content-Type':'application/json'},
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
         body:JSON.stringify({
           model:'claude-sonnet-4-6',
           max_tokens:600,
@@ -3899,7 +3899,7 @@ async function doScanEngine(gallery){
       });
       const resp=await fetch('https://ddxjszzceaullxheejnq.supabase.co/functions/v1/ai-proxy',{
         method:'POST',
-        headers:{'Content-Type':'application/json'},
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
         body:JSON.stringify({
           model:'claude-sonnet-4-6',
           max_tokens:300,
@@ -4657,7 +4657,7 @@ async function scanPartsOrder(machIdx){
         window._lastInvoiceB64=b64;
         window._lastInvoiceMime=file.type||'image/jpeg';
         var res=await fetch('https://ddxjszzceaullxheejnq.supabase.co/functions/v1/ai-proxy',{
-          method:'POST',headers:{'Content-Type':'application/json'},
+          method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
           body:JSON.stringify({
             model:'claude-sonnet-4-6',max_tokens:1000,
             messages:[{role:'user',content:[
@@ -5327,7 +5327,7 @@ async function qcIdMachine(){
       img.onerror=rej;img.src=p.dataUrl;
     });
     var resp=await fetch('https://ddxjszzceaullxheejnq.supabase.co/functions/v1/ai-proxy',{
-      method:'POST',headers:{'Content-Type':'application/json'},
+      method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
       body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:400,messages:[{role:'user',content:[
         {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
         {type:'text',text:'Read this outdoor power equipment tag/plate. Reply ONLY with JSON {"make":"","model":"","serial":""}. The make MUST be a real OPE brand \u2014 if the brand is blurry, partial, or unfamiliar, return an empty make. NEVER phonetically guess a brand. Leave any unclear field as empty string.'}
@@ -9438,7 +9438,7 @@ async function dgmProcessFiles(files){
       });
       var mediaType=f.type||'image/jpeg';
       var resp=await fetch('https://ddxjszzceaullxheejnq.supabase.co/functions/v1/ai-proxy',{
-        method:'POST',headers:{'Content-Type':'application/json'},
+        method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
         body:JSON.stringify({
           model:'claude-sonnet-4-6',max_tokens:2000,
           messages:[{role:'user',content:[
@@ -13505,7 +13505,7 @@ async function scanPartFromPhoto(){
         // Use compressed image for API call
         var _apiB64=window._scanPhotoB64?window._scanPhotoB64.split(',')[1]:b64;
         var res=await fetch('https://ddxjszzceaullxheejnq.supabase.co/functions/v1/ai-proxy',{
-          method:'POST',headers:{'Content-Type':'application/json'},
+          method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
           body:JSON.stringify({
             model:'claude-sonnet-4-6',max_tokens:2000,
             messages:[{role:'user',content:[
