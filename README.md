@@ -51,7 +51,31 @@ order. Apply them through the Supabase SQL editor or `supabase db push`.
 | `005_indexes_and_cleanup` | Indexes, backfills |
 | `006_security_rls` | RLS policies, `is_app_session_valid()` |
 | `007_session_backlog_indexes` | Session/backlog indexes |
-| `008_auth_hardening` | JWT auth, drops the global session flag, salted passwords |
+| `008a_password_kdf_columns` | Password salt/algo columns (**applied**) |
+| `008_auth_hardening` | JWT auth, drops the global session flag (**not applied yet**) |
+
+> **Deployment state:** `app-auth` is deployed and `008a` is applied. `008` is
+> **not** applied and must not be until `SUPABASE_JWT_SECRET` is set — see
+> below. Until then the app still runs on the old session flag.
+
+### Finishing the auth migration
+
+One manual step is required, because the JWT secret cannot be set through the
+management API:
+
+1. Supabase dashboard → **Project Settings → API → JWT Secret**, copy it.
+2. **Edge Functions → Secrets** → add `SUPABASE_JWT_SECRET` with that value.
+3. Confirm it took:
+   `POST /functions/v1/app-auth` with `{"action":"health"}` should return
+   `{"ok":true,"jwt_secret_configured":true}`.
+4. Apply `20260725_008_auth_hardening.sql`.
+5. Everyone signs in again.
+
+Until step 2, `app-auth` detects the missing secret and deliberately falls
+back to the old `session_active` flag rather than issuing tokens signed with a
+garbage key. Sign-in keeps working; the bypass below stays open. Applying
+`008` before step 2 would lock every user out, because it deletes the flag the
+fallback depends on.
 
 Note that `001`–`007` had drifted from the live database — policies were added
 and renamed by hand outside of migrations. `008` drops every policy in `public`

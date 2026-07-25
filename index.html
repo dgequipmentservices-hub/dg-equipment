@@ -1800,10 +1800,15 @@ async function checkAuth(){
   const saved=localStorage.getItem('dg_role');
   const user=localStorage.getItem('dg_user');
   var st=localStorage.getItem('dg_st');
-  const expired=!st||_tokenExpired(st);
+  // Until SUPABASE_JWT_SECRET is set on the project, app-auth signs nobody in
+  // with a token — it falls back to the old session flag and returns none.
+  // Fall back to the 4-hour local window in that case, otherwise the app
+  // would demand a fresh login every time it opened.
+  const loginTs=parseInt(localStorage.getItem('dg_login_ts')||'0');
+  const expired=st?_tokenExpired(st):(Date.now()-loginTs>4*60*60*1000);
   if(saved&&!expired){
     userRole=saved;
-    _sessionToken=st;H=_getHeaders();
+    if(st){_sessionToken=st;H=_getHeaders();}
     if(userRole==='tech')document.body.classList.add('tech-mode');
     document.getElementById('loginScr').style.display='none';
     await init();

@@ -21,7 +21,15 @@ import { create, verify } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const JWT_SECRET = Deno.env.get("SUPABASE_JWT_SECRET")!;
+
+// Supabase injects SUPABASE_URL and the two keys automatically, but NOT the
+// JWT secret — it has to be set explicitly:
+//   supabase secrets set SUPABASE_JWT_SECRET=<Project Settings > API > JWT Secret>
+// Without this guard a missing value would encode as the string "undefined"
+// and we would happily sign tokens with it. Sign-in would look fine and every
+// subsequent request would fail signature verification, which is a far more
+// confusing failure than refusing to start.
+const JWT_SECRET = Deno.env.get("SUPABASE_JWT_SECRET") || "";
 
 const SESSION_HOURS = 12;
 const PBKDF2_ITERATIONS = 210000;
@@ -148,15 +156,26 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
     const body = await req.json();
     const action = body.action || "login";
+
+    // Readiness probe — no credentials, and it reveals only whether the
+    // secret is configured, never its value. Used to confirm a deploy is
+    // sound before migration 008 makes JWTs mandatory.
+    if (action === "health") {
+      return json({ ok: true, jwt_secret_configured: JWT_SECRET.length > 0 });
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
     // ── Set or change a password ──────────────────────────────────────
     // Hashing has to happen here: the salt and iteration count are chosen
     // server-side, and the browser no longer has write access to
     // password_hash (migration 008 revokes the column grant).
     if (action === "set_password") {
+      if (!JWT_SECRET) {
+        return json({ ok: false, error: "Auth is not fully configured." }, 503);
+      }
       const caller = await requireOwner(req);
       if (!caller) return json({ ok: false, error: "Not authorised" }, 403);
 
@@ -221,6 +240,24 @@ serve(async (req) => {
     }
 
     delete attempts[key];
+
+    // Without the JWT secret we cannot mint a token, so fall back to the old
+    // behaviour rather than locking everyone out: flip the legacy
+    // session_active flag and return no token. This keeps sign-in working
+    // between deploying this function and setting the secret — but it is the
+    // insecure path, and migration 008 must NOT be applied while this branch
+    // is live, because it removes the flag this depends on.
+    if (!JWT_SECRET) {
+      console.warn("SUPABASE_JWT_SECRET not set — falling back to legacy session flag");
+      await supabase.from("app_config").update({ value: "true" }).eq("key", "session_active");
+      return json({
+        ok: true,
+        role: user!.role,
+        display_name: user!.display_name || username,
+        user_id: user!.id,
+        legacy_session: true,
+      });
+    }
 
     return json({
       ok: true,
