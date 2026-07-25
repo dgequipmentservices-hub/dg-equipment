@@ -1866,7 +1866,7 @@ async function silentQBORefresh(){
   try{
     var last=localStorage.getItem('_qboRefreshTs');
     if(last&&(Date.now()-parseInt(last))<45*60*1000)return;
-    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'refresh'})});
+    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'refresh'})});
     var d=await res.json();
     if(d.success)localStorage.setItem('_qboRefreshTs',String(Date.now()));
   }catch(e){}
@@ -7110,7 +7110,7 @@ async function loadQboView(force){
   if(_qboInvoices&&!force){renderQboView();return;}
   if(el)el.innerHTML='<div class="loading"><div class="spin"></div><br>Loading from QuickBooks…</div>';
   try{
-    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'list_invoices',max_results:100})});
+    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'list_invoices',max_results:100})});
     var data=await res.json();
     if(data.qbo_disconnected){
       el.innerHTML='<div class="empty" style="margin-top:30px"><div class="et">QuickBooks disconnected</div><div class="es">Reconnect from Settings to view invoices</div></div>';
@@ -7451,7 +7451,7 @@ async function loadReconcile(){
     // Reuses the cache from "View in QBO" if already loaded this session.
     if(!_qboInvoices){
       try{
-        var qres=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'list_invoices',max_results:200})});
+        var qres=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'list_invoices',max_results:200})});
         var qdata=await qres.json();
         if(qdata.invoices)_qboInvoices=qdata.invoices;
       }catch(qe){/* QBO check is best-effort — payments still show without it */}
@@ -12146,7 +12146,7 @@ function _qboDisconnectedBanner(){
 // Check QBO status on startup — silent unless there's a problem
 async function _checkQBOStatus(){
   try{
-    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status'})});
+    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'status'})});
     var data=await res.json();
     if(!data.connected) return; // not set up, no warning needed
     var days=data.days_since_auth||0;
@@ -12175,7 +12175,7 @@ async function _checkQBOStatus(){
 
 async function openQBOSettings(){
   try{
-    const res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status'})});
+    const res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'status'})});
     const data=await res.json();
     if(data.connected){
       const dt=data.updated_at?new Date(data.updated_at).toLocaleDateString():'unknown';
@@ -12277,7 +12277,7 @@ async function updateInQBO(woId){
     };
     toast('Updating invoice in QuickBooks...','');
     if(!qboLineItemsLookSafe(lineItems)){toast('Update cancelled','');return;}
-    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify(payload)});
     var data=await res.json();
     if(data.qbo_disconnected){_qboDisconnectedBanner();return;}
     if(data.error){toast('QBO error: '+data.error,'er');return;}
@@ -12334,7 +12334,7 @@ async function pushPaymentToQBO(woId){
           note:pmt.note||''
         }
       };
-      var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify(payload)});
       var data=await res.json();
       if(data.qbo_disconnected){_qboDisconnectedBanner();return;}
       if(data.error){failed++;lastErr=data.error;continue;}
@@ -12388,7 +12388,7 @@ async function pushToQBO(woId,allowDup){
     // user explicitly chose "Push as New (duplicate)".
     if(!allowDup){
       try{
-        var _dupRes=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'list_invoices',max_results:100})});
+        var _dupRes=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'list_invoices',max_results:100})});
         var _dupData=await _dupRes.json();
         var _dupHit=(_dupData.invoices||[]).find(function(x){return String(x.DocNumber)===String(w.invoice_number);});
         if(_dupHit){
@@ -12455,7 +12455,7 @@ async function pushToQBO(woId,allowDup){
     });
     const payload={action:'push_invoice',invoice:{invoice_number:invNum,customer_name:c.name||'Customer',customer_phone:c.phone||'',date:today,due_date:dueDateStr,memo:w.problem||'',tax_amount:taxOn?parseFloat((sub*0.08625).toFixed(2)):0,line_items:lineItems,payments:woPaymentsForPush}};
     if(!qboLineItemsLookSafe(lineItems)){toast('Push cancelled','');return;}
-    const res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify(payload)});
     const data=await res.json();
     if(data.qbo_disconnected||data.error==='QuickBooks disconnected — reconnect required.'||(typeof data.error==='string'&&data.error.includes('invalid_grant'))){_qboDisconnectedBanner();return;}
     if(data.error){toast('QBO error — tap QBO settings to reconnect','er');return;}
@@ -15245,7 +15245,7 @@ async function pushSaleToQBO(){
       return {item_name:itemName, description:s.name+(s.partNum?' #'+s.partNum:''), qty:s.qty, rate:s.price, amount:parseFloat((s.qty*s.price).toFixed(2))};
     });
     var payload={action:'push_invoice',invoice:{invoice_number:invNum,customer_name:c?c.name:'Walk-in Customer',customer_phone:c?c.phone||'':'',date:today,due_date:today,memo:'Parts sale',tax_amount:parseFloat(t.tax.toFixed(2)),line_items:lineItems}};
-    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify(payload)});
     var data=await res.json();
     if(data.qbo_disconnected||data.error==='QuickBooks disconnected — reconnect required.'||(typeof data.error==='string'&&data.error.includes('invalid_grant'))){_qboDisconnectedBanner();return;}
     if(data.error){toast('QBO error — tap QBO settings to reconnect','er');return;}
