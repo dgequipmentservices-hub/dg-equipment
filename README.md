@@ -51,22 +51,33 @@ order. Apply them through the Supabase SQL editor or `supabase db push`.
 | `005_indexes_and_cleanup` | Indexes, backfills |
 | `006_security_rls` | RLS policies, `is_app_session_valid()` |
 | `007_session_backlog_indexes` | Session/backlog indexes |
+| `008_auth_hardening` | JWT auth, drops the global session flag, salted passwords |
+
+Note that `001`–`007` had drifted from the live database — policies were added
+and renamed by hand outside of migrations. `008` drops every policy in `public`
+and rebuilds them, so it converges regardless of what the live state was.
 
 When you change the schema, add a **new** migration file rather than editing an
 applied one — that keeps this directory an accurate history of the live
 database.
 
-### Edge functions (not in this repo)
+### Edge functions
 
-QuickBooks Online integration runs in two Supabase Edge Functions, deployed
-separately:
+`supabase/functions/app-auth/` is in this repo — it's the authentication
+boundary, so it belongs under review. Deploy with:
 
-- `qbo-auth` — OAuth handshake and token refresh
-- `qbo-push` — pushes invoices into QBO
+```sh
+supabase functions deploy app-auth
+```
 
-`index.html` calls them at `https://<project>.supabase.co/functions/v1/qbo-auth`
-and `.../qbo-push`. The QBO client secret lives in the edge function's
-environment, never in this repo.
+It needs `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_JWT_SECRET`
+in its environment. The JWT secret must be the project's own, or PostgREST
+won't accept the tokens it issues.
+
+The project has other deployed functions not tracked here: `qbo-auth` and
+`qbo-push` (QuickBooks OAuth and invoice push), `ai-proxy`, `invoice-jpg`,
+`daily-backup`, `load-rotary-xref`, and `app`. Secrets live in their
+environments, never in this repo.
 
 ## Offline behavior
 
@@ -77,19 +88,53 @@ environment, never in this repo.
   top of `index.html`.
 - Supabase requests are never cached; they go to the network or fail.
 
+## Authentication
+
+Sign-in posts the username and password to the `app-auth` Edge Function over
+TLS. That function verifies against `app_users` using the service role, then
+returns a **JWT signed with the project's JWT secret** (`role=authenticated`,
+12-hour expiry, plus an `app_role` claim of `owner` or `tech`). The browser
+sends it as `Authorization: Bearer …` on every PostgREST request, and RLS
+policies check `authenticated`. No token, no data — `anon` has no table
+privileges at all.
+
+Passwords are stored as **PBKDF2-SHA256 with a per-user salt** (210k
+iterations). Rows written by the older scheme are plain unsalted SHA-256;
+`app-auth` still verifies those, and rewrites the row to PBKDF2 on the next
+successful sign-in, so they age out without anyone resetting a password.
+
+Password changes go through `app-auth` (`action: "set_password"`, owner only).
+The browser cannot write `password_hash` — migration 008 revokes that column
+grant.
+
+### What this replaced
+
+Worth knowing, because the old design looked like security without being any:
+
+Every table's policy called `is_app_session_valid()`, which checked one row —
+`app_config.session_active = 'true'`. But `app_config` carried this policy:
+
+```sql
+CREATE POLICY write_app_config ON app_config FOR UPDATE TO anon
+  USING ((key = 'session_active') OR is_app_session_valid());
+```
+
+The anon key is published in `index.html`, so **any caller could set the flag
+themselves** and then read or write every "protected" table — customers, work
+orders, payments, `app_users`, `qbo_tokens`. The gate opened for exactly the
+people it was meant to stop. It was also a single global flag, so one person
+signing out revoked database access for everyone still working.
+
+Migration 008 removes the flag, the function, and all anon grants.
+
 ## Known issues
 
-Recorded here so they don't get rediscovered:
-
-- **Passwords are hashed with MD5** (`index.html`, `saveUser`). MD5 is not a
-  password hash — it's fast and has published collisions. Moving to Supabase
-  Auth, or at minimum a salted slow hash, would require a one-time reset of
-  existing logins.
-- **RLS is a single global switch.** Every table's `session_required` policy
-  checks one row: `app_config.session_active = 'true'`. While that flag is on,
-  anyone holding the public anon key has full read/write to every table, from
-  anywhere. Per-user policies tied to real auth would close this.
-- **`app_users` is readable by `anon`** (the `login_select` policy), which
-  exposes usernames and password hashes to any unauthenticated caller. Login
-  should go through an edge function or Supabase Auth instead of a client-side
-  table read.
+- **`app_role` is not enforced by the database.** Any valid token gets full
+  access to the application tables; owner-vs-tech is still an app-layer check.
+  Tightening that means per-table policies keyed on the `app_role` claim.
+- **Password minimum is 4 characters**, enforced only in the UI and the Edge
+  Function's length check.
+- **Storage buckets `equipment-photos`, `invoice-photos` and `parts-diagrams`
+  are public and listable**, so anyone with the URL can enumerate every file.
+  Signed URLs would close this; not addressed here because it needs an upload
+  path change too.
