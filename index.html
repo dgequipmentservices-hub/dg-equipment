@@ -25,6 +25,8 @@
 <meta name="apple-mobile-web-app-title" content="DG Equipment">
 <meta name="theme-color" content="#101214">
 <link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Oswald:wght@400;500;600;700&family=Stardos+Stencil:wght@400;700&display=swap" rel="stylesheet">
 <style>
 /* ════════════════════════════════════════════════════════════════
@@ -787,45 +789,16 @@ body.tech-mode .owner-only{display:none!important}
   .toast{bottom:26px}
 }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
-// ── INLINE SERVICE WORKER (cache-first for app shell) ──────────────────
-if('serviceWorker' in navigator){
-  const swCode=`
-const CACHE='dg-app-v8';
-const SHELL=['/'];
-self.addEventListener('install',e=>{
-  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));
-});
-self.addEventListener('activate',e=>{
-  e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
-});
-self.addEventListener('fetch',e=>{
-  const url=new URL(e.request.url);
-  // Network-first for Supabase API calls
-  if(url.hostname.includes('supabase')){
-    e.respondWith(fetch(e.request).catch(()=>new Response(JSON.stringify([]),{headers:{'Content-Type':'application/json'}})));
-    return;
-  }
-  // Cache-first for same-origin (app shell)
-  if(url.origin===self.location.origin){
-    e.respondWith(caches.match(e.request).then(cached=>{
-      const net=fetch(e.request).then(r=>{
-        if(r.ok){const cl=r.clone();caches.open(CACHE).then(c=>c.put(e.request,cl));}
-        return r;
-      }).catch(()=>cached);
-      return cached||net;
-    }));
-  }
-});
-`;
-  const blob=new Blob([swCode],{type:'application/javascript'});
-  const swUrl=URL.createObjectURL(blob);
+// ── SERVICE WORKER ─────────────────────────────────────────────────────
+// One registration, one cache. This used to also build a second worker
+// from a blob URL; the two fought over the same scope and each one's
+// activate handler deleted the other's cache on every load, so nothing
+// stayed cached. sw.js is the only worker now — it also backs
+// notifications on phones (see sendNotif).
+if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
   window.addEventListener('load',function(){
-    navigator.serviceWorker.register(swUrl,{scope:'/'}).catch(function(){
-      // Fallback: try sw.js if blob URL fails (some browsers restrict blob SW)
-      navigator.serviceWorker.register('sw.js').catch(function(){});
-    });
+    navigator.serviceWorker.register('sw.js').catch(function(){});
   });
 }
 
@@ -3013,40 +2986,10 @@ async function saveServiceRequest(){
   var problem=(document.getElementById('sr_problem').value||'').trim();
   var prefDate=document.getElementById('sr_date').value||'';
   var phone=(document.getElementById('sr_phone').value||'').trim();
-  var newName=(document.getElementById('sr_newname').value||'').trim();
-  if(!_srCustId&&!problem&&!phone&&!newName){toast('Add a customer or describe the call','er');return;}
-  var now=new Date();
-  var stampedNote='Requested '+now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-  if(newName)stampedNote+=' \u00b7 caller: '+newName;
-  if(phone)stampedNote+=' \u00b7 callback '+phone;
-  var body={
-    customer_id:_srCustId||null,
-    equipment_id:_srEqId||null,
-    status:'Request',
-    problem:problem,
-    scheduled_date:prefDate||null,
-    internal_notes:stampedNote
-  };
-  try{
-    var created=await post('work_orders',body);
-    if(created&&created[0]){
-      wos.unshift(created[0]);
-      closeM();
-      toast('Service request saved \u2713','ok');
-      if(_dashMode==='wolist')renderList();else renderDashboard();
-      counts();
-    }else{toast('Could not save request','er');}
-  }catch(e){toast('Could not save request','er');}
-}
-async function saveServiceRequest(){
-  var problem=(document.getElementById('sr_problem').value||'').trim();
-  var prefDate=document.getElementById('sr_date').value||'';
-  var phone=(document.getElementById('sr_phone').value||'').trim();
   // Also capture whatever name was typed in the search box — if the
   // caller isn't in the system yet, this is the only record of their name.
   var typedName='';
   if(!_srCustId){
-    var srSel=document.getElementById('sr_csel');
     var srSearch=document.getElementById('sr_csearch');
     typedName=(srSearch&&srSearch.value||'').trim();
   }
@@ -3056,7 +2999,8 @@ async function saveServiceRequest(){
   if(typedName)stampedNote+=' \u00b7 caller: '+typedName;
   if(phone)stampedNote+=' \u00b7 callback '+phone;
   var body={
-    customer_id:_srCustId,
+    customer_id:_srCustId||null,
+    equipment_id:_srEqId||null,
     status:'Request',
     problem:problem,
     scheduled_date:prefDate||null,
@@ -15597,14 +15541,6 @@ function sendNotif(title, body, opts) {
     try { new Notification(title, o); } catch(e) {}
   }
 }
-
-// V25: register a lightweight service worker (sw.js next to this file) so
-// notifications work on phones. Fails silently if sw.js isn't hosted yet.
-(function(){
-  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
-    navigator.serviceWorker.register('sw.js').catch(function(){});
-  }
-})();
 
 function scheduleReminderCheck() {
   if (_reminderTimer) clearInterval(_reminderTimer);
