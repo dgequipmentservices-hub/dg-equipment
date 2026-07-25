@@ -183,4 +183,9 @@ ALTER TABLE app_users ADD COLUMN IF NOT EXISTS password_iterations INTEGER;
 -- and keep them off the public API.
 ALTER FUNCTION public.assign_invoice_number() SET search_path = public;
 ALTER FUNCTION public.set_updated_at() SET search_path = public;
+-- Postgres grants EXECUTE on functions to PUBLIC by default, so revoking from
+-- anon and authenticated individually is not enough — PUBLIC has to go first
+-- or the function stays callable. It is SECURITY DEFINER and writes oem_xref.
+REVOKE EXECUTE ON FUNCTION public.load_oem_xref_batch(jsonb) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.load_oem_xref_batch(jsonb) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.load_oem_xref_batch(jsonb) TO service_role;
