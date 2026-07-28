@@ -921,7 +921,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-07-10 · V27.20</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-07-28 · V27.21</div>
   </div>
 </div>
 
@@ -1724,14 +1724,37 @@ function fetchT(url,opts,ms){
 // screen once rather than letting every screen render its own error — the
 // token can't be refreshed from the browser, so signing in again is the
 // only way forward.
+//
+// Two things this must NOT do. It must not fire when nobody is signed in:
+// the background loops (reminder check, QBO refresh) keep polling on the
+// login screen, and their 401s used to raise "Session expired" over a login
+// form the user had not even filled in yet. And a bounce armed by the old
+// session must not land on the new one — the 1.2s timer used to fire right
+// after a successful sign-in, wiping the fresh token mid-load, so the app
+// threw the user straight back to the login screen. _authSession is bumped
+// on every sign-in; a timer armed under an older number is dropped.
 var _authFailed=false;
+var _authSession=0;
+var _logoutTimer=null;
 function _handleAuthFailure(status){
   if(status!==401&&status!==403)return false;
+  if(!userRole&&!_sessionToken)return true; // signed out — no session to expire
   if(_authFailed)return true;
   _authFailed=true;
+  var gen=_authSession;
   toast('Session expired — please sign in again','er');
-  setTimeout(function(){_authFailed=false;if(typeof logOut==='function')logOut();},1200);
+  _logoutTimer=setTimeout(function(){
+    _authFailed=false;_logoutTimer=null;
+    if(gen!==_authSession)return; // a newer sign-in already replaced this session
+    if(typeof logOut==='function')logOut('Your session expired — please sign in again');
+  },1200);
   return true;
+}
+// Called on sign-in: retires any bounce still pending from the old session.
+function _newAuthSession(){
+  _authSession++;
+  _authFailed=false;
+  if(_logoutTimer){clearTimeout(_logoutTimer);_logoutTimer=null;}
 }
 
 // Sanitize raw Supabase/PostgREST errors before showing to user
@@ -1814,8 +1837,10 @@ async function checkAuth(){
     await init();
   } else {
     // Clear any stale session token
-    _sessionToken=null;H=_getHeaders();
+    _sessionToken=null;userRole=null;H=_getHeaders();
     localStorage.removeItem('dg_st');
+    localStorage.removeItem('dg_role');
+    document.getElementById('loginErr').textContent=(saved&&expired)?'Your session expired — please sign in again':'';
     document.getElementById('loginScr').style.display='flex';
     setTimeout(()=>document.getElementById('loginUser').focus(),200);
   }
@@ -1864,6 +1889,7 @@ async function init(){
 // Silently refresh QBO token every 45 min so it never expires mid-session
 async function silentQBORefresh(){
   try{
+    if(!_sessionToken)return; // signed out — would just send "Bearer null"
     var last=localStorage.getItem('_qboRefreshTs');
     if(last&&(Date.now()-parseInt(last))<45*60*1000)return;
     var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'refresh'})});
@@ -9820,6 +9846,10 @@ async function doLogin(){
     });
     const data=await res.json();
     if(data.ok){
+      // Do this before anything else: a 401 from a background poll that ran
+      // while this request was in flight has a logOut() queued behind it, and
+      // it would otherwise tear down the session we are about to set up.
+      _newAuthSession();
       userRole=data.role;
       // Store session token returned by auth function
       _sessionToken=data.session_token||null;
@@ -9844,7 +9874,10 @@ async function doLogin(){
   }
 }
 
-function logOut(){
+// reason: shown on the login screen when the app signed the user out on its
+// own. The toast that goes with it has usually faded by the time the login
+// screen is up, which left the user staring at a blank form.
+function logOut(reason){
   // Nothing to tear down server-side: the JWT is per-device and expires on
   // its own. The old global session_active flag meant one person signing
   // out cut off everyone else who was still working.
@@ -9857,7 +9890,7 @@ function logOut(){
   document.body.classList.remove('tech-mode');
   document.getElementById('loginUser').value='';
   document.getElementById('loginPass').value='';
-  document.getElementById('loginErr').textContent='';
+  document.getElementById('loginErr').textContent=(typeof reason==='string'?reason:'');
   document.getElementById('loginBtn').disabled=false;
   document.getElementById('loginBtn').textContent='Sign In';
   document.getElementById('loginScr').style.display='flex';
@@ -12001,8 +12034,10 @@ async function dpLinkAfterWOSave(woId){
   }catch(e){}
 }
 
+// Reminders are loaded by init() once checkAuth() confirms a session. Calling
+// loadReminders() here as well fired an unauthenticated read on every cold
+// start, which 401'd straight into the "Session expired" bounce.
 checkAuth();
-loadReminders();
 
 // Shrink modal when keyboard opens on mobile
 if(window.visualViewport){
@@ -12045,14 +12080,18 @@ function installApp(){
   }
 }
 
-// Auto-logout on visibility change if session expired
+// Auto-logout on visibility change if session expired.
+// Trust the token's own expiry (12h) the same way checkAuth() does. The old
+// hard-coded 4-hour window cut valid sessions short mid-afternoon and blamed
+// it on an expired session.
 document.addEventListener('visibilitychange', function(){
   if(document.visibilityState==='visible' && userRole){
+    const st=localStorage.getItem('dg_st');
     const loginTs=parseInt(localStorage.getItem('dg_login_ts')||'0');
     const SESSION_MS=4*60*60*1000;
-    if(Date.now()-loginTs>SESSION_MS){
+    if(st?_tokenExpired(st):(Date.now()-loginTs>SESSION_MS)){
       toast('Session expired — please log in again','er');
-      setTimeout(logOut, 1500);
+      setTimeout(function(){logOut('Your session expired — please sign in again');}, 1500);
     }
   }
 });
@@ -15522,6 +15561,7 @@ async function sendSaleShare() {
 // ─────────────────────────────────────────
 var _notifPermission = 'default';
 var _reminderTimer = null;
+var _reminderVisBound = false;
 
 function initNotifications() {
   // V25 FIX: the in-app reminder banner must run with or without
@@ -15577,6 +15617,7 @@ function sendNotif(title, body, opts) {
 function scheduleReminderCheck() {
   if (_reminderTimer) clearInterval(_reminderTimer);
   function runCheck() {
+    if (!userRole) return; // signed out: these reads would 401 on the login screen
     var ps = [];
     if (!_reminders.length) ps.push(loadReminders());
     if (!_leads.length) ps.push(loadLeads());
@@ -15585,7 +15626,12 @@ function scheduleReminderCheck() {
   }
   _reminderTimer = setInterval(runCheck, 30 * 60 * 1000);
   setTimeout(runCheck, 4000);
-  document.addEventListener('visibilitychange', function(){ if(!document.hidden) runCheck(); });
+  // Bound once — this runs again on every sign-in, and a listener per sign-in
+  // meant a burst of duplicate reads every time the app came back to the front.
+  if (!_reminderVisBound) {
+    _reminderVisBound = true;
+    document.addEventListener('visibilitychange', function(){ if(!document.hidden) runCheck(); });
+  }
 }
 function checkReminders(){ checkDueReminders(); }
 function toggleListSearch(){

@@ -1,4 +1,6 @@
-const CACHE = 'dg-equipment-v2';
+// Bump on every release: activate() drops the old cache, so installed phones
+// pick up the new index.html on the next launch instead of the one after.
+const CACHE = 'dg-equipment-v3';
 const SHELL = [
   './',
   './index.html',
