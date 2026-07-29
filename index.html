@@ -3956,7 +3956,7 @@ async function saveMachine(){
           var pf=_nmPhotos[pi].file;
           var path=eq.id+'/'+Date.now()+pi+'.'+( pf.name.split('.').pop()||'jpg');
           try{
-            var pr=await fetch(SU+'/storage/v1/object/equipment-photos/'+path,{method:'POST',headers:{'apikey':SK,'Authorization':'Bearer '+SK},body:pf});
+            var pr=await fetch(SU+'/storage/v1/object/equipment-photos/'+path,{method:'POST',headers:{'apikey':SK,'Authorization':'Bearer '+(_sessionToken||SK)},body:pf});
             if(pr.ok)photos.push(SU+'/storage/v1/object/public/equipment-photos/'+path);
           }catch(pe){}
         }
@@ -4511,7 +4511,7 @@ async function dupeMergeConfirm(){
     toast('Merging\u2026','');
     await patch('inventory',merged,'?id=eq.'+primary.id);
     for(var i=0;i<others.length;i++){
-      await fetch(SU+'/rest/v1/inventory?id=eq.'+others[i].id,{method:'DELETE',headers:{'apikey':SK,'Authorization':'Bearer '+SK}});
+      await fetch(SU+'/rest/v1/inventory?id=eq.'+others[i].id,{method:'DELETE',headers:{'apikey':SK,'Authorization':'Bearer '+(_sessionToken||SK)}});
     }
     Object.assign(primary,merged);
     inv=inv.filter(function(p){return !others.some(function(o){return o.id===p.id;});});
@@ -5447,7 +5447,7 @@ async function _qcUploadPhotos(){
       var ext=(p.file.type||'image/jpeg').includes('png')?'png':'jpg';
       var fname='captures/'+Date.now()+'_'+i+'.'+ext;
       var res=await fetch(SU+'/storage/v1/object/equipment-photos/'+fname,{
-        method:'POST',headers:{'Content-Type':p.file.type||'image/jpeg','apikey':SK,'Authorization':'Bearer '+SK},body:p.file
+        method:'POST',headers:{'Content-Type':p.file.type||'image/jpeg','apikey':SK,'Authorization':'Bearer '+(_sessionToken||SK)},body:p.file
       });
       if(res.ok)urls.push({url:SU+'/storage/v1/object/public/equipment-photos/'+fname,tag:p.tag});
     }catch(e){console.warn('Capture photo upload failed:',e.message);}
@@ -9261,7 +9261,7 @@ function openDiagram(url,type){
 async function delDiagram(id){
   if(!confirm('Remove this diagram?'))return;
   try{
-    await fetch(SU+'/rest/v1/parts_diagrams?id=eq.'+id,{method:'DELETE',headers:{'apikey':SK,'Authorization':'Bearer '+SK}});
+    await fetch(SU+'/rest/v1/parts_diagrams?id=eq.'+id,{method:'DELETE',headers:{'apikey':SK,'Authorization':'Bearer '+(_sessionToken||SK)}});
     diagrams=(diagrams||[]).filter(function(d){return d.id!==id;});
     renderDgmBrands();renderDiagrams();toast('Removed','ok');
   }catch(e){toast('Delete failed','er');}
@@ -9573,7 +9573,7 @@ async function dgmSaveAllPending(){
     try{
       var ext=e.file_type==='pdf'?'pdf':((e.file.name.split('.').pop())||'jpg').toLowerCase();
       var path=(pnorm(e.brand)||'x')+'/'+(pnorm(e.model)||'x')+'-'+Date.now()+'-'+i+'.'+ext;
-      var pr=await fetch(SU+'/storage/v1/object/parts-diagrams/'+path,{method:'POST',headers:{'apikey':SK,'Authorization':'Bearer '+SK},body:e.file});
+      var pr=await fetch(SU+'/storage/v1/object/parts-diagrams/'+path,{method:'POST',headers:{'apikey':SK,'Authorization':'Bearer '+(_sessionToken||SK)},body:e.file});
       if(!pr.ok)throw new Error('upload '+pr.status);
       var url=SU+'/storage/v1/object/public/parts-diagrams/'+path;
       var row={brand:e.brand.trim(),model:e.model.trim(),section:e.section.trim()||'Diagram',file_url:url,file_type:e.file_type,parts:e.parts};
@@ -10638,7 +10638,7 @@ async function addEqPhoto(eqId){
       formData.append('file',file);
       const resp=await fetch(SU+'/storage/v1/object/equipment-photos/'+path,{
         method:'POST',
-        headers:{'apikey':SK,'Authorization':'Bearer '+SK},
+        headers:{'apikey':SK,'Authorization':'Bearer '+(_sessionToken||SK)},
         body:file
       });
       if(!resp.ok)throw new Error(await resp.text());
@@ -10856,7 +10856,7 @@ async function openInvoice(id, create) {
           // Try to patch with this number — DB unique constraint will reject if taken
           var patchRes = await fetch(SU+'/rest/v1/work_orders?id=eq.'+id, {
             method:'PATCH',
-            headers:{'Content-Type':'application/json','apikey':SK,'Authorization':'Bearer '+SK,'Prefer':'return=representation'},
+            headers:{'Content-Type':'application/json','apikey':SK,'Authorization':'Bearer '+(_sessionToken||SK),'Prefer':'return=representation'},
             body:JSON.stringify({invoice_number: candidate, invoiced_at: new Date().toISOString()})
           });
           if(patchRes.ok){
@@ -13995,7 +13995,7 @@ async function addScannedParts(){
       var _blob = new Blob([_ab],{type:_mime});
       var _upRes = await fetch('https://ddxjszzceaullxheejnq.supabase.co/storage/v1/object/invoice-photos/'+_fname,{
         method:'POST',
-        headers:{'Content-Type':_mime,'apikey':SK,'Authorization':'Bearer '+SK},
+        headers:{'Content-Type':_mime,'apikey':SK,'Authorization':'Bearer '+(_sessionToken||SK)},
         body:_blob
       });
       if(_upRes.ok){
