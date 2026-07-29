@@ -5288,7 +5288,9 @@ function openQuickCapture(){
   h+='</select>';
 
   h+='<div id="qc_newFields" style="display:block">';
-  h+='<div style="margin-top:8px"><div class="mlbl">Customer <span id="qc_custMatch" style="font-weight:700;color:var(--grn);display:none">\u2713 matched</span></div><input class="mi" id="qc_custTyped" placeholder="e.g. Hopkins Landscape" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" oninput="qcCustInput(this.value)"></div>';
+  h+='<div style="margin-top:8px"><div class="mlbl">Customer <span id="qc_custMatch" style="font-weight:700;color:var(--grn);display:none">\u2713 matched</span></div>';
+  h+='<div style="position:relative"><input class="mi" id="qc_custTyped" placeholder="e.g. Hopkins Landscape" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" oninput="qcCustInput(this.value)" onfocus="qcCustInput(this.value)" onblur="setTimeout(qcCloseCustDD,220)">';
+  h+='<div class="dd" id="qc_cdd" style="display:none" onmousedown="event.preventDefault()"></div></div></div>';
   h+='<div id="qc_machineSelRow" style="display:none;margin-top:8px"><div class="mlbl">Their machine</div><select class="mi" id="qc_machineSel" onchange="qcMachineSel(this.value)"></select></div>';
   h+='<div id="qc_machineTypedRow" style="margin-top:8px"><div class="mlbl">Machine <span style="font-weight:400;color:var(--tx3)">optional</span></div>';
   h+='<div style="display:flex;gap:6px"><input class="mi" id="qc_machineTyped" placeholder="e.g. Wright WS36, SRM-225" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="flex:1">';
@@ -5299,8 +5301,13 @@ function openQuickCapture(){
   h+='<div style="margin-top:10px"><div class="mlbl">Part used <span style="font-weight:400;color:var(--tx3)">optional \u2014 pick from inventory or type</span></div><input class="mi" id="qc_part" list="qc_partsDL" placeholder="e.g. deck belt, air filter, 265-966" autocomplete="off" autocorrect="off" spellcheck="false"><datalist id="qc_partsDL">'+_pdl+'</datalist></div>';
   h+='<div style="margin-top:10px"><div class="mlbl">Note <span style="font-weight:400;color:var(--tx3)">optional</span></div><input class="mi" id="qc_note" placeholder="anything else worth remembering"></div>';
 
-  h+='<div style="margin-top:12px"><button type="button" onclick="qcTakePhoto(\'tag\')" style="width:48%;margin-right:4%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:11px;font-size:12px;font-weight:700;font-family:var(--fn);color:var(--tx2);cursor:pointer">\ud83d\udcf7 Photo: tag</button>';
-  h+='<button type="button" onclick="qcTakePhoto(\'part\')" style="width:48%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:11px;font-size:12px;font-weight:700;font-family:var(--fn);color:var(--tx2);cursor:pointer">\ud83d\udcf7 Photo: part</button></div>';
+  var _pbtn='background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:11px 6px;font-size:12px;font-weight:700;font-family:var(--fn);color:var(--tx2);cursor:pointer;flex:1';
+  h+='<div style="display:flex;gap:6px;margin-top:12px">';
+  h+='<button type="button" onclick="qcTakePhoto(\'tag\',false)" style="'+_pbtn+'">\ud83d\udcf7 Photo: tag</button>';
+  h+='<button type="button" onclick="qcTakePhoto(\'part\',false)" style="'+_pbtn+'">\ud83d\udcf7 Photo: part</button></div>';
+  h+='<div style="display:flex;gap:6px;margin-top:6px">';
+  h+='<button type="button" onclick="qcTakePhoto(\'tag\',true)" style="'+_pbtn+'">\ud83d\uddbc\ufe0f Gallery: tag</button>';
+  h+='<button type="button" onclick="qcTakePhoto(\'part\',true)" style="'+_pbtn+'">\ud83d\uddbc\ufe0f Gallery: part</button></div>';
 
   h+='<div id="qc_photoStrip" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"></div>';
   h+='</div>';
@@ -5318,10 +5325,11 @@ function qcTargetChanged(){
 // ═══ V25: capture customer match → machine dropdown + AI photo ID ═══
 var _qcCustId=null,_qcEqId=null;
 function qcCustInput(v){
+  var prevCust=_qcCustId,prevEq=_qcEqId;
   _qcCustId=null;_qcEqId=null;
-  var row=document.getElementById('qc_machineSelRow');
-  var badge=document.getElementById('qc_custMatch');
   var t=(v||'').toLowerCase().trim();
+  // Suggestion dropdown \u2014 tap a name instead of having to type it exactly
+  qcRenderCustDD(t);
   var m=null;
   if(t.length>=3){
     m=custs.find(function(cu){
@@ -5332,6 +5340,42 @@ function qcCustInput(v){
       return tw.length&&tw.every(function(w){return n.split(/\s+/).some(function(x){return x.indexOf(w)===0;});});
     });
   }
+  // Same customer as before (e.g. the field was just re-focused) — keep their machine picked
+  qcApplyCust(m,(m&&prevCust===m.id)?prevEq:null);
+}
+function qcRenderCustDD(t){
+  var dd=document.getElementById('qc_cdd');if(!dd)return;
+  if(!t||t.length<2){dd.style.display='none';return;}
+  var digits=t.replace(/\D/g,'');
+  var matches=(custs||[]).filter(function(c){
+    if((c.name||'').toLowerCase().includes(t))return true;
+    return digits.length>=3&&(c.phone||'').replace(/\D/g,'').includes(digits);
+  }).slice(0,8);
+  if(!matches.length){dd.style.display='none';return;}
+  dd.innerHTML=matches.map(function(c){
+    var eqs=(equips||[]).filter(function(e){return e.customer_id===c.id;});
+    var eqStr=eqs.slice(0,2).map(function(e){return(e.make||'')+(e.model?' '+e.model:'');}).join(', ')+(eqs.length>2?' +more':'');
+    return'<div class="ddi" data-cid="'+c.id+'" onclick="qcPickCust(this.dataset.cid)">'
+      +'<div style="font-size:13px;font-weight:700">'+esc(c.name||'')+'</div>'
+      +'<div style="font-size:11px;color:var(--tx3)">'+esc(c.phone||'')+(eqStr.trim()?' \u00b7 '+esc(eqStr):'')+'</div>'
+      +'</div>';
+  }).join('');
+  dd.style.display='block';
+}
+function qcCloseCustDD(){var dd=document.getElementById('qc_cdd');if(dd)dd.style.display='none';}
+function qcPickCust(id){
+  var c=(custs||[]).find(function(x){return x.id===id;});
+  if(!c)return;
+  var inp=document.getElementById('qc_custTyped');
+  if(inp)inp.value=c.name||'';
+  qcCloseCustDD();
+  _qcEqId=null;
+  qcApplyCust(c);
+}
+// Shared: light up the matched badge and load that customer's machines
+function qcApplyCust(m,keepEqId){
+  var row=document.getElementById('qc_machineSelRow');
+  var badge=document.getElementById('qc_custMatch');
   if(m){
     _qcCustId=m.id;
     if(badge)badge.style.display='inline';
@@ -5343,12 +5387,17 @@ function qcCustInput(v){
       eqs.forEach(function(e){h+='<option value="'+e.id+'">'+esc((e.make||'')+' '+(e.model||''))+(e.serial?' \u00b7 SN '+esc(e.serial):'')+'</option>';});
       h+='<option value="__new">Not listed \u2014 type it below</option>';
       sel.innerHTML=h;
+      if(keepEqId&&eqs.some(function(e){return e.id===keepEqId;})){sel.value=keepEqId;_qcEqId=keepEqId;}
+      else sel.value='';
       if(row)row.style.display='block';
     } else if(row)row.style.display='none';
   } else {
+    _qcCustId=null;
     if(badge)badge.style.display='none';
     if(row)row.style.display='none';
   }
+  var typedRow=document.getElementById('qc_machineTypedRow');
+  if(typedRow)typedRow.style.display=_qcEqId?'none':'block';
 }
 function qcMachineSel(v){
   _qcEqId=(v&&v!=='__new')?v:null;
@@ -5410,17 +5459,21 @@ async function qcIdMachine(){
   if(btn){btn.disabled=false;btn.textContent='\u2728 ID';}
 }
 
-function qcTakePhoto(tag){
-  var inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.capture='environment';
+// gallery=true opens the photo library (multi-select allowed); otherwise straight to the camera
+function qcTakePhoto(tag,gallery){
+  var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+  if(gallery)inp.multiple=true;else inp.setAttribute('capture','environment');
   inp.onchange=function(){
-    if(!inp.files||!inp.files[0])return;
-    var file=inp.files[0];
-    var reader=new FileReader();
-    reader.onload=function(e){
-      _qcPhotos.push({file:file,dataUrl:e.target.result,tag:tag});
-      renderQcPhotoStrip();
-    };
-    reader.readAsDataURL(file);
+    var files=inp.files?Array.prototype.slice.call(inp.files):[];
+    if(!files.length)return;
+    files.forEach(function(file){
+      var reader=new FileReader();
+      reader.onload=function(e){
+        _qcPhotos.push({file:file,dataUrl:e.target.result,tag:tag});
+        renderQcPhotoStrip();
+      };
+      reader.readAsDataURL(file);
+    });
   };
   inp.click();
 }
