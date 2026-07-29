@@ -7,9 +7,11 @@
 // the model, since it was taken straight from the request.
 //
 // Now it requires the same app JWT the rest of the app uses, and the model is
-// chosen here rather than by the caller.
+// chosen here rather than by the caller. verify_jwt stays off at the platform
+// level because the app signs its own tokens rather than using Supabase Auth;
+// the check below is the gate.
 //
-// Requires ANTHROPIC_API_KEY and APP_JWT_SECRET.
+// Requires ANTHROPIC_API_KEY, and the same JWT secret app-auth signs with.
 
 import Anthropic from 'npm:@anthropic-ai/sdk';
 import { verify } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
