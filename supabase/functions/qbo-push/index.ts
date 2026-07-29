@@ -19,7 +19,12 @@ const CLIENT_ID = Deno.env.get('QBO_CLIENT_ID')!;
 const CLIENT_SECRET = Deno.env.get('QBO_CLIENT_SECRET')!;
 const SU = Deno.env.get('SUPABASE_URL')!;
 const SK = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const JWT_SECRET = Deno.env.get('APP_JWT_SECRET') || '';
+// Same resolution order as app-auth — see the note in ai-proxy. Reading only
+// APP_JWT_SECRET here rejected every token app-auth signed via its
+// SUPABASE_JWT_SECRET fallback, which is what 401'd QuickBooks for a signed-in
+// user whose ordinary reads were going through fine.
+const JWT_SECRET = Deno.env.get('APP_JWT_SECRET') ||
+  Deno.env.get('SUPABASE_JWT_SECRET') || '';
 const QBO_BASE = 'https://quickbooks.api.intuit.com';
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
 
@@ -166,6 +171,13 @@ Deno.serve(async (req: Request) => {
 
   // Every action below reads or writes real accounting data, so the gate goes
   // before the body is even parsed.
+  // A missing secret is a server problem, not a signed-out user — say so
+  // rather than sending someone off to re-check their password.
+  if (!JWT_SECRET) {
+    return new Response(JSON.stringify({ error: 'QuickBooks sync not configured — no app JWT secret set' }), {
+      status: 503, headers: { ...cors, 'Content-Type': 'application/json' }
+    });
+  }
   if (!(await isSignedIn(req))) {
     return new Response(JSON.stringify({ error: 'Sign in to use QuickBooks features' }), {
       status: 401, headers: { ...cors, 'Content-Type': 'application/json' }

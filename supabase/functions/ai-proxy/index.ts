@@ -20,7 +20,15 @@ const corsHeaders = {
 };
 
 const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-const JWT_SECRET = Deno.env.get('APP_JWT_SECRET') || '';
+
+// Resolve the secret exactly the way app-auth does, or this function cannot
+// verify what app-auth signs. app-auth prefers APP_JWT_SECRET and falls back to
+// a platform-injected SUPABASE_JWT_SECRET; reading only APP_JWT_SECRET here
+// meant that whenever app-auth was running on the fallback, every token it
+// issued was rejected as unverifiable — and the user, who was signed in, was
+// told to sign in.
+const JWT_SECRET = Deno.env.get('APP_JWT_SECRET') ||
+  Deno.env.get('SUPABASE_JWT_SECRET') || '';
 
 // Callers may not pick the model — that decides the bill.
 const MODEL = 'claude-sonnet-4-6';
@@ -58,6 +66,11 @@ Deno.serve(async (req: Request) => {
   }
   if (!apiKey) {
     return json({ error: 'AI service not configured — set ANTHROPIC_API_KEY secret' }, 503);
+  }
+  // A missing secret is a server problem, not a signed-out user. Telling a
+  // signed-in user to sign in sends them chasing their own password.
+  if (!JWT_SECRET) {
+    return json({ error: 'AI service not configured — no app JWT secret set' }, 503);
   }
   if (!(await isSignedIn(req))) {
     return json({ error: 'Sign in to use AI features' }, 401);
