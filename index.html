@@ -12336,6 +12336,9 @@ async function updateInQBO(woId){
     if(data.qbo_disconnected){_qboDisconnectedBanner();return;}
     if(data.error){toast('QBO error: '+data.error,'er');return;}
     toast('Updated in QBO — total $'+parseFloat(data.qbo_total||0).toFixed(2),'ok');
+    // Re-attach so the PDF on the QBO record matches the invoice as it now
+    // stands, rather than the version pushed before the edit.
+    attachInvoicePdfToQBO(woId,w.qbo_invoice_id);
     openInvoice(woId);
   }catch(e){toast('Update failed: '+e.message,'er');}
 }
@@ -12409,6 +12412,54 @@ async function pushPaymentToQBO(woId){
   }catch(e){toast('Push failed: '+e.message,'er');}
 }
 
+
+// ── INVOICE PDF → QUICKBOOKS ATTACHMENTS ──────────────────────────────
+// QBO generates its own invoice PDF, but that isn't this one — the shop's
+// copy carries the machine breakdown and the warranty terms. Attaching it to
+// the QBO invoice keeps the version the customer was actually sent on the
+// accounting record.
+//
+// The invoice is one tall page rather than paginated A4: it renders from a
+// single canvas, and splitting it across pages would cut through line items.
+async function invoicePdfBase64(woId){
+  var r=await saveInvoiceAsImage(woId,true);
+  if(!r||!r.canvas)throw new Error('Could not render invoice');
+  if(!window.jspdf){
+    await new Promise(function(resolve,reject){
+      var s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      s.onload=resolve;s.onerror=function(){reject(new Error('Could not load PDF library'));};
+      document.head.appendChild(s);
+    });
+  }
+  if(!window.jspdf||!window.jspdf.jsPDF)throw new Error('PDF library unavailable');
+  var pw=595.28;                                  // A4 width in points
+  var hpt=r.canvas.height*(pw/r.canvas.width);    // keep the aspect ratio
+  var doc=new window.jspdf.jsPDF({unit:'pt',format:[pw,hpt]});
+  doc.addImage(r.canvas.toDataURL('image/jpeg',0.92),'JPEG',0,0,pw,hpt);
+  var uri=doc.output('datauristring');
+  return {b64:uri.substring(uri.indexOf(',')+1),invNum:r.invNum};
+}
+
+// Deliberately swallows its own failures. A missing attachment is a filing
+// inconvenience; a thrown error here would make a successful invoice push look
+// like it failed, which is worse.
+async function attachInvoicePdfToQBO(woId,qboInvId){
+  if(!qboInvId)return;
+  try{
+    var p=await invoicePdfBase64(woId);
+    var res=await fetch(QBO_PUSH_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
+      body:JSON.stringify({action:'attach_pdf',qbo_invoice_id:qboInvId,filename:p.invNum+'.pdf',pdf_base64:p.b64})
+    });
+    var d=await res.json();
+    if(d&&d.success)toast('PDF attached in QuickBooks ✓','ok');
+    else toast('Pushed OK — PDF attach failed'+(d&&d.error?': '+d.error:''),'er');
+  }catch(e){
+    toast('Pushed OK — PDF attach failed: '+(e.message||'unknown'),'er');
+  }
+}
 
 // Catches $0 / mismatched line items before they reach QuickBooks — the exact
 // failure mode that silently zeroed a blade-sharpening line in the past.
@@ -12541,6 +12592,9 @@ async function pushToQBO(woId,allowDup){
       }
     }
     await patch('work_orders',_invNumUpdate,'?id=eq.'+woId);
+    // After the work order is saved, so a slow render or a failed attach can
+    // never cost us the push result we just recorded.
+    attachInvoicePdfToQBO(woId,_qboInvId);
     var wi=wos.findIndex(function(x){return x.id===woId;});
     if(wi>=0){
       wos[wi].qbo_pushed=true;
@@ -12557,7 +12611,7 @@ async function pushToQBO(woId,allowDup){
 }
 
 
-async function saveInvoiceAsImage(woId){
+async function saveInvoiceAsImage(woId,_returnCanvas){
   toast('Generating image…','');
   try{
     // Build the same clean white HTML that printInvoiceClean uses
@@ -12656,12 +12710,18 @@ async function saveInvoiceAsImage(woId){
 
     document.body.removeChild(iframe);
 
+    // The PDF path needs the same pixels, so hand the canvas back instead of
+    // downloading it rather than rendering the invoice twice.
+    if(_returnCanvas)return {canvas:canvas,invNum:invNum};
+
     var link=document.createElement('a');
     link.download=invNum+'.jpg';
     link.href=canvas.toDataURL('image/jpeg',0.95);
     link.click();
     toast('Saved '+invNum+'.jpg ✓','ok');
   }catch(e){
+    // Callers building a PDF need the failure, not a print dialog.
+    if(_returnCanvas)throw e;
     toast('JPG failed: '+e.message,'er');
     // fallback: just open print window
     printInvoiceClean();

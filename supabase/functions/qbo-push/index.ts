@@ -342,6 +342,57 @@ Deno.serve(async (req: Request) => {
       return ok({ success: true, qbo_invoice_id: updateD.Invoice.Id, qbo_total: updateD.Invoice.TotalAmt, qbo_balance: updateD.Invoice.Balance, qbo_doc: updateD.Invoice.DocNumber, debug_sent_lines: lines, debug_sent_taxdetail: updatePayload.TxnTaxDetail || null, debug_returned_taxdetail: updateD.Invoice.TxnTaxDetail || null, debug_returned_lines: updateD.Invoice.Line });
     }
 
+    if (action === 'attach_pdf') {
+      const { qbo_invoice_id: qboInvId, filename, pdf_base64 } = body;
+      if (!qboInvId) return fail('qbo_invoice_id required');
+      if (!pdf_base64) return fail('pdf_base64 required');
+
+      const bin = Uint8Array.from(atob(pdf_base64), (c) => c.charCodeAt(0));
+      const name = filename || `invoice-${qboInvId}.pdf`;
+
+      // QBO's /upload endpoint wants a multipart body with these exact part
+      // names — file_metadata_NN carrying the Attachable JSON and
+      // file_content_NN carrying the bytes. The names are positional, not
+      // arbitrary, and a mismatch is rejected without a useful message.
+      const form = new FormData();
+      form.append(
+        'file_metadata_01',
+        new Blob([JSON.stringify({
+          AttachableRef: [{ EntityRef: { type: 'Invoice', value: String(qboInvId) } }],
+          FileName: name,
+          ContentType: 'application/pdf',
+        })], { type: 'application/json' }),
+        'metadata.json',
+      );
+      form.append(
+        'file_content_01',
+        new Blob([bin], { type: 'application/pdf' }),
+        name,
+      );
+
+      // Not qboFetch: that merges in Content-Type: application/json, which
+      // would override the multipart content type fetch generates and strip
+      // the boundary, so QBO would reject the body. Token refresh on 401 is
+      // handled inline instead.
+      const upload = (tok: string) => fetch(`${baseUrl}/upload?minorversion=73`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${tok}`, 'Accept': 'application/json' },
+        body: form,
+      });
+      let r = await upload(accessToken);
+      if (r.status === 401) {
+        const { data: ft } = await supabase.from('qbo_tokens').select('*').eq('id', 1).single();
+        const refreshed = await refreshTokens(supabase, ft.refresh_token);
+        accessToken = refreshed.accessToken;
+        r = await upload(accessToken);
+      }
+      const d = await r.json();
+      const att = d?.AttachableResponse?.[0];
+      if (att?.Fault) return fail(qboErr(att));
+      if (!att?.Attachable?.Id) return fail(qboErr(d));
+      return ok({ success: true, attachment_id: att.Attachable.Id, filename: name });
+    }
+
     if (action === 'get_payment_link') {
       const { qbo_invoice_id: qboInvId } = body;
       if (!qboInvId) return fail('qbo_invoice_id required');
