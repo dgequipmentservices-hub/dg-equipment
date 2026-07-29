@@ -12307,6 +12307,13 @@ async function updateInQBO(woId){
   if(ccOn&&ccAmt>0){
     lineItems.push({item_name:'Non-Inventory',description:'3% Processing Fee',qty:1,rate:ccAmt,amount:ccAmt,taxable:taxOn});
   }
+  // The processing fee line goes over as taxable, and the invoice screen adds
+  // tax on it (_ccTax) when totalling. The explicit TotalTax sent to QBO has to
+  // include it too, or QBO bills the fee untaxed and comes out short by exactly
+  // that amount on every taxable card invoice. Rounded the same way the screen
+  // rounds it so the two agree to the cent.
+  var ccTaxQbo=(ccOn&&taxOn&&ccAmt>0)?parseFloat((ccAmt*0.08625).toFixed(2)):0;
+  var taxTotalQbo=taxOn?parseFloat((taxForCc+ccTaxQbo).toFixed(2)):0;
   if(!lineItems.length){toast('No line items to update','er');return;}
   try{
     var payload={
@@ -12318,7 +12325,7 @@ async function updateInQBO(woId){
         date:today,
         due_date:dueDateStr,
         memo:w.problem||'',
-        tax_amount:taxForCc,
+        tax_amount:taxTotalQbo,
         line_items:lineItems
       }
     };
@@ -12490,6 +12497,10 @@ async function pushToQBO(woId,allowDup){
     if(ccOn&&ccAmt>0){
       lineItems.push({item_name:'Non-Inventory',description:'3% Processing Fee',qty:1,rate:ccAmt,amount:ccAmt,taxable:taxOn});
     }
+    // See the update path: the fee is sent as taxable and the invoice screen
+    // taxes it, so the explicit TotalTax must cover it or QBO under-bills.
+    var ccTaxQbo=(ccOn&&taxOn&&ccAmt>0)?parseFloat((ccAmt*0.08625).toFixed(2)):0;
+    var taxTotalQbo=taxOn?parseFloat((taxForCc+ccTaxQbo).toFixed(2)):0;
     // Adjustments always get their own line, explicitly marked non-taxable.
     // Folding them into another line's amount (the old approach) made that
     // line partially untaxed in the app's math but fully taxed by QBO's own
@@ -12503,7 +12514,7 @@ async function pushToQBO(woId,allowDup){
     var woPaymentsForPush=payments.filter(function(p){return p.work_order_id===woId;}).map(function(p){
       return {amount:parseFloat(p.amount||0),method:p.method||'Other',note:p.note||'',date:(p.payment_date||p.created_at||today).split('T')[0]};
     });
-    const payload={action:'push_invoice',invoice:{invoice_number:invNum,customer_name:c.name||'Customer',customer_phone:c.phone||'',date:today,due_date:dueDateStr,memo:w.problem||'',tax_amount:taxOn?parseFloat((sub*0.08625).toFixed(2)):0,line_items:lineItems,payments:woPaymentsForPush}};
+    const payload={action:'push_invoice',invoice:{invoice_number:invNum,customer_name:c.name||'Customer',customer_phone:c.phone||'',date:today,due_date:dueDateStr,memo:w.problem||'',tax_amount:taxTotalQbo,line_items:lineItems,payments:woPaymentsForPush}};
     if(!qboLineItemsLookSafe(lineItems)){toast('Push cancelled','');return;}
     const res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify(payload)});
     const data=await res.json();
