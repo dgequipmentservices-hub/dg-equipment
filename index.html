@@ -1806,16 +1806,23 @@ function _tokenExpired(tok){
   }catch(e){return true;}
 }
 
+// One rule for "is this session over", used at startup and every time the app
+// comes back to the foreground. The token's own exp is the answer whenever we
+// have a token; the 4-hour local window is only for the token-less legacy
+// path (app-auth without APP_JWT_SECRET), otherwise the app would demand a
+// fresh login every time it opened.
+function _sessionExpired(){
+  var st=localStorage.getItem('dg_st');
+  if(st)return _tokenExpired(st);
+  var loginTs=parseInt(localStorage.getItem('dg_login_ts')||'0');
+  return Date.now()-loginTs>4*60*60*1000;
+}
+
 async function checkAuth(){
   const saved=localStorage.getItem('dg_role');
   const user=localStorage.getItem('dg_user');
   var st=localStorage.getItem('dg_st');
-  // Until SUPABASE_JWT_SECRET is set on the project, app-auth signs nobody in
-  // with a token — it falls back to the old session flag and returns none.
-  // Fall back to the 4-hour local window in that case, otherwise the app
-  // would demand a fresh login every time it opened.
-  const loginTs=parseInt(localStorage.getItem('dg_login_ts')||'0');
-  const expired=st?_tokenExpired(st):(Date.now()-loginTs>4*60*60*1000);
+  const expired=_sessionExpired();
   if(saved&&!expired){
     userRole=saved;
     if(st){_sessionToken=st;H=_getHeaders();}
@@ -9919,6 +9926,15 @@ async function doLogin(){
       body:JSON.stringify({username:user,password:pass})
     });
     const data=await res.json();
+    if(data.ok&&!data.session_token){
+      // The password was right, but app-auth had no APP_JWT_SECRET to sign a
+      // token with, so it fell back to the legacy session flag. Every table
+      // now requires a real JWT, so letting this through just lands on
+      // "Session expired" a second later. Say what is actually wrong.
+      document.getElementById('loginErr').textContent='Server auth not configured — no session token issued. Set APP_JWT_SECRET on the app-auth function.';
+      btn.disabled=false;btn.textContent='Sign In';
+      return;
+    }
     if(data.ok){
       userRole=data.role;
       // Store session token returned by auth function
@@ -12145,15 +12161,15 @@ function installApp(){
   }
 }
 
-// Auto-logout on visibility change if session expired
+// Auto-logout when the app comes back to the foreground with a dead session.
+// This used to compare against a 4-hour local clock that had nothing to do
+// with the real token: the JWT is good for 12 hours, but anything that hid
+// the page — taking a photo, answering a call, switching apps — came back to
+// "Session expired" once four hours had passed since sign-in. Ask the token.
 document.addEventListener('visibilitychange', function(){
-  if(document.visibilityState==='visible' && userRole){
-    const loginTs=parseInt(localStorage.getItem('dg_login_ts')||'0');
-    const SESSION_MS=4*60*60*1000;
-    if(Date.now()-loginTs>SESSION_MS){
-      toast('Session expired — please log in again','er');
-      setTimeout(logOut, 1500);
-    }
+  if(document.visibilityState==='visible' && userRole && _sessionExpired()){
+    toast('Session expired — please log in again','er');
+    setTimeout(logOut, 1500);
   }
 });
 
