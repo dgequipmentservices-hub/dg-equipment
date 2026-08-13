@@ -162,6 +162,21 @@ including writes, because `Prefer: return=representation` makes the response a
 `RETURNING *`. `APP_USER_COLS` in `index.html` holds the granted set; use it
 rather than spelling the columns out again.
 
+### Anything that fires on its own needs a token first
+
+`_getHeaders()` falls back to the anon key when `_sessionToken` is null, and
+since migration 008 anon can read nothing — so any request that runs before
+sign-in, after sign-out, or before the token is back in memory comes back 401.
+The 401 handler reads that as an expired session, which is how background work
+ended up signing people out of perfectly good sessions.
+
+Two things make `_sessionToken` null while a valid token sits in `localStorage`:
+the browser's **bfcache**, which restores the JS heap as it was snapshotted
+(possibly from before sign-in) when you hit back, and **timers that outlive a
+sign-out**. Call `_restoreSession()` before any self-triggered request —
+timers, `visibilitychange` handlers, retries — rather than assuming
+`_sessionToken` is populated.
+
 ## Known issues
 
 - **New users can't be created from the app.** `password_hash` is `NOT NULL`
