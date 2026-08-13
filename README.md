@@ -150,8 +150,25 @@ signing out revoked database access for everyone still working.
 
 Migration 008 removes the flag, the function, and all anon grants.
 
+### Querying `app_users` from the browser
+
+Migration 008 grants `SELECT`/`INSERT`/`UPDATE` on `app_users` **column by
+column**, so password material can't be read through PostgREST. PostgREST
+defaults to `select=*`, which asks for the ungranted columns too and fails the
+whole request with `42501 permission denied for table app_users` (HTTP 403).
+
+Every `app_users` request from `index.html` must therefore name its columns —
+including writes, because `Prefer: return=representation` makes the response a
+`RETURNING *`. `APP_USER_COLS` in `index.html` holds the granted set; use it
+rather than spelling the columns out again.
+
 ## Known issues
 
+- **New users can't be created from the app.** `password_hash` is `NOT NULL`
+  with no default and `authenticated` holds no grant on it, so the insert in
+  "Add User" fails with `23502`. Creating users needs to move into `app-auth`
+  (which has the service role and already hashes passwords) as a
+  `create_user` action, the way `set_password` works.
 - **`app_role` is not enforced by the database.** Any valid token gets full
   access to the application tables; owner-vs-tech is still an app-layer check.
   Tightening that means per-table policies keyed on the `app_role` claim.
