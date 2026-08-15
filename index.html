@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.20</title>
+<title>DG Equipment v27.22</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1730,13 +1730,33 @@ function fetchT(url,opts,ms){
   return fetch(url,fo).then(function(r){if(tid)clearTimeout(tid);return r;})
     .catch(function(e){if(tid)clearTimeout(tid);if(e.name==='AbortError')throw new Error('Request timed out');throw e;});
 }
-// A 401/403 now means the JWT expired or was rejected. Bounce to the login
-// screen once rather than letting every screen render its own error — the
-// token can't be refreshed from the browser, so signing in again is the
-// only way forward.
+// A 401 means the JWT expired or was rejected. Bounce to the login screen
+// once rather than letting every screen render its own error — the token
+// can't be refreshed from the browser, so signing in again is the only way
+// forward.
 var _authFailed=false;
 function _handleAuthFailure(status){
-  if(status!==401&&status!==403)return false;
+  // 401 is the only status that means the token itself is the problem —
+  // expired, or signed with a key PostgREST no longer accepts. Signing in
+  // again is the fix, so bounce to the login screen.
+  //
+  // 403 is a valid token that simply lacks a grant for what was asked.
+  // Signing out cannot fix that: the next sign-in mints an identical token
+  // with identical privileges. Treating it as an expired session turned one
+  // missing column grant into every user being kicked to the login screen
+  // with no clue why, so it is left to the caller to report as a normal error.
+  if(status!==401)return false;
+  // A 401 with no token in hand is not an expiry. Requests fall back to the
+  // anon key when _sessionToken is null (see _getHeaders), and since migration
+  // 008 anon can read nothing, so anything firing before sign-in or after
+  // sign-out 401s by design. Two ways that happened:
+  //
+  //   - the page came back from the bfcache with a stale null in memory while
+  //     storage still held a good token — recover it and let the caller retry
+  //   - a background poll ran while the login screen was up, which used to
+  //     throw "session expired" over the login form and wipe what was typed
+  if(!_sessionToken && _restoreSession())return true;
+  if(!_sessionToken || !userRole)return true;
   if(_authFailed)return true;
   _authFailed=true;
   toast('Session expired — please sign in again','er');
@@ -1752,7 +1772,7 @@ function _dbErr(raw){
     if(j.code==='PGRST116')return 'Record not found';
     if(j.code==='23505')return 'Duplicate entry — already exists';
     if(j.code==='23503')return 'Cannot delete — has linked records';
-    if(j.code==='42501')return 'Session expired — please log in again';
+    if(j.code==='42501')return 'Not permitted — this account cannot do that';
     if(j.message)return j.message.replace(/\n/g,' ').slice(0,120);
   }catch(e){}
   if(typeof raw==='string'&&raw.length<200)return raw;
@@ -1806,16 +1826,29 @@ function _tokenExpired(tok){
   }catch(e){return true;}
 }
 
+// Put the token back in memory when it's gone missing but storage still has a
+// good one. The back button restores this page from the browser's bfcache,
+// which brings back the JS heap as it was snapshotted — and if that snapshot
+// predates sign-in, _sessionToken comes back null while dg_st is still valid.
+// Anything that fires on restore then requests as anon and gets a 401.
+function _restoreSession(){
+  if(_sessionToken)return _sessionToken;
+  var st=localStorage.getItem('dg_st');
+  if(st&&!_tokenExpired(st)){_sessionToken=st;H=_getHeaders();}
+  return _sessionToken;
+}
+
 async function checkAuth(){
   const saved=localStorage.getItem('dg_role');
   const user=localStorage.getItem('dg_user');
   var st=localStorage.getItem('dg_st');
-  // Until SUPABASE_JWT_SECRET is set on the project, app-auth signs nobody in
-  // with a token — it falls back to the old session flag and returns none.
-  // Fall back to the 4-hour local window in that case, otherwise the app
-  // would demand a fresh login every time it opened.
-  const loginTs=parseInt(localStorage.getItem('dg_login_ts')||'0');
-  const expired=st?_tokenExpired(st):(Date.now()-loginTs>4*60*60*1000);
+  // A saved role with no token is not a session worth restoring. That path
+  // dates from before the JWT secret was set, when app-auth returned no token
+  // and leaned on the old session_active flag — but migration 008 deleted that
+  // flag and every anon grant, so a tokenless session can read nothing. It
+  // used to restore anyway on a 4-hour local window and then fail every
+  // request. Require the token; without one, ask for a fresh sign-in.
+  const expired=st?_tokenExpired(st):true;
   if(saved&&!expired){
     userRole=saved;
     if(st){_sessionToken=st;H=_getHeaders();}
@@ -12092,12 +12125,19 @@ function installApp(){
   }
 }
 
-// Auto-logout on visibility change if session expired
+// Auto-logout on visibility change if session expired.
+// The token decides when the session is over — 12 hours — exactly as
+// checkAuth does. This used to apply a flat 4-hour local window no matter
+// what, so putting the phone down for a few hours and coming back signed you
+// out while the token in hand was still perfectly good.
 document.addEventListener('visibilitychange', function(){
   if(document.visibilityState==='visible' && userRole){
-    const loginTs=parseInt(localStorage.getItem('dg_login_ts')||'0');
-    const SESSION_MS=4*60*60*1000;
-    if(Date.now()-loginTs>SESSION_MS){
+    // Resuming can mean a bfcache restore, which hands back a JS heap that
+    // may predate sign-in. Re-read the token before judging the session on it.
+    _restoreSession();
+    const st=localStorage.getItem('dg_st');
+    const expired=!st||_tokenExpired(st);
+    if(expired){
       toast('Session expired — please log in again','er');
       setTimeout(logOut, 1500);
     }
@@ -15695,9 +15735,15 @@ function sendNotif(title, body, opts) {
   }
 }
 
+var _reminderVisBound = false;
 function scheduleReminderCheck() {
   if (_reminderTimer) clearInterval(_reminderTimer);
   function runCheck() {
+    // Never poll without a session. These fetches used to go out as anon
+    // whenever they beat sign-in to the punch — on the 4-second timer with
+    // the login screen still up, or on a bfcache restore — and the 401 came
+    // back as "session expired", signing out a session that was fine.
+    if (!_restoreSession()) return;
     var ps = [];
     if (!_reminders.length) ps.push(loadReminders());
     if (!_leads.length) ps.push(loadLeads());
@@ -15706,7 +15752,13 @@ function scheduleReminderCheck() {
   }
   _reminderTimer = setInterval(runCheck, 30 * 60 * 1000);
   setTimeout(runCheck, 4000);
-  document.addEventListener('visibilitychange', function(){ if(!document.hidden) runCheck(); });
+  // Bind once. This runs again on every sign-in and whenever notification
+  // permission is granted, and the listener was never removed — so each pass
+  // stacked another one and every return to the app fired runCheck N times.
+  if (!_reminderVisBound) {
+    _reminderVisBound = true;
+    document.addEventListener('visibilitychange', function(){ if(!document.hidden) runCheck(); });
+  }
 }
 function checkReminders(){ checkDueReminders(); }
 function toggleListSearch(){
@@ -16082,13 +16134,20 @@ async function convertLeadToCustomer(leadId) {
 // ─────────────────────────────────────────
 var _settingsUsers = [];
 
+// Migration 008 grants SELECT on app_users column by column, so password
+// material can never be read through PostgREST. PostgREST asks for `select=*`
+// unless told otherwise — that includes the columns it was not granted, and
+// the whole request comes back 403. Every app_users request names its columns
+// so the response stays inside the grant.
+var APP_USER_COLS = 'id,username,role,display_name,active,notes,created_at';
+
 var _appSettings = {};
 async function loadSettings() {
   var el = document.getElementById('settingsBody');
   if (el) el.innerHTML = '<div class="loading"><div class="spin"></div><br>Loading...</div>';
   try {
     var [users, settings] = await Promise.all([
-      get('app_users', '?order=created_at'),
+      get('app_users', '?select=' + APP_USER_COLS + '&order=created_at'),
       get('app_settings', '')
     ]);
     _settingsUsers = users || [];
@@ -16261,7 +16320,7 @@ async function saveNewUser() {
   if (_settingsUsers.find(function(u) { return u.username === un; })) { toast('Username already taken', 'er'); return; }
   var btn = document.getElementById('suOk'); btn.disabled = true; btn.textContent = 'Saving...';
   try {
-    var result = await post('app_users', { username: un, role: ro, display_name: dn, active: true });
+    var result = await post('app_users?select=' + APP_USER_COLS, { username: un, role: ro, display_name: dn, active: true });
     var created = Array.isArray(result) ? result[0] : result;
     if (!created || !created.id) throw new Error('Could not create user');
     // The row exists but has no password yet, so it cannot be signed into
@@ -16318,7 +16377,7 @@ async function saveEditUser(id) {
     }
     var updates = { display_name: dn, username: newUn, role: ro, active: ac };
     if (pw && pw.length < 4) { toast('Password must be at least 4 characters', 'er'); btn.disabled = false; btn.textContent = 'Save'; return; }
-    await patch('app_users', updates, '?id=eq.' + id);
+    await patch('app_users', updates, '?id=eq.' + id + '&select=' + APP_USER_COLS);
     if (pw) await setUserPassword(id, pw);
     var idx = _settingsUsers.findIndex(function(x) { return x.id === id; });
     if (idx >= 0) Object.assign(_settingsUsers[idx], updates);
