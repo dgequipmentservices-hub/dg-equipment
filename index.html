@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.22</title>
+<title>DG Equipment v27.23</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2421,6 +2421,44 @@ function csEff(w){
   return cs(w.status);
 }
 
+// Cards for captures that haven't been turned into work orders yet.
+// Only under "All": a capture has no work-order status, so a status filter has
+// nothing to match it against and would silently hide it.
+function _qcPendingCards(q){
+  if(activeF!=='all')return '';
+  var list=window._qcOpenCaptures||[];
+  if(q){
+    list=list.filter(function(c){
+      var fields=[c.customer_name_typed||'',c.machine_typed||'',c.part_typed||'',c.note||''].join(' ').toLowerCase();
+      return q.split(/\s+/).every(function(term){return fields.includes(term);});
+    });
+  }
+  if(!list.length)return '';
+  var h='<div style="padding:8px 0 2px">';
+  h+='<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--amb);padding:0 2px 6px">Quick Captures &#8212; tap to make a job</div>';
+  list.forEach(function(c){
+    // photo_urls is written as a JSON string, so it parses; guard the case
+    // where it comes back as a real array too.
+    var photos=[];
+    try{photos=JSON.parse(c.photo_urls||'[]');}
+    catch(e){if(Array.isArray(c.photo_urls))photos=c.photo_urls;}
+    if(!Array.isArray(photos))photos=[];
+    var title=c.customer_name_typed||c.machine_typed||'Untitled capture';
+    var sub=[
+      c.customer_name_typed&&c.machine_typed?c.machine_typed:'',
+      c.part_typed?'Part: '+c.part_typed:'',
+      c.note||''
+    ].filter(Boolean).join(' · ');
+    h+='<div class="wo-row" style="border-left-color:var(--amb)" data-cid="'+c.id+'" onclick="openCaptureConvert(this.dataset.cid)">';
+    h+='<div style="display:flex;align-items:center;gap:7px"><span style="background:var(--amb);color:#fff;font-size:9px;font-weight:800;border-radius:4px;padding:2px 6px;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0">Capture</span><span style="font-size:14px;font-weight:700">'+esc(title)+'</span></div>';
+    if(sub)h+='<div style="font-size:12px;color:var(--tx2);margin-top:4px">'+esc(sub)+'</div>';
+    h+='<div style="font-size:10px;color:var(--tx3);margin-top:4px">'+photos.length+' photo'+(photos.length!==1?'s':'')+' · '+new Date(c.created_at).toLocaleDateString()+'</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+  return h;
+}
+
 function renderList(){
   var q=(document.getElementById('lsrch').value||'').toLowerCase();
   var list=wos;
@@ -2445,13 +2483,19 @@ function renderList(){
   });
 
   var el=document.getElementById('listBody');
+
+  // Quick captures sit in their own table until someone converts them, so they
+  // never reach `wos` and used to be reachable only by tapping the Capture
+  // button — which reads, reasonably, as the capture having gone missing.
+  // Render them at the top of the job list where they can be seen and acted on.
+  var h=_qcPendingCards(q);
+
   if(!list.length){
-    el.innerHTML='<div class="empty"><div class="ei"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v2h6V3M9 11h6M9 15h4"/></svg></div><div class="et">No work orders</div><div class="es">'+(activeF!=='all'?'None with status "'+activeF+'"':'Tap + to get started')+'</div></div>';
+    el.innerHTML=h+'<div class="empty"><div class="ei"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v2h6V3M9 11h6M9 15h4"/></svg></div><div class="et">No work orders</div><div class="es">'+(activeF!=='all'?'None with status "'+activeF+'"':'Tap + to get started')+'</div></div>';
     return;
   }
 
   // Summary bar when showing all
-  var h='';
   if(activeF==='all'){
     var now2=new Date();now2.setHours(0,0,0,0);
     var overdueCount=list.filter(function(w){
@@ -5571,6 +5615,9 @@ async function _qcRefreshBadge(){
       if(tabBadge)tabBadge.style.display='none';
     }
     window._qcOpenCaptures=open||[];
+    // The job list renders these too, so it has to be redrawn whenever the set
+    // changes — saving a capture, converting one, or discarding one.
+    if(document.getElementById('lsrch')&&document.getElementById('listBody'))renderList();
   }catch(e){}
 }
 
