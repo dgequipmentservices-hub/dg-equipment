@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.23</title>
+<title>DG Equipment v27.24</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -5756,7 +5756,11 @@ async function finishCaptureConvert(captureId){
             // V25: and the matched inventory part as a real line item
             if(c.part_inv_id){
               var it=(inv||[]).find(function(x){return x.id===c.part_inv_id;});
-              if(it)mcs[mcs.length-1].parts.push({name:it.name||'Part',partNum:String(it.part||''),qty:1,price:parseFloat(it.price)||0,inv_id:it.id});
+              // inventory has no `price` column — it is sell_price/sell/cost.
+              // Reading it.price yielded undefined, so a matched part landed on
+              // the work order at $0.00 and was invoiced that way. Same order
+              // the sales receipt uses.
+              if(it)mcs[mcs.length-1].parts.push({name:it.name||'Part',partNum:String(it.part||''),qty:1,price:parseFloat(it.sell_price||it.sell||0)||0,inv_id:it.id});
             }
             if(typeof renderMcs==='function')renderMcs();
           }
