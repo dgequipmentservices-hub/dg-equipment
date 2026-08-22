@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.25</title>
+<title>DG Equipment v27.26</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -7224,6 +7224,9 @@ function setStatusTab(btn){
 // customer, done-but-unbilled, and invoiced-but-unpaid. Reuses the
 // loaded wos/cMap/eMap/payments globals, so it works offline.
 // ─────────────────────────────────────────
+// How far ahead the sheet looks for service coming due.
+var PSS_SERVICE_DAYS=14;
+
 function _pssDate(d){
   if(!d)return'';
   var dt=/^\d{4}-\d{2}-\d{2}$/.test(String(d))?new Date(d+'T12:00:00'):new Date(d);
@@ -7333,6 +7336,22 @@ function printJobStatusSheet(){
 
   var owed=unpaid.reduce(function(s,w){return s+woBalance(w);},0);
   var readyValue=needsInv.reduce(function(s,w){return s+woTotal(w);},0);
+
+  // Service coming due in the next two weeks, plus anything already past due
+  var _refNoon=new Date();_refNoon.setHours(12,0,0,0);
+  var _horizon=new Date(_refNoon.getTime()+PSS_SERVICE_DAYS*86400000);
+  var dueSoon=(_reminders||[]).filter(function(r){
+    if(r.active===false||!r.next_due_date)return false;
+    var d=new Date(r.next_due_date+'T12:00:00');
+    if(isNaN(d.getTime())||d>_horizon)return false;
+    if(q){
+      var eq=eMap[r.equipment_id]||{};
+      var c=cMap[eq.customer_id||r.customer_id]||{};
+      var fields=[c.name||'',eq.make||'',eq.model||'',r.title||''].join(' ').toLowerCase();
+      if(!q.split(' ').filter(Boolean).every(function(t){return fields.includes(t);}))return false;
+    }
+    return true;
+  }).sort(function(a,b){return (a.next_due_date||'').localeCompare(b.next_due_date||'');});
 
   var _now=new Date();
 
@@ -7452,6 +7471,42 @@ function printJobStatusSheet(){
     b+='</tbody></table>';
   }
 
+  // Block D — service coming due, so the next job is booked before it's late
+  b+='<h2>Service coming up — next '+PSS_SERVICE_DAYS+' days<span class="h2c">'+dueSoon.length+'</span></h2>';
+  if(!dueSoon.length){
+    b+='<div class="none">Nothing due in the next '+PSS_SERVICE_DAYS+' days.</div>';
+  }else{
+    b+='<table><thead><tr>';
+    b+='<th class="ck"></th><th class="cu">Customer</th><th class="mc">Machine</th><th>Service</th><th class="dt2">Due</th><th class="amt">Phone</th>';
+    b+='</tr></thead><tbody>';
+    // Grouped by customer — one call books every machine they have coming due
+    var remByCust={};
+    dueSoon.forEach(function(r){
+      var eq=eMap[r.equipment_id]||{};
+      var cid=eq.customer_id||r.customer_id;
+      var c=cMap[cid]||{};
+      var nm=c.name||'Unknown';
+      (remByCust[nm]=remByCust[nm]||{phone:c.phone||'',rows:[]}).rows.push({r:r,eq:eq});
+    });
+    Object.keys(remByCust).sort(function(a,b2){return a.localeCompare(b2);}).forEach(function(nm){
+      var g=remByCust[nm];
+      g.rows.forEach(function(row,i){
+        var due=new Date(row.r.next_due_date+'T12:00:00');
+        var days=Math.round((due-_refNoon)/86400000);
+        var dueStr=days<0?Math.abs(days)+'d overdue':days===0?'Today':_pssDate(row.r.next_due_date);
+        b+='<tr'+(i===0?' class="gt"':'')+'>';
+        b+='<td class="ck">☐</td>';
+        if(i===0)b+='<td class="cu nm" rowspan="'+g.rows.length+'">'+esc(nm)+'</td>';
+        b+='<td class="mc">'+esc([row.eq.make,row.eq.model].filter(Boolean).join(' ')||'—')+'</td>';
+        b+='<td class="jb">'+esc(row.r.title||'Service')+'</td>';
+        b+='<td class="dt2'+(days<0?' late':'')+'">'+esc(dueStr)+'</td>';
+        if(i===0)b+='<td class="amt ph" rowspan="'+g.rows.length+'">'+esc(g.phone||'—')+'</td>';
+        b+='</tr>';
+      });
+    });
+    b+='</tbody></table>';
+  }
+
   b+='<div class="foot">Snapshot from the DG Equipment app — accurate as of the print time above.</div>';
 
   // ── Window ───────────────────────────────────────────────────────
@@ -7488,6 +7543,8 @@ function printJobStatusSheet(){
     '.dt2{width:9%;white-space:nowrap;color:#555}',
     '.amt{width:10%;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}',
     '.owe{font-weight:800}',
+    '.late{font-weight:800;color:#111}',
+    '.ph{font-weight:600;color:#333;font-variant-numeric:normal}',
     '.urg{font-size:10px;font-weight:800;border:1.5px solid #111;padding:0 4px;letter-spacing:.05em;white-space:nowrap}',
     '.wr{display:inline-block;width:100%;min-width:60px;border-bottom:1px solid #999;height:13px}',
     '.tot td{border-top:2px solid #111;border-bottom:none;font-weight:800;font-size:14px;padding-top:8px}',
@@ -8108,7 +8165,8 @@ function printStatement(){
 // ─────────────────────────────────────────
 // MAINTENANCE REMINDERS
 // ─────────────────────────────────────────
-var _reminders=[];
+// _reminders is declared up with the other data globals — re-declaring
+// it here re-ran the empty initializer and could drop a loaded list.
 
 
 
