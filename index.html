@@ -9500,7 +9500,10 @@ function renderCount(){
       h+='<input id="countPadQty" type="number" inputmode="numeric" min="0" value="'+_padVal+'" oninput="countPadCommit()" style="width:80px;text-align:center;font-size:30px;font-weight:700;font-family:var(--mo);background:var(--sf);border:1px solid var(--bd2);border-radius:var(--rs);padding:6px;color:var(--tx)">';
       h+='<button class="rqa-b" style="width:48px;height:48px;font-size:26px" onclick="countPadAdj(1)">+</button>';
       h+='</div>';
-      if(_bSel)h+='<div style="font-size:11px;color:var(--tx3);text-align:center;margin-bottom:'+(_bOpts.length>=2?'3px':'10px')+'"><b style="color:var(--tx2)">'+esc(_bSel.label)+'</b> <span style="font-family:var(--mo)">'+esc(_bSel.num)+'</span> at '+countLoc+'</div>';
+      // some numbers are really several numbers slashed together — one is enough to know what is in hand
+      var _bNum=String((_bSel&&_bSel.num)||'').split('/')[0];
+      if(_bNum.length>20)_bNum=_bNum.slice(0,19)+'\u2026';
+      if(_bSel)h+='<div style="font-size:11px;color:var(--tx3);text-align:center;margin-bottom:'+(_bOpts.length>=2?'3px':'10px')+'"><b style="color:var(--tx2)">'+esc(_bSel.label)+'</b> <span style="font-family:var(--mo)">'+esc(_bNum)+'</span> at '+countLoc+'</div>';
       if(_bOpts.length>=2)h+='<div id="countPadTotal" style="font-size:11px;color:var(--tx3);text-align:center;margin-bottom:10px;font-family:var(--mo)">'+esc(countPadTotalText())+'</div>';
       var _locLine=COUNT_LOCS.filter(function(L){return L!==countLoc&&getLocQty(p,L)>0;}).map(function(L){return L+' '+getLocQty(p,L);}).join(' · ');
       if(_locLine)h+='<div style="font-size:11px;color:var(--tx3);text-align:center;margin-bottom:10px;font-family:var(--mo)">Elsewhere: '+_locLine+'</div>';
