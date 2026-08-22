@@ -17,7 +17,8 @@ and keeps working when signal drops.
 | `supabase/migrations/` | Database schema, in apply order |
 
 There is no build step. `index.html` is the deployable artifact — edit it and
-serve it. The version ships in the `<title>` (currently `v27.20`).
+serve it. The version ships in the `<title>` (currently `v27.27`), and the menu footer
+shows the same number — check it to confirm a deploy actually landed.
 
 ## Running it
 
