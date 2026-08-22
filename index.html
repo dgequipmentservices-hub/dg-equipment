@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.23</title>
+<title>DG Equipment v27.24</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -7310,7 +7310,7 @@ function printJobStatusSheet(){
     {id:'Parts In',label:'Parts in — ready to work'}
   ];
 
-  var openByStage={},openCount=0,openValue=0;
+  var openByStage={},openCount=0;
   var needsInv=[],unpaid=[];
 
   all.forEach(function(w){
@@ -7329,18 +7329,12 @@ function printJobStatusSheet(){
     if(!openByStage[stage])openByStage[stage]=[];
     openByStage[stage].push(w);
     openCount++;
-    openValue+=woTotal(w);
   });
 
   var owed=unpaid.reduce(function(s,w){return s+woBalance(w);},0);
   var readyValue=needsInv.reduce(function(s,w){return s+woTotal(w);},0);
 
-  // Collected this month — same window the dashboard uses
-  var _now=new Date(),_tm=_now.getMonth(),_ty=_now.getFullYear(),collected=0;
-  (payments||[]).forEach(function(p){
-    var d=p.payment_date?new Date(p.payment_date+'T12:00:00'):(p.created_at?new Date(p.created_at):null);
-    if(d&&!isNaN(d.getTime())&&d.getMonth()===_tm&&d.getFullYear()===_ty)collected+=parseFloat(p.amount||0);
-  });
+  var _now=new Date();
 
   var money=function(n){return '$'+(Math.round(n||0)).toLocaleString('en-US');};
 
@@ -7354,13 +7348,6 @@ function printJobStatusSheet(){
   b+='</div>';
 
   if(q)b+='<div class="filt">Filtered to “'+esc(q)+'” — not the whole board</div>';
-
-  b+='<div class="tiles">';
-  b+='<div class="tile"><div class="tv">'+openCount+'</div><div class="tl">Jobs open</div></div>';
-  b+='<div class="tile"><div class="tv">'+needsInv.length+'</div><div class="tl">Ready to invoice</div><div class="ts">'+money(readyValue)+'</div></div>';
-  b+='<div class="tile"><div class="tv">'+money(owed)+'</div><div class="tl">Need to be paid</div><div class="ts">'+unpaid.length+' invoice'+(unpaid.length===1?'':'s')+'</div></div>';
-  b+='<div class="tile"><div class="tv">'+money(collected)+'</div><div class="tl">Collected this month</div></div>';
-  b+='</div>';
 
   // Block A — open jobs, by stage then customer
   b+='<h2>Jobs in progress<span class="h2c">'+openCount+'</span></h2>';
@@ -7475,43 +7462,38 @@ function printJobStatusSheet(){
     '.bar button{font-family:inherit;font-size:13px;font-weight:700;padding:8px 16px;border:1.5px solid #111;background:#111;color:#fff;border-radius:4px;cursor:pointer}',
     '.bar button.alt{background:#fff;color:#111}',
     '.sheet-hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:8px;margin-bottom:12px}',
-    '.biz{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#666}',
+    '.biz{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#666}',
     '.ttl{font-size:30px;font-weight:800;line-height:1.1;margin-top:2px}',
     '.hd-r{text-align:right}',
-    '.dt{font-size:15px;font-weight:700}',
-    '.tm{font-size:11px;color:#666;margin-top:2px}',
-    '.filt{font-size:11px;font-weight:700;border:1px solid #111;padding:4px 8px;margin-bottom:10px}',
-    '.tiles{display:flex;gap:8px;margin-bottom:16px}',
-    '.tile{flex:1;border:1.5px solid #111;padding:8px 10px}',
-    '.tv{font-size:22px;font-weight:800;line-height:1.1}',
-    '.tl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#444;margin-top:3px}',
-    '.ts{font-size:10px;color:#666;margin-top:1px}',
-    'h2{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;background:#111;color:#fff;padding:5px 9px;margin:20px 0 0;display:flex;justify-content:space-between;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+    '.dt{font-size:17px;font-weight:700}',
+    '.tm{font-size:12px;color:#666;margin-top:2px}',
+    '.filt{font-size:12.5px;font-weight:700;border:1px solid #111;padding:5px 9px;margin-bottom:10px}',
+    'h2{font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;background:#111;color:#fff;padding:6px 10px;margin:22px 0 0;display:flex;justify-content:space-between;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
     '.h2c{font-weight:700}',
-    'h3{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#111;margin:14px 0 3px;padding-bottom:2px;border-bottom:1.5px solid #111;display:flex;justify-content:space-between}',
+    'h3{font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#111;margin:15px 0 3px;padding-bottom:3px;border-bottom:1.5px solid #111;display:flex;justify-content:space-between}',
     '.h3c{color:#666}',
     'table{width:100%;border-collapse:collapse;margin-bottom:4px;table-layout:fixed}',
-    'th{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;text-align:left;padding:4px 5px;border-bottom:1px solid #999}',
-    'td{font-size:11.5px;padding:6px 5px;border-bottom:1px solid #ddd;vertical-align:top;line-height:1.3;overflow-wrap:break-word}',
+    'th{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;text-align:left;padding:5px 5px;border-bottom:1px solid #999}',
+    'td{font-size:13.5px;padding:8px 5px;border-bottom:1px solid #ddd;vertical-align:top;line-height:1.3;overflow-wrap:break-word}',
     'tr.gt td{border-top:1px solid #999}',
     'tr{page-break-inside:avoid}',
-    '.nm{font-weight:800;font-size:12.5px}',
-    '.sub{font-size:10px;font-weight:600;color:#666;margin-top:2px}',
+    '.nm{font-weight:800;font-size:14.5px}',
+    '.sub{font-size:11.5px;font-weight:600;color:#666;margin-top:2px}',
     '.jb{color:#333}',
-    '.ck{width:20px;font-size:15px;color:#111;text-align:center;padding-left:0;padding-right:0}',
+    '.ck{width:22px;font-size:17px;color:#111;text-align:center;padding-left:0;padding-right:0}',
     '.cu{width:19%}',
     '.mc{width:20%}',
     '.wh{width:13%}',
-    '.inv{width:11%;font-family:"Courier New",monospace;font-size:11px}',
+    '.inv{width:12%;font-family:"Courier New",monospace;font-size:13px}',
     '.dt2{width:9%;white-space:nowrap;color:#555}',
     '.amt{width:10%;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}',
     '.owe{font-weight:800}',
-    '.urg{font-size:8.5px;font-weight:800;border:1.5px solid #111;padding:0 4px;letter-spacing:.05em;white-space:nowrap}',
-    '.wr{display:inline-block;width:100%;min-width:60px;border-bottom:1px solid #999;height:11px}',
-    '.tot td{border-top:2px solid #111;border-bottom:none;font-weight:800;font-size:12px;padding-top:7px}',
-    '.tot td:first-child{text-transform:uppercase;letter-spacing:.05em;font-size:10.5px}',
-    '.none{font-size:12px;color:#666;padding:10px 2px;border-bottom:1px solid #ddd}',
-    '.foot{margin-top:22px;padding-top:8px;border-top:1px solid #ccc;font-size:9.5px;color:#888}',
+    '.urg{font-size:10px;font-weight:800;border:1.5px solid #111;padding:0 4px;letter-spacing:.05em;white-space:nowrap}',
+    '.wr{display:inline-block;width:100%;min-width:60px;border-bottom:1px solid #999;height:13px}',
+    '.tot td{border-top:2px solid #111;border-bottom:none;font-weight:800;font-size:14px;padding-top:8px}',
+    '.tot td:first-child{text-transform:uppercase;letter-spacing:.05em;font-size:12px}',
+    '.none{font-size:13.5px;color:#666;padding:11px 2px;border-bottom:1px solid #ddd}',
+    '.foot{margin-top:22px;padding-top:8px;border-top:1px solid #ccc;font-size:10.5px;color:#888}',
     '@page{margin:.45in}',
     '@media print{body{padding:0;max-width:none}.bar{display:none}h2,h3{page-break-after:avoid}}'
   ].join('');
