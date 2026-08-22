@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.26</title>
+<title>DG Equipment v27.27</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -921,7 +921,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-07-10 · V27.20</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-08-22 · V27.27</div>
   </div>
 </div>
 
@@ -4574,6 +4574,16 @@ async function dupeMergeConfirm(){
     }
   });
   merged.cross_refs=extraRefs.join(', ');
+  // per-brand, per-location counts add up the same way the qty fields do
+  var mergedBook={};
+  g.forEach(function(o){
+    var b=_brandBook(o);
+    Object.keys(b).forEach(function(L){
+      mergedBook[L]=mergedBook[L]||{};
+      Object.keys(b[L]||{}).forEach(function(k){mergedBook[L][k]=(parseFloat(mergedBook[L][k])||0)+(parseFloat(b[L][k])||0);});
+    });
+  });
+  merged.qty_by_brand=mergedBook;
   if(sumQty)merged.qty_on_hand=g.reduce(function(s,p){return s+parseFloat(p.qty_on_hand||0);},0);
   ['fits','notes'].forEach(function(f){if(!primary[f]){var donor=others.find(function(o){return o[f];});if(donor)merged[f]=donor[f];}});
   try{
@@ -4620,13 +4630,20 @@ function invNumberRows(p){
   return rows;
 }
 // Renders invNumberRows as a compact labeled card block (used in list + Count Mode)
+// Stock behind one number: its own qty_<brand> column when it has one, otherwise
+// whatever Count Mode has recorded for that brand. null = nothing to show.
+function invBrandStock(p,r){
+  if(r.length>2&&r[2]!==undefined&&r[2]!==null)return parseFloat(r[2]||0);
+  var counted=getBrandTotalQty(p,r[0]);
+  return counted>0?counted:null;
+}
 function invNumberCardHtml(p){
   var rows=invNumberRows(p);
   if(!rows.length)return '';
-  var hasVendorQty=rows.some(function(r){return r.length>2&&parseFloat(r[2]||0)>0;});
+  var hasVendorQty=rows.some(function(r){return (invBrandStock(p,r)||0)>0;});
   return '<div class="numcard">'+rows.map(function(r){
-    if(hasVendorQty&&r.length>2){
-      var qv=parseFloat(r[2]||0);
+    if(hasVendorQty&&invBrandStock(p,r)!==null){
+      var qv=invBrandStock(p,r);
       if(qv>0){
         return '<div class="numcard-row numcard-have"><span class="numcard-lbl">'+esc(r[0])+'</span><span class="numcard-val">'+esc(r[1])+'</span><span class="numcard-qty numcard-qty-have">'+qv+' in stock</span></div>';
       }
@@ -9377,6 +9394,24 @@ var _countPadId=null; // item id with the qty pad open
 function _clocKey(loc){return 'qty_'+loc.toLowerCase();}
 function getLocQty(item,loc){return parseFloat(item[_clocKey(loc)]||0);}
 function getTotalQty(item){var s=0;COUNT_LOCS.forEach(function(L){s+=getLocQty(item,L);});return s;}
+// ── Per-brand, per-location stock ──
+// inventory.qty_by_brand holds the breakdown behind the location numbers:
+//   {"truck":{"Stens":2,"Rotary":3},"shop":{"Stens":1}}
+// The qty_<brand> columns stay in sync for the brands that have one, so the
+// inventory list and everything else keeps reading exactly what it read before.
+function _brandBook(item){
+  var b=item&&item.qty_by_brand;
+  if(typeof b==='string'){try{b=JSON.parse(b);}catch(e){b=null;}}
+  return (b&&typeof b==='object')?b:{};
+}
+function _brandLocKey(loc){return String(loc).toLowerCase();}
+function getBrandLocQty(item,loc,label){return parseFloat((_brandBook(item)[_brandLocKey(loc)]||{})[label]||0);}
+function getBrandTotalQty(item,label){
+  var book=_brandBook(item),s=0;
+  COUNT_LOCS.forEach(function(L){s+=parseFloat((book[_brandLocKey(L)]||{})[label]||0);});
+  return s;
+}
+function hasBrandLocCount(item,loc){return Object.keys(_brandBook(item)[_brandLocKey(loc)]||{}).length>0;}
 function _poPendingQty(invId){
   return (partsOnOrder||[]).reduce(function(s,o){
     if(o.inventory_id===invId&&(o.status==='ordered'||o.status==='needed'||o.status==='partially received'))
@@ -9447,23 +9482,31 @@ function renderCount(){
     h+='<div style="text-align:right;flex-shrink:0;margin-left:4px"><div style="font-size:13px;font-family:var(--mo);color:var(--tx2)">'+tot+'</div><div style="font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:.04em">Total</div></div>';
     h+='</div>';
     if(_countPadId===p.id){
+      var _bOpts=_countBrandOpts||[];
+      var _bSel=_bOpts.length?(_bOpts.filter(function(o){return o.label===_countBrandSel;})[0]||_bOpts[0]):null;
+      var _padVal=_bSel?(parseFloat((_countBrandVals||{})[_bSel.label])||0):here;
       h+='<div style="border-top:1px solid var(--bd);padding:12px 13px;background:var(--sf2)">';
-      h+='<div style="display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:10px">';
+      // Tap a brand, punch that brand's count. Every brand keeps its own number,
+      // so Stens 2 and Rotary 3 both stand and the location total is what they add to.
+      if(_bOpts.length>=2){
+        h+='<div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--tx3);text-align:center;margin-bottom:6px">Tap a brand, punch what you see</div>';
+        h+='<div class="crow" style="margin-bottom:10px">'+_bOpts.map(function(o,i){
+          var v=parseFloat((_countBrandVals||{})[o.label])||0;
+          return '<button class="ccat'+(_bSel&&_bSel.label===o.label?' on':'')+'" data-i="'+i+'" onclick="countPadPickBrand(this.dataset.i)">'+esc(o.label)+' <span id="cbq_'+i+'" style="opacity:.6;font-size:10px">'+v+'</span></button>';
+        }).join('')+'</div>';
+      }
+      h+='<div style="display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:'+(_bSel?'5px':'10px')+'">';
       h+='<button class="rqa-b" style="width:48px;height:48px;font-size:26px" onclick="countPadAdj(-1)">&minus;</button>';
-      h+='<input id="countPadQty" type="number" inputmode="numeric" min="0" value="'+here+'" style="width:80px;text-align:center;font-size:30px;font-weight:700;font-family:var(--mo);background:var(--sf);border:1px solid var(--bd2);border-radius:var(--rs);padding:6px;color:var(--tx)">';
+      h+='<input id="countPadQty" type="number" inputmode="numeric" min="0" value="'+_padVal+'" oninput="countPadCommit()" style="width:80px;text-align:center;font-size:30px;font-weight:700;font-family:var(--mo);background:var(--sf);border:1px solid var(--bd2);border-radius:var(--rs);padding:6px;color:var(--tx)">';
       h+='<button class="rqa-b" style="width:48px;height:48px;font-size:26px" onclick="countPadAdj(1)">+</button>';
       h+='</div>';
+      // some numbers are really several numbers slashed together — one is enough to know what is in hand
+      var _bNum=String((_bSel&&_bSel.num)||'').split('/')[0];
+      if(_bNum.length>20)_bNum=_bNum.slice(0,19)+'\u2026';
+      if(_bSel)h+='<div style="font-size:11px;color:var(--tx3);text-align:center;margin-bottom:'+(_bOpts.length>=2?'3px':'10px')+'"><b style="color:var(--tx2)">'+esc(_bSel.label)+'</b> <span style="font-family:var(--mo)">'+esc(_bNum)+'</span> at '+countLoc+'</div>';
+      if(_bOpts.length>=2)h+='<div id="countPadTotal" style="font-size:11px;color:var(--tx3);text-align:center;margin-bottom:10px;font-family:var(--mo)">'+esc(countPadTotalText())+'</div>';
       var _locLine=COUNT_LOCS.filter(function(L){return L!==countLoc&&getLocQty(p,L)>0;}).map(function(L){return L+' '+getLocQty(p,L);}).join(' · ');
       if(_locLine)h+='<div style="font-size:11px;color:var(--tx3);text-align:center;margin-bottom:10px;font-family:var(--mo)">Elsewhere: '+_locLine+'</div>';
-      var _vOpts=countVendorOptions(p);
-      if(_vOpts.length>=2){
-        h+='<div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--tx3);text-align:center;margin-bottom:6px">Which brand are these?</div>';
-        h+='<div class="crow" style="margin-bottom:10px">'+_vOpts.map(function(v){
-          return '<button class="ccat'+(_countVendorSel===v.key?' on':'')+'" data-k="'+v.key+'" onclick="countPadPickVendor(this.dataset.k)">'+esc(v.label)+' <span style="opacity:.6;font-size:10px">'+v.qty+'</span></button>';
-        }).join('')+'</div>';
-      } else if(_vOpts.length===1){
-        _countVendorSel=_countVendorSel||_vOpts[0].key; // only one option, no need to ask
-      }
       h+='<div style="display:flex;gap:8px">';
       if(unk>0&&countLoc!=='Unknown')h+='<button class="mc-btn" style="flex:1" data-pid="'+p.id+'" onclick="countClearUnknown(this.dataset.pid)">Zero Unknown ('+unk+')</button>';
       h+='<button class="mo-btn" style="flex:2" data-pid="'+p.id+'" onclick="countSetQty(this.dataset.pid)">Set at '+countLoc+'</button>';
@@ -9476,57 +9519,127 @@ function renderCount(){
 }
 
 var COUNT_VENDOR_KEYS={OEM:'qty_oem',Stens:'qty_stens',Rotary:'qty_rotary',Wright:'qty_wright',Scag:'qty_scag',RedMax:'qty_redmax',Echo:'qty_echo',Toro:'qty_toro',Kawasaki:'qty_kawasaki',Briggs:'qty_briggs',Honda:'qty_honda'};
-// Which vendor numbers exist on this part that also support their own quantity —
-// only these can be disambiguated when counting (Part#/Oregon/Arnold/etc have no qty column)
-function countVendorOptions(p){
-  return invNumberRows(p).filter(function(r){return COUNT_VENDOR_KEYS[r[0]];}).map(function(r){
-    return {label:r[0],key:COUNT_VENDOR_KEYS[r[0]],num:r[1],qty:parseFloat(r[2]||0)};
+var COUNT_NON_BRANDS=['Part #','Other']; // these label a number, not who made the part
+// Every brand this part is stocked under. Brands with a qty_<brand> column keep
+// using it; the rest live only in qty_by_brand, so Oregon or Arnold stock can be
+// counted the same way. One chip per brand, in the order the number card shows.
+function countBrandOptions(p){
+  var seen=[],out=[];
+  invNumberRows(p).forEach(function(r){
+    if(COUNT_NON_BRANDS.indexOf(r[0])>-1||seen.indexOf(r[0])>-1)return;
+    seen.push(r[0]);
+    out.push({label:r[0],num:r[1],key:COUNT_VENDOR_KEYS[r[0]]||null});
   });
+  return out;
 }
-var _countVendorSel=null; // which vendor's stock the current pad session is counting
-function countPadPickVendor(key){
-  var qEl=document.getElementById('countPadQty');
-  var _keepVal=qEl?qEl.value:null; // don't lose what they already typed when the pad re-renders
-  _countVendorSel=key;
+var _countBrandSel=null;   // which brand the number pad is driving
+var _countBrandVals=null;  // {brand: qty} being punched in for the open pad
+var _countBrandOpts=[];    // the open pad's brands, in chip order
+
+// Opening a pad loads what this location is already carrying, brand by brand, so
+// the numbers can be edited one at a time instead of retyped together.
+function countPadLoadBrands(item){
+  _countBrandVals={};_countBrandSel=null;_countBrandOpts=countBrandOptions(item);
+  if(!_countBrandOpts.length)return;
+  var here=getLocQty(item,countLoc);
+  if(hasBrandLocCount(item,countLoc)){
+    _countBrandOpts.forEach(function(o){_countBrandVals[o.label]=getBrandLocQty(item,countLoc,o.label);});
+  } else if(_countBrandOpts.length===1){
+    _countBrandVals[_countBrandOpts[0].label]=here; // one brand, so all of it is that brand
+  } else {
+    // Never counted by brand here. Lay the brand totals against what this
+    // location holds, in chip order, and leave any remainder untagged.
+    var left=here;
+    _countBrandOpts.forEach(function(o){
+      var have=o.key?parseFloat(item[o.key]||0):0;
+      var take=Math.min(left,have);
+      _countBrandVals[o.label]=take;left-=take;
+    });
+  }
+  var withStock=_countBrandOpts.filter(function(o){return _countBrandVals[o.label]>0;});
+  _countBrandSel=(withStock[0]||_countBrandOpts[0]).label;
+}
+function countPadPickBrand(i){
+  countPadCommit(); // keep whatever was typed on the brand it was typed for
+  var o=_countBrandOpts[parseInt(i,10)];if(!o)return;
+  _countBrandSel=o.label;
   renderCount();
-  var qEl2=document.getElementById('countPadQty');
-  if(qEl2&&_keepVal!==null)qEl2.value=_keepVal;
+}
+// Typing writes straight into the open pad's brand, so the chips and the
+// location total stay honest without re-rendering the field out from under it.
+function countPadCommit(){
+  var el=document.getElementById('countPadQty');
+  if(!el||!_countBrandVals||!_countBrandSel)return;
+  _countBrandVals[_countBrandSel]=Math.max(0,parseFloat(el.value)||0);
+  var i=_countBrandOpts.findIndex(function(o){return o.label===_countBrandSel;});
+  var chip=document.getElementById('cbq_'+i);
+  if(chip)chip.textContent=_countBrandVals[_countBrandSel];
+  var tot=document.getElementById('countPadTotal');
+  if(tot)tot.textContent=countPadTotalText();
+}
+function countPadBrandSum(){
+  if(!_countBrandVals)return 0;
+  return _countBrandOpts.reduce(function(s,o){return s+(parseFloat(_countBrandVals[o.label])||0);},0);
+}
+function countPadTotalText(){
+  var item=inv.find(function(p){return p.id===_countPadId;});
+  var was=item?getLocQty(item,countLoc):0,now=countPadBrandSum();
+  return countLoc+' total '+now+(now!==was?'  \u00b7  was '+was:'');
 }
 function openCountPad(id){
-  if(_countPadId!==id)_countVendorSel=null; // fresh item = fresh vendor pick
-  _countPadId=_countPadId===id?null:id;
+  var same=_countPadId===id;
+  _countPadId=same?null:id;
+  if(same){_countBrandSel=null;_countBrandVals=null;_countBrandOpts=[];}
+  else{var item=inv.find(function(p){return p.id===id;});if(item)countPadLoadBrands(item);}
   renderCount();
 }
-function countPadAdj(d){var el=document.getElementById('countPadQty');if(!el)return;el.value=Math.max(0,(parseFloat(el.value)||0)+d);}
+function countPadAdj(d){
+  var el=document.getElementById('countPadQty');if(!el)return;
+  el.value=Math.max(0,(parseFloat(el.value)||0)+d);
+  countPadCommit();
+}
 
 async function countSetQty(id){
   var item=inv.find(function(p){return p.id===id;});if(!item)return;
-  var _vOptsCheck=countVendorOptions(item);
-  if(_vOptsCheck.length>=2&&!_countVendorSel){toast('Pick which brand these are first','er');return;}
-  var el=document.getElementById('countPadQty');var val=Math.max(0,parseFloat((el||{}).value)||0);
+  countPadCommit();
+  var opts=_countBrandOpts&&_countBrandOpts.length?_countBrandOpts:countBrandOptions(item);
   var key=_clocKey(countLoc),oldQ=getLocQty(item,countLoc);
-  item[key]=val;
-  var totalQ=getTotalQty(item);
-  var upd={qty_on_hand:totalQ,last_counted_at:new Date().toISOString()};upd[key]=val;
-  var _vKey=_countVendorSel,_vOld=null,_vLabel=null;
-  if(_vKey){
-    _vOld=parseFloat(item[_vKey]||0);
-    upd[_vKey]=val;
-    var _vOpt=countVendorOptions(item).find(function(v){return v.key===_vKey;});
-    _vLabel=_vOpt?_vOpt.label:null;
+  var upd={last_counted_at:new Date().toISOString()},val,breakdown='';
+  if(opts.length){
+    // The brands are the count: what this location holds is what they add up to.
+    var lk=_brandLocKey(countLoc),book=_brandBook(item),locBook={},sum=0,parts=[];
+    opts.forEach(function(o){
+      var v=Math.max(0,parseFloat((_countBrandVals||{})[o.label])||0);
+      locBook[o.label]=v;sum+=v;
+      if(v>0)parts.push(o.label+' '+v);
+      // Brands with their own column keep it in step by the change made here, so
+      // stock counted at another location is left alone.
+      if(o.key){
+        var was=getBrandLocQty(item,countLoc,o.label);
+        if(v!==was)upd[o.key]=Math.max(0,parseFloat(item[o.key]||0)+(v-was));
+      }
+    });
+    var nextBook={};Object.keys(book).forEach(function(k){nextBook[k]=book[k];});nextBook[lk]=locBook;
+    upd.qty_by_brand=nextBook;
+    val=sum;breakdown=parts.join(' · ');
+  } else {
+    var el=document.getElementById('countPadQty');
+    val=Math.max(0,parseFloat((el||{}).value)||0);
   }
+  upd[key]=val;
+  upd.qty_on_hand=COUNT_LOCS.reduce(function(s2,L){return s2+(L===countLoc?val:getLocQty(item,L));},0);
   try{
     await patch('inventory',upd,'?id=eq.'+id);
     Object.assign(item,upd);
-    if(oldQ!==val){
-      var txn={inventory_id:id,item_name:item.name,category:item.category||'',transaction_type:'count_adjustment',location:countLoc,qty_before:oldQ,qty_after:val,qty_change:val-oldQ,notes:'Count at '+countLoc+(_vLabel?' ('+_vLabel+')':'')};
+    if(oldQ!==val||breakdown){
+      var txn={inventory_id:id,item_name:item.name,category:item.category||'',transaction_type:'count_adjustment',location:countLoc,qty_before:oldQ,qty_after:val,qty_change:val-oldQ,notes:'Count at '+countLoc+(breakdown?' ('+breakdown+')':'')};
       post('inventory_transactions',txn).catch(function(){});
       invTransactions.unshift(txn);
     }
-    countSession.unshift({name:item.name||'Part',loc:countLoc,qty:val,time:Date.now(),vendor:_vLabel});
-    toast(countLoc+': '+val+(_vLabel?' \u00b7 '+_vLabel:'')+' \u2713','ok');
-  }catch(e){item[key]=oldQ;if(_vKey)item[_vKey]=_vOld;toast('Save failed: '+e.message,'er');return;}
-  _countPadId=null;_countVendorSel=null;
+    countSession.unshift({name:item.name||'Part',loc:countLoc,qty:val,time:Date.now(),vendor:breakdown||null});
+    toast(countLoc+': '+val+(breakdown?' \u00b7 '+breakdown:'')+' \u2713','ok');
+  }catch(e){toast('Save failed: '+e.message,'er');return;}
+  _countPadId=null;_countBrandSel=null;_countBrandVals=null;_countBrandOpts=[];
   var s=document.getElementById('countSearch');if(s){s.value='';s.focus();}
   renderCount();
 }
@@ -9536,6 +9649,10 @@ async function countClearUnknown(id){
   var oldU=getLocQty(item,'Unknown');if(!oldU)return;
   item.qty_unknown=0;
   var upd={qty_unknown:0,qty_on_hand:getTotalQty(item),last_counted_at:new Date().toISOString()};
+  // the brand breakdown for Unknown goes with it, or the next pad would show
+  // brand counts for stock that is no longer there
+  var _ubook=_brandBook(item);
+  if(_ubook.unknown){var _nb={};Object.keys(_ubook).forEach(function(k){if(k!=='unknown')_nb[k]=_ubook[k];});upd.qty_by_brand=_nb;}
   try{
     await patch('inventory',upd,'?id=eq.'+id);
     Object.assign(item,upd);
