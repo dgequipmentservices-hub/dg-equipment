@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.22</title>
+<title>DG Equipment v27.25</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1041,7 +1041,7 @@ Check spark plug" rows="5" style="margin-bottom:8px;resize:none;line-height:1.7;
       <div style="display:flex;gap:8px">
         <div style="flex:1"><div class="flbl">Date</div><input type="date" class="fi" id="schedDate" onchange="autoSaveWO()"></div>
         <div style="flex:1"><div class="flbl">Location</div>
-          <select class="fi" id="locSel"><option value="">— select —</option><option>Customer site</option><option>Shop</option><option>Pickup</option></select>
+          <select class="fi" id="locSel" onchange="autoSaveWO()"><option value="">— select —</option></select>
         </div>
       </div>
     </div>
@@ -1244,7 +1244,7 @@ Check spark plug" rows="5" style="margin-bottom:8px;resize:none;line-height:1.7;
       <button class="ham-btn" onclick="openHam()"><span></span><span></span><span></span></button>
       <div class="htitle">Job Status</div>
     </div>
-    <div class="hdr-r"><button class="ibtn" onclick="toggleTheme()"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div>
+    <div class="hdr-r"><button class="pbtn" onclick="printJobStatusSheet()" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:8px 13px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print</button><button class="ibtn" onclick="toggleTheme()"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div>
   </div>
   <div style="padding:8px 14px 0;flex-shrink:0">
     <div class="sw"><input class="sinp" id="statussrch" placeholder="Customer, INV#, machine..." oninput="renderStatusOverview()"><span class="sico">&#8981;</span></div>
@@ -1974,6 +1974,30 @@ const SM={'request':'Request','new':'New','looked at':'Looked At','parts ordered
 function cs(s){return SM[(s||'').toLowerCase()]||(s||'New');}
 function sc(s){const c=cs(s);return c==='New'?'sN':c==='Looked At'?'sL':c==='Parts Ordered'?'sPO':c==='Parts In'?'sPI':c==='Done'?'sD':c==='Invoiced'?'sI':'sO';}
 function sco(s){const c=cs(s);return c==='New'?'var(--red)':c==='Looked At'?'var(--blu)':c==='Parts Ordered'?'var(--amb)':c==='Parts In'?'var(--pur)':(c==='Done'||c==='Invoiced')?'var(--grn)':'var(--tx3)';}
+
+// ─────────────────────────────────────────
+// WHERE THE MACHINE IS
+// A job can straddle two places — the stander dropped at the shop and
+// the Toro still on the customer's lawn — so location lives per machine
+// in machines_data, with the work order's own location as the default
+// for machines that don't say otherwise.
+// ─────────────────────────────────────────
+var WO_LOCS=['Customer site','Shop','Home shop','Pickup','Out for parts','Ready for pickup'];
+function _locOpts(sel,blankLabel){
+  var h='<option value="">'+blankLabel+'</option>';
+  WO_LOCS.forEach(function(L){h+='<option'+(L===sel?' selected':'')+'>'+esc(L)+'</option>';});
+  if(sel&&WO_LOCS.indexOf(sel)<0)h+='<option selected>'+esc(sel)+'</option>'; // keep an older hand-typed value
+  return h;
+}
+function _fillLocSel(){
+  var el=document.getElementById('locSel');
+  if(el)el.innerHTML=_locOpts('','\u2014 select \u2014');
+}
+// Where a given machine on a work order sits — its own value, else the job's.
+function machineLoc(w,eqId){
+  try{var d=(JSON.parse(w.machines_data||'{}')||{})[eqId]||{};if(d.loc)return d.loc;}catch(e){}
+  return w.location||'';
+}
 
 // ─────────────────────────────────────────
 // WO LIST
@@ -3108,6 +3132,7 @@ async function openWO(id){
   document.getElementById('wo_sub').textContent=id?'#'+id.slice(0,8).toUpperCase():'unsaved';
   document.getElementById('descInput').value='';
   document.getElementById('schedDate').value=new Date().toISOString().split('T')[0];
+  _fillLocSel();
   document.getElementById('locSel').value='';
   document.getElementById('taxTog').checked=true;
   document.getElementById('ccTog').checked=false;
@@ -3140,7 +3165,7 @@ async function openWO(id){
       const md=JSON.parse(w.machines_data||'{}');
       const ex=JSON.parse(w.extra_equipment_ids||'[]');
       const ids=w.equipment_id?[w.equipment_id,...ex]:ex;
-      ids.forEach(eid=>{const eq=equips.find(e=>e.id===eid)||eMap[eid];if(!eq)return;const d=md[eid]||{};mcs.push({id:eid,make:eq.make||'',model:eq.model||'',serial:eq.serial||'',type:eq.equipment_type||'',open:true,labor:d.labor||[],parts:(d.parts||[]).map(p=>({...p,inv_id:p.inv_id||null}))});});
+      ids.forEach(eid=>{const eq=equips.find(e=>e.id===eid)||eMap[eid];if(!eq)return;const d=md[eid]||{};mcs.push({id:eid,make:eq.make||'',model:eq.model||'',serial:eq.serial||'',type:eq.equipment_type||'',open:true,svcDate:d.svcDate||'',loc:d.loc||'',labor:d.labor||[],parts:(d.parts||[]).map(p=>({...p,inv_id:p.inv_id||null}))});});
       // snapshot inv parts already on this WO so re-save doesn't double-deduct
       prevInvParts={};
       mcs.forEach(m=>{(m.parts||[]).forEach(p=>{if(p.inv_id)prevInvParts[p.inv_id]=(prevInvParts[p.inv_id]||0)+p.qty;});});
@@ -3347,9 +3372,14 @@ function renderMcs(){
       (m.open?
         '<div style="padding:12px 13px">'+
           // Service date field
-          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--bd2)">'+
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
             '<div style="font-size:13px;font-weight:700;color:var(--tx2);white-space:nowrap">Service date</div>'+
             '<input type="date" id="svcDate_'+i+'" value="'+(m.svcDate||'')+'" onchange="setSvcDate('+i+',this.value)" style="flex:1;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:7px 10px;font-size:13px;font-family:var(--fn);color:var(--tx)">'+
+          '</div>'+
+          // Where this machine is — blank means "same as the job"
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--bd2)">'+
+            '<div style="font-size:13px;font-weight:700;color:var(--tx2);white-space:nowrap">Where it is</div>'+
+            '<select id="mcLoc_'+i+'" onchange="setMcLoc('+i+',this.value)" style="flex:1;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:7px 10px;font-size:13px;font-family:var(--fn);color:var(--tx)">'+_locOpts(m.loc||'','Same as job'+(document.getElementById('locSel')&&document.getElementById('locSel').value?' ('+esc(document.getElementById('locSel').value)+')':''))+'</select>'+
           '</div>'+
           // Labor section
           '<div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--tx3);margin-bottom:8px">Labor</div>'+
@@ -3470,6 +3500,12 @@ function setSvcDate(i,val){
     }
     autoSaveWO();
   }
+}
+
+function setMcLoc(i,val){
+  if(!mcs[i])return;
+  mcs[i].loc=val||'';
+  autoSaveWO();
 }
 
 function rmMc(e,i){e.stopPropagation();mcs.splice(i,1);renderMcs();}
@@ -5081,7 +5117,7 @@ function autoSaveWO(){
 async function saveWO(silent){
   if(!selCust){if(!silent)toast('Select a customer first','er');return;}
   const btn=document.getElementById('saveBtn');if(btn&&!silent){btn.disabled=true;btn.textContent='Saving…';}
-  const md={};mcs.forEach(m=>{md[m.id]={labor:m.labor,parts:m.parts,svcDate:m.svcDate||''};});
+  const md={};mcs.forEach(m=>{md[m.id]={labor:m.labor,parts:m.parts,svcDate:m.svcDate||'',loc:m.loc||''};});
   const pay={customer_id:selCust.id,equipment_id:mcs.length?mcs[0].id:null,extra_equipment_ids:JSON.stringify(mcs.length>1?mcs.slice(1).map(m=>m.id):[]),machines_data:JSON.stringify(md),status:woSt,problem:document.getElementById('descInput').value.trim()||null,scheduled_date:document.getElementById('schedDate').value||null,scheduled_time:(document.getElementById('schedTime')&&document.getElementById('schedTime').value)||null,location:document.getElementById('locSel').value||null,urgent:!!(document.getElementById('urgentTog')||{checked:false}).checked,internal_notes:(document.getElementById('internalNotes')||{value:''}).value.trim()||null,cc_fee:!!(document.getElementById('ccTog')||{checked:false}).checked};
   try{
     if(woId){await patch('work_orders',pay,'?id=eq.'+woId);toast('Saved ✓','ok');updateWOInvBar(Object.assign({id:woId},pay));}
@@ -7156,7 +7192,11 @@ function renderStatusOverview(){
     h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:10px 12px;margin-bottom:7px;cursor:pointer" data-wid="'+w.id+'" onclick="openWO(this.dataset.wid)">';
     h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">';
     h+='<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(c.name||'Walk-in')+'</div>';
-    h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">'+(w.invoice_number?'INV-'+w.invoice_number+' \u00b7 ':'')+dateStr+(prob?' \u00b7 '+esc(prob):'')+'</div></div>';
+    h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">'+(w.invoice_number?'INV-'+w.invoice_number+' \u00b7 ':'')+dateStr+(prob?' \u00b7 '+esc(prob):'')+'</div>';
+    // Where each machine on this job actually sits — one job can straddle two places
+    var _whereBits=_pssMachineList(w).map(function(m){return esc(m.name)+(m.loc?' \u2014 '+esc(m.loc):'');});
+    if(_whereBits.length)h+='<div style="font-size:11px;color:var(--tx3);margin-top:2px">'+_whereBits.join(' \u00b7 ')+'</div>';
+    h+='</div>';
     h+='<div style="font-size:13px;font-weight:700;font-family:var(--mo);flex-shrink:0">$'+total.toFixed(0)+'</div>';
     h+='</div>';
     h+='<div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap">';
@@ -7176,6 +7216,298 @@ function setStatusTab(btn){
   btn.classList.add('active');
   _statusTab=btn.dataset.tab;
   renderStatusOverview();
+}
+
+// ─────────────────────────────────────────
+// PRINTABLE JOB STATUS SHEET — the whole board on paper, for hanging
+// on the shop wall. Three blocks: open jobs grouped by stage then
+// customer, done-but-unbilled, and invoiced-but-unpaid. Reuses the
+// loaded wos/cMap/eMap/payments globals, so it works offline.
+// ─────────────────────────────────────────
+function _pssDate(d){
+  if(!d)return'';
+  var dt=/^\d{4}-\d{2}-\d{2}$/.test(String(d))?new Date(d+'T12:00:00'):new Date(d);
+  if(isNaN(dt.getTime()))return'';
+  return dt.toLocaleDateString('en-US',{month:'numeric',day:'numeric',year:'2-digit'});
+}
+
+// Every machine on a work order gets its own line — a job can have the
+// stander sitting at the shop and the Toro still out on the customer's
+// lawn, and the sheet is only useful if it says so.
+function _pssMachineList(w){
+  var ids=[];
+  try{ids=Object.keys(JSON.parse(w.machines_data||'{}'));}catch(e){}
+  if(!ids.length){
+    var ex=[];try{ex=JSON.parse(w.extra_equipment_ids||'[]');}catch(e){}
+    ids=(w.equipment_id?[w.equipment_id]:[]).concat(ex||[]);
+  }
+  var out=[];
+  ids.forEach(function(eid){
+    var eq=eMap[eid];
+    if(!eq)return;
+    out.push({name:[eq.make,eq.model].filter(Boolean).join(' ')||'Machine',loc:machineLoc(w,eid)});
+  });
+  if(!out.length)out.push({name:'—',loc:w.location||''});
+  return out;
+}
+
+function _pssMachines(w){
+  return _pssMachineList(w).map(function(m){return m.name;}).join(', ');
+}
+
+// Blank location prints as a rule, so it can be filled in by hand.
+function _pssWhere(loc){
+  return loc?esc(loc):'<span class="wr"></span>';
+}
+
+function _pssProblem(w){
+  var p=(w.problem||'').split('\n')[0].trim();
+  if(p.length>60)p=p.slice(0,58)+'…';
+  return p?esc(p):'—';
+}
+
+// Group an array of WOs by customer name, sorted, each customer's jobs
+// oldest first — the longest-waiting job reads at the top.
+function _pssByCustomer(list){
+  var groups={};
+  list.forEach(function(w){
+    var nm=(cMap[w.customer_id]||{}).name||'Walk-in';
+    (groups[nm]=groups[nm]||[]).push(w);
+  });
+  return Object.keys(groups).sort(function(a,b){return a.localeCompare(b);}).map(function(nm){
+    var jobs=groups[nm].sort(function(a,b){
+      return new Date(a.scheduled_date||a.created_at||0)-new Date(b.scheduled_date||b.created_at||0);
+    });
+    return {name:nm,jobs:jobs};
+  });
+}
+
+function printJobStatusSheet(){
+  var q=(document.getElementById('statussrch')||{value:''}).value.toLowerCase().trim();
+
+  var all=(wos||[]).filter(function(w){
+    if((w.problem||'').startsWith('Parts sale'))return false;
+    var s=csEff(w);
+    return s!=='Backlog'&&s!=='Cancelled'&&s!=='Closed';
+  });
+
+  if(q){
+    all=all.filter(function(w){
+      var c=cMap[w.customer_id]||{},e=eMap[w.equipment_id]||{};
+      var fields=[c.name||'',c.phone||'',w.invoice_number?'inv-'+w.invoice_number:'',w.invoice_number?String(w.invoice_number):'',w.problem||'',e.make||'',e.model||''].join(' ').toLowerCase();
+      return q.split(' ').filter(Boolean).every(function(t){return fields.includes(t);});
+    });
+  }
+
+  // ── Buckets ──────────────────────────────────────────────────────
+  // A job lands in exactly one place: still being worked, finished and
+  // waiting on an invoice, or invoiced and waiting on money.
+  var STAGES=[
+    {id:'Request',label:'Phone requests'},
+    {id:'New',label:'New — not started'},
+    {id:'Looked At',label:'Diagnosed'},
+    {id:'Parts Ordered',label:'Parts ordered — waiting on parts'},
+    {id:'Parts In',label:'Parts in — ready to work'}
+  ];
+
+  var openByStage={},openCount=0;
+  var needsInv=[],unpaid=[];
+
+  all.forEach(function(w){
+    var stage=csEff(w);
+    var isPaid=w.invoice_status==='paid';
+    var hasInv=!!w.invoice_number||stage==='Invoiced';
+    var bal=woBalance(w);
+    if(hasInv){
+      if(!isPaid&&bal>0.01)unpaid.push(w);
+      return;
+    }
+    if(stage==='Done'){
+      if(!isPaid)needsInv.push(w);
+      return;
+    }
+    if(!openByStage[stage])openByStage[stage]=[];
+    openByStage[stage].push(w);
+    openCount++;
+  });
+
+  var owed=unpaid.reduce(function(s,w){return s+woBalance(w);},0);
+  var readyValue=needsInv.reduce(function(s,w){return s+woTotal(w);},0);
+
+  var _now=new Date();
+
+  var money=function(n){return '$'+(Math.round(n||0)).toLocaleString('en-US');};
+
+  // ── Sheet body ───────────────────────────────────────────────────
+  var b='';
+
+  b+='<div class="sheet-hd">';
+  b+='<div><div class="biz">DG Equipment Repair &amp; Services</div><div class="ttl">Job Status</div></div>';
+  b+='<div class="hd-r"><div class="dt">'+esc(_now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}))+'</div>';
+  b+='<div class="tm">Printed '+esc(_now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}))+'</div></div>';
+  b+='</div>';
+
+  if(q)b+='<div class="filt">Filtered to “'+esc(q)+'” — not the whole board</div>';
+
+  // Block A — open jobs, by stage then customer
+  b+='<h2>Jobs in progress<span class="h2c">'+openCount+'</span></h2>';
+  if(!openCount){
+    b+='<div class="none">Nothing open — every job is done or billed.</div>';
+  }else{
+    STAGES.forEach(function(st){
+      var list=openByStage[st.id];
+      if(!list||!list.length)return;
+      b+='<h3>'+esc(st.label)+'<span class="h3c">'+list.length+'</span></h3>';
+      b+='<table><thead><tr>';
+      b+='<th class="ck"></th><th class="cu">Customer</th><th class="mc">Machine</th><th class="wh">Where it is</th><th>Job</th><th class="dt2">In</th><th class="amt">Est.</th>';
+      b+='</tr></thead><tbody>';
+      _pssByCustomer(list).forEach(function(g){
+        var perJob=g.jobs.map(_pssMachineList);
+        var custRows=perJob.reduce(function(s,a){return s+a.length;},0);
+        var firstOfCust=true;
+        g.jobs.forEach(function(w,ji){
+          var machines=perJob[ji];
+          machines.forEach(function(m,mi){
+            b+='<tr'+(mi===0?' class="gt"':'')+'>';
+            b+='<td class="ck">'+(mi===0?'☐':'')+'</td>';
+            if(firstOfCust)b+='<td class="cu nm" rowspan="'+custRows+'">'+esc(g.name)+'</td>';
+            b+='<td class="mc">'+esc(m.name)+(w.urgent&&mi===0?' <span class="urg">RUSH</span>':'')+'</td>';
+            b+='<td class="wh">'+_pssWhere(m.loc)+'</td>';
+            if(mi===0){
+              var t=woTotal(w);
+              b+='<td class="jb" rowspan="'+machines.length+'">'+_pssProblem(w)+'</td>';
+              b+='<td class="dt2" rowspan="'+machines.length+'">'+esc(_pssDate(w.scheduled_date||w.created_at))+'</td>';
+              b+='<td class="amt" rowspan="'+machines.length+'">'+(t>0.01?money(t):'—')+'</td>';
+            }
+            b+='</tr>';
+            firstOfCust=false;
+          });
+        });
+      });
+      b+='</tbody></table>';
+    });
+  }
+
+  // Block B — done, waiting on an invoice
+  b+='<h2>Done — needs invoicing<span class="h2c">'+needsInv.length+'</span></h2>';
+  if(!needsInv.length){
+    b+='<div class="none">Nothing waiting to be billed.</div>';
+  }else{
+    b+='<table><thead><tr>';
+    b+='<th class="ck"></th><th class="cu">Customer</th><th class="mc">Machine</th><th class="wh">Where it is</th><th>Job</th><th class="dt2">Done</th><th class="amt">Amount</th>';
+    b+='</tr></thead><tbody>';
+    _pssByCustomer(needsInv).forEach(function(g){
+      var perJob=g.jobs.map(_pssMachineList);
+      var custRows=perJob.reduce(function(s,a){return s+a.length;},0);
+      var firstOfCust=true;
+      g.jobs.forEach(function(w,ji){
+        var machines=perJob[ji];
+        machines.forEach(function(m,mi){
+          b+='<tr'+(mi===0?' class="gt"':'')+'>';
+          b+='<td class="ck">'+(mi===0?'☐':'')+'</td>';
+          if(firstOfCust)b+='<td class="cu nm" rowspan="'+custRows+'">'+esc(g.name)+'</td>';
+          b+='<td class="mc">'+esc(m.name)+'</td>';
+          b+='<td class="wh">'+_pssWhere(m.loc)+'</td>';
+          if(mi===0){
+            b+='<td class="jb" rowspan="'+machines.length+'">'+_pssProblem(w)+'</td>';
+            b+='<td class="dt2" rowspan="'+machines.length+'">'+esc(_pssDate(w.scheduled_date||w.created_at))+'</td>';
+            b+='<td class="amt" rowspan="'+machines.length+'">'+money(woTotal(w))+'</td>';
+          }
+          b+='</tr>';
+          firstOfCust=false;
+        });
+      });
+    });
+    b+='<tr class="tot"><td colspan="6">Total ready to bill</td><td class="amt">'+money(readyValue)+'</td></tr>';
+    b+='</tbody></table>';
+  }
+
+  // Block C — invoiced, waiting on money
+  b+='<h2>Invoiced — needs to be paid<span class="h2c">'+unpaid.length+'</span></h2>';
+  if(!unpaid.length){
+    b+='<div class="none">Everything invoiced is paid up.</div>';
+  }else{
+    b+='<table><thead><tr>';
+    b+='<th class="ck"></th><th class="cu">Customer</th><th class="inv">Invoice</th><th>Machine</th><th class="dt2">Billed</th><th class="amt">Total</th><th class="amt">Paid</th><th class="amt">Owed</th>';
+    b+='</tr></thead><tbody>';
+    var _unpaidSorted=unpaid.slice().sort(function(a,b2){return woBalance(b2)-woBalance(a);});
+    _pssByCustomer(_unpaidSorted).forEach(function(g){
+      var custOwed=0;
+      g.jobs.forEach(function(w){custOwed+=woBalance(w);});
+      g.jobs.forEach(function(w,i){
+        var paidAmt=woPaid(w);
+        b+='<tr'+(i===0?' class="gt"':'')+'>';
+        b+='<td class="ck">☐</td>';
+        if(i===0)b+='<td class="cu nm" rowspan="'+g.jobs.length+'">'+esc(g.name)+(g.jobs.length>1?'<div class="sub">'+money(custOwed)+' total</div>':'')+'</td>';
+        b+='<td class="inv">'+(w.invoice_number?'INV-'+esc(String(w.invoice_number)):'—')+'</td>';
+        b+='<td>'+esc(_pssMachines(w))+'</td>';
+        b+='<td class="dt2">'+esc(_pssDate(w.invoiced_at||w.scheduled_date||w.created_at))+'</td>';
+        b+='<td class="amt">'+money(woTotal(w))+'</td>';
+        b+='<td class="amt">'+(paidAmt>0.01?money(paidAmt):'—')+'</td>';
+        b+='<td class="amt owe">'+money(woBalance(w))+'</td>';
+        b+='</tr>';
+      });
+    });
+    b+='<tr class="tot"><td colspan="7">Total owed to the shop</td><td class="amt owe">'+money(owed)+'</td></tr>';
+    b+='</tbody></table>';
+  }
+
+  b+='<div class="foot">Snapshot from the DG Equipment app — accurate as of the print time above.</div>';
+
+  // ── Window ───────────────────────────────────────────────────────
+  var css=[
+    '*{margin:0;padding:0;box-sizing:border-box}',
+    'body{font-family:Arial,Helvetica,sans-serif;color:#111;background:#fff;padding:26px 30px;max-width:960px;margin:0 auto}',
+    '.bar{position:sticky;top:0;background:#fff;padding-bottom:10px;margin-bottom:6px;display:flex;gap:8px}',
+    '.bar button{font-family:inherit;font-size:13px;font-weight:700;padding:8px 16px;border:1.5px solid #111;background:#111;color:#fff;border-radius:4px;cursor:pointer}',
+    '.bar button.alt{background:#fff;color:#111}',
+    '.sheet-hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:8px;margin-bottom:12px}',
+    '.biz{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#666}',
+    '.ttl{font-size:30px;font-weight:800;line-height:1.1;margin-top:2px}',
+    '.hd-r{text-align:right}',
+    '.dt{font-size:17px;font-weight:700}',
+    '.tm{font-size:12px;color:#666;margin-top:2px}',
+    '.filt{font-size:12.5px;font-weight:700;border:1px solid #111;padding:5px 9px;margin-bottom:10px}',
+    'h2{font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;background:#111;color:#fff;padding:6px 10px;margin:22px 0 0;display:flex;justify-content:space-between;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+    '.h2c{font-weight:700}',
+    'h3{font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#111;margin:15px 0 3px;padding-bottom:3px;border-bottom:1.5px solid #111;display:flex;justify-content:space-between}',
+    '.h3c{color:#666}',
+    'table{width:100%;border-collapse:collapse;margin-bottom:4px;table-layout:fixed}',
+    'th{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;text-align:left;padding:5px 5px;border-bottom:1px solid #999}',
+    'td{font-size:13.5px;padding:8px 5px;border-bottom:1px solid #ddd;vertical-align:top;line-height:1.3;overflow-wrap:break-word}',
+    'tr.gt td{border-top:1px solid #999}',
+    'tr{page-break-inside:avoid}',
+    '.nm{font-weight:800;font-size:14.5px}',
+    '.sub{font-size:11.5px;font-weight:600;color:#666;margin-top:2px}',
+    '.jb{color:#333}',
+    '.ck{width:22px;font-size:17px;color:#111;text-align:center;padding-left:0;padding-right:0}',
+    '.cu{width:19%}',
+    '.mc{width:20%}',
+    '.wh{width:13%}',
+    '.inv{width:12%;font-family:"Courier New",monospace;font-size:13px}',
+    '.dt2{width:9%;white-space:nowrap;color:#555}',
+    '.amt{width:10%;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}',
+    '.owe{font-weight:800}',
+    '.urg{font-size:10px;font-weight:800;border:1.5px solid #111;padding:0 4px;letter-spacing:.05em;white-space:nowrap}',
+    '.wr{display:inline-block;width:100%;min-width:60px;border-bottom:1px solid #999;height:13px}',
+    '.tot td{border-top:2px solid #111;border-bottom:none;font-weight:800;font-size:14px;padding-top:8px}',
+    '.tot td:first-child{text-transform:uppercase;letter-spacing:.05em;font-size:12px}',
+    '.none{font-size:13.5px;color:#666;padding:11px 2px;border-bottom:1px solid #ddd}',
+    '.foot{margin-top:22px;padding-top:8px;border-top:1px solid #ccc;font-size:10.5px;color:#888}',
+    '@page{margin:.45in}',
+    '@media print{body{padding:0;max-width:none}.bar{display:none}h2,h3{page-break-after:avoid}}'
+  ].join('');
+
+  var win=window.open('','_blank');
+  if(!win){toast('Allow pop-ups to print the sheet','er');return;}
+  win.document.write('<html><head><title>Job Status — '+esc(_now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}))+'</title>');
+  win.document.write('<meta name="viewport" content="width=device-width,initial-scale=1">');
+  win.document.write('<style>'+css+'</style></head><body>');
+  win.document.write('<div class="bar"><button onclick="window.print()">Print</button><button class="alt" onclick="window.close()">Close</button></div>');
+  win.document.write(b);
+  win.document.write('</body></html>');
+  win.document.close();
+  setTimeout(function(){try{win.focus();win.print();}catch(e){}},400);
 }
 
 // ─────────────────────────────────────────
