@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.27</title>
+<title>DG Equipment v27.28</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -7098,10 +7098,26 @@ async function saveInvListJpg(woId, invNum){
 // ─────────────────────────────────────────
 var _statusTab='all';
 
+// Where a job sits in the billing cycle: 'unbilled' (still a work
+// order), 'invoiced' (billed, money outstanding), or 'paid' (closed).
+//
+// invoice_status is the authority, NOT invoice_number. Numbers get
+// handed out ahead of the actual billing — there are live work orders
+// sitting at New and Looked At that already carry one — so keying off
+// the number reads open jobs as invoices and loses them.
+function _pssBill(w){
+  var s=(w.invoice_status||'').toLowerCase();
+  if(s==='paid')return'paid';
+  if(s==='invoiced'||s==='partial')return'invoiced';
+  if(s==='unbilled')return'unbilled';
+  // No billing state recorded — fall back to the job status column.
+  return cs(w.status)==='Invoiced'?'invoiced':'unbilled';
+}
+
 function _woFinStatus(w){
   // {label, color} for payment status — only meaningful once invoiced.
   // Open jobs (New/Looked At/Parts Ordered/Parts In/Done-not-yet-billed) get no badge.
-  if(!w.invoice_number && w.status!=='Invoiced') return null;
+  if(_pssBill(w)==='unbilled') return null;
   var total=woTotal(w);
   var paid=woPaid(w);
   if(paid<=0.01) return {label:'Unpaid',cls:'red'};
@@ -7111,7 +7127,7 @@ function _woFinStatus(w){
 
 function _woQboStatus(w){
   var inQBO=!!(w.qbo_pushed||w.qbo_invoice_id);
-  if(!w.invoice_number) return null; // nothing to push yet
+  if(_pssBill(w)==='unbilled'||!w.invoice_number) return null; // nothing to push yet
   if(!inQBO) return {label:'Not in QB',cls:'amb'};
   var unsynced=(payments||[]).filter(function(p){return p.work_order_id===w.id && !p.qbo_payment_id;});
   if(unsynced.length) return {label:'Pmt not synced',cls:'red'};
@@ -7202,14 +7218,14 @@ function renderStatusOverview(){
 
     // QB push status — invoice push and payment push are separate facts
     var inQBO=!!(w.qbo_pushed||w.qbo_invoice_id);
-    var hasInvoice=!!w.invoice_number;
+    var hasInvoice=_pssBill(w)!=='unbilled'&&!!w.invoice_number;
     var paid=woPaid(w);
     var unsyncedPmt=(payments||[]).filter(function(p){return p.work_order_id===w.id && !p.qbo_payment_id;});
 
     h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:10px 12px;margin-bottom:7px;cursor:pointer" data-wid="'+w.id+'" onclick="openWO(this.dataset.wid)">';
     h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">';
     h+='<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(c.name||'Walk-in')+'</div>';
-    h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">'+(w.invoice_number?'INV-'+w.invoice_number+' \u00b7 ':'')+dateStr+(prob?' \u00b7 '+esc(prob):'')+'</div>';
+    h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">'+(hasInvoice?'INV-'+w.invoice_number+' \u00b7 ':'')+dateStr+(prob?' \u00b7 '+esc(prob):'')+'</div>';
     // Where each machine on this job actually sits — one job can straddle two places
     var _whereBits=_pssMachineList(w).map(function(m){return esc(m.name)+(m.loc?' \u2014 '+esc(m.loc):'');});
     if(_whereBits.length)h+='<div style="font-size:11px;color:var(--tx3);margin-top:2px">'+_whereBits.join(' \u00b7 ')+'</div>';
@@ -7243,6 +7259,8 @@ function setStatusTab(btn){
 // ─────────────────────────────────────────
 // How far ahead the sheet looks for service coming due.
 var PSS_SERVICE_DAYS=14;
+// How far back closed invoices are worth putting on paper.
+var PSS_CLOSED_DAYS=30;
 
 function _pssDate(d){
   if(!d)return'';
@@ -7320,39 +7338,49 @@ function printJobStatusSheet(){
   }
 
   // ── Buckets ──────────────────────────────────────────────────────
-  // A job lands in exactly one place: still being worked, finished and
-  // waiting on an invoice, or invoiced and waiting on money.
+  // Three separate lists: work orders still being worked, invoices
+  // waiting on money, and invoices that are closed out.
   var STAGES=[
     {id:'Request',label:'Phone requests'},
     {id:'New',label:'New — not started'},
     {id:'Looked At',label:'Diagnosed'},
     {id:'Parts Ordered',label:'Parts ordered — waiting on parts'},
-    {id:'Parts In',label:'Parts in — ready to work'}
+    {id:'Parts In',label:'Parts in — ready to work'},
+    {id:'Done',label:'Done — ready to invoice'}
   ];
 
   var openByStage={},openCount=0;
-  var needsInv=[],unpaid=[];
+  var unpaid=[],closed=[];
 
   all.forEach(function(w){
-    var stage=csEff(w);
-    var isPaid=w.invoice_status==='paid';
-    var hasInv=!!w.invoice_number||stage==='Invoiced';
-    var bal=woBalance(w);
-    if(hasInv){
-      if(!isPaid&&bal>0.01)unpaid.push(w);
-      return;
+    switch(_pssBill(w)){
+      case 'paid':
+        closed.push(w);
+        return;
+      case 'invoiced':
+        unpaid.push(w);
+        return;
     }
-    if(stage==='Done'){
-      if(!isPaid)needsInv.push(w);
-      return;
-    }
+    // Still a work order. Anything past Done with no billing state yet
+    // sits under Done, so nothing can fall out of the sheet entirely.
+    var stage=cs(w.status);
+    if(STAGES.every(function(s){return s.id!==stage;}))stage='Done';
     if(!openByStage[stage])openByStage[stage]=[];
     openByStage[stage].push(w);
     openCount++;
   });
 
   var owed=unpaid.reduce(function(s,w){return s+woBalance(w);},0);
-  var readyValue=needsInv.reduce(function(s,w){return s+woTotal(w);},0);
+  // Closed invoices are reference, not to-do — only the recent ones earn
+  // paper, with a count of the rest.
+  var _closedCut=new Date(Date.now()-PSS_CLOSED_DAYS*86400000);
+  var closedRecent=closed.filter(function(w){
+    var d=new Date(w.invoiced_at||w.scheduled_date||w.created_at||0);
+    return !isNaN(d.getTime())&&d>=_closedCut;
+  }).sort(function(a,b2){
+    return new Date(b2.invoiced_at||b2.created_at||0)-new Date(a.invoiced_at||a.created_at||0);
+  });
+  var closedValue=closedRecent.reduce(function(s,w){return s+woTotal(w);},0);
 
   // Service coming due in the next two weeks, plus anything already past due
   var _refNoon=new Date();_refNoon.setHours(12,0,0,0);
@@ -7385,10 +7413,10 @@ function printJobStatusSheet(){
 
   if(q)b+='<div class="filt">Filtered to “'+esc(q)+'” — not the whole board</div>';
 
-  // Block A — open jobs, by stage then customer
-  b+='<h2>Jobs in progress<span class="h2c">'+openCount+'</span></h2>';
+  // Block A — work orders, by status then customer
+  b+='<h2>Work orders<span class="h2c">'+openCount+'</span></h2>';
   if(!openCount){
-    b+='<div class="none">Nothing open — every job is done or billed.</div>';
+    b+='<div class="none">No open work orders — everything is invoiced.</div>';
   }else{
     STAGES.forEach(function(st){
       var list=openByStage[st.id];
@@ -7424,42 +7452,8 @@ function printJobStatusSheet(){
     });
   }
 
-  // Block B — done, waiting on an invoice
-  b+='<h2>Done — needs invoicing<span class="h2c">'+needsInv.length+'</span></h2>';
-  if(!needsInv.length){
-    b+='<div class="none">Nothing waiting to be billed.</div>';
-  }else{
-    b+='<table><thead><tr>';
-    b+='<th class="ck"></th><th class="cu">Customer</th><th class="mc">Machine</th><th class="wh">Where it is</th><th>Job</th><th class="dt2">Done</th><th class="amt">Amount</th>';
-    b+='</tr></thead><tbody>';
-    _pssByCustomer(needsInv).forEach(function(g){
-      var perJob=g.jobs.map(_pssMachineList);
-      var custRows=perJob.reduce(function(s,a){return s+a.length;},0);
-      var firstOfCust=true;
-      g.jobs.forEach(function(w,ji){
-        var machines=perJob[ji];
-        machines.forEach(function(m,mi){
-          b+='<tr'+(mi===0?' class="gt"':'')+'>';
-          b+='<td class="ck">'+(mi===0?'☐':'')+'</td>';
-          if(firstOfCust)b+='<td class="cu nm" rowspan="'+custRows+'">'+esc(g.name)+'</td>';
-          b+='<td class="mc">'+esc(m.name)+'</td>';
-          b+='<td class="wh">'+_pssWhere(m.loc)+'</td>';
-          if(mi===0){
-            b+='<td class="jb" rowspan="'+machines.length+'">'+_pssProblem(w)+'</td>';
-            b+='<td class="dt2" rowspan="'+machines.length+'">'+esc(_pssDate(w.scheduled_date||w.created_at))+'</td>';
-            b+='<td class="amt" rowspan="'+machines.length+'">'+money(woTotal(w))+'</td>';
-          }
-          b+='</tr>';
-          firstOfCust=false;
-        });
-      });
-    });
-    b+='<tr class="tot"><td colspan="6">Total ready to bill</td><td class="amt">'+money(readyValue)+'</td></tr>';
-    b+='</tbody></table>';
-  }
-
-  // Block C — invoiced, waiting on money
-  b+='<h2>Invoiced — needs to be paid<span class="h2c">'+unpaid.length+'</span></h2>';
+  // Block B — invoices still waiting on money
+  b+='<h2>Invoices — needs to be paid<span class="h2c">'+unpaid.length+'</span></h2>';
   if(!unpaid.length){
     b+='<div class="none">Everything invoiced is paid up.</div>';
   }else{
@@ -7486,6 +7480,31 @@ function printJobStatusSheet(){
     });
     b+='<tr class="tot"><td colspan="7">Total owed to the shop</td><td class="amt owe">'+money(owed)+'</td></tr>';
     b+='</tbody></table>';
+  }
+
+  // Block C — closed invoices, recent only; reference, not to-do
+  b+='<h2>Closed invoices — paid<span class="h2c">'+closedRecent.length+'</span></h2>';
+  if(!closedRecent.length){
+    b+='<div class="none">Nothing paid in the last '+PSS_CLOSED_DAYS+' days.</div>';
+  }else{
+    b+='<table><thead><tr>';
+    b+='<th class="cu">Customer</th><th class="inv">Invoice</th><th>Machine</th><th class="dt2">Date</th><th class="amt">Paid</th>';
+    b+='</tr></thead><tbody>';
+    closedRecent.forEach(function(w){
+      var c=cMap[w.customer_id]||{};
+      b+='<tr>';
+      b+='<td class="cu nm">'+esc(c.name||'Walk-in')+'</td>';
+      b+='<td class="inv">'+(w.invoice_number?'INV-'+esc(String(w.invoice_number)):'—')+'</td>';
+      b+='<td>'+esc(_pssMachines(w))+'</td>';
+      b+='<td class="dt2">'+esc(_pssDate(w.invoiced_at||w.scheduled_date||w.created_at))+'</td>';
+      b+='<td class="amt">'+money(woTotal(w))+'</td>';
+      b+='</tr>';
+    });
+    b+='<tr class="tot"><td colspan="4">Collected, last '+PSS_CLOSED_DAYS+' days</td><td class="amt">'+money(closedValue)+'</td></tr>';
+    b+='</tbody></table>';
+    if(closed.length>closedRecent.length){
+      b+='<div class="note">'+(closed.length-closedRecent.length)+' older paid invoice'+(closed.length-closedRecent.length===1?'':'s')+' not shown.</div>';
+    }
   }
 
   // Block D — service coming due, so the next job is booked before it's late
@@ -7567,6 +7586,7 @@ function printJobStatusSheet(){
     '.tot td{border-top:2px solid #111;border-bottom:none;font-weight:800;font-size:14px;padding-top:8px}',
     '.tot td:first-child{text-transform:uppercase;letter-spacing:.05em;font-size:12px}',
     '.none{font-size:13.5px;color:#666;padding:11px 2px;border-bottom:1px solid #ddd}',
+    '.note{font-size:11.5px;color:#666;padding:5px 2px 0}',
     '.foot{margin-top:22px;padding-top:8px;border-top:1px solid #ccc;font-size:10.5px;color:#888}',
     '@page{margin:.45in}',
     '@media print{body{padding:0;max-width:none}.bar{display:none}h2,h3{page-break-after:avoid}}'
