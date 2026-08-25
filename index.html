@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.28</title>
+<title>DG Equipment v27.29</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3118,7 +3118,7 @@ async function openWO(id){
   // edit screen is reached from there via "Edit Work Order" instead.
   if(id&&!_forceWOEdit){
     var _existing=wos.find(function(w){return w.id===id;});
-    if(_existing&&_existing.invoice_number){
+    if(_existing&&_existing.invoice_number&&_pssBill(_existing)!=='unbilled'){
       var _curScr=document.querySelector('.scr.on');
       prevScr=_curScr?_curScr.id:'S_list';
       go('S_inv_view');
@@ -3186,7 +3186,7 @@ function updateWOInvBar(w){
   if(!bar||!btn||!lbl)return;
   if(!w){bar.style.display='none';return;}
   bar.style.display='block';
-  var hasInv=!!(w.invoice_number);
+  var hasInv=!!(w.invoice_number)&&_pssBill(w)!=='unbilled';
   lbl.textContent=hasInv?'View Invoice →':'Create Invoice →';
   btn.onclick=function(){go('S_inv_view');openInvoice(w.id,!hasInv);};
 }
@@ -11369,7 +11369,12 @@ async function openInvoice(id, create) {
       get('work_orders', '?id=eq.' + id),
       get('payments', '?work_order_id=eq.' + id + '&order=created_at')
     ]);
-    if (!w) return;
+    if (!w) {
+      document.getElementById('invViewBody').innerHTML='<div class="empty" style="margin-top:40px"><div class="et">Job not found</div><div class="es">It may have been deleted on another device</div></div>';
+      var _gone=wos.findIndex(function(x){return x.id===id;});
+      if(_gone>=0)wos.splice(_gone,1);
+      return;
+    }
     // Sync fresh WO data into memory so WO screen shows correct state
     var _wi=wos.findIndex(function(x){return x.id===id;});
     if(_wi>=0)wos[_wi]=Object.assign(wos[_wi],{status:w.status,invoice_number:w.invoice_number,invoice_status:w.invoice_status,qbo_pushed:w.qbo_pushed,qbo_invoice_id:w.qbo_invoice_id,invoiced_at:w.invoiced_at});
@@ -11379,8 +11384,13 @@ async function openInvoice(id, create) {
     // convert a job into an invoice on its own.
     if(!w.invoice_number){
       if(!create){
-        toast('No invoice yet — tap Create Invoice from the work order','er');
-        backFromWO();
+        toast('No invoice yet — opening the work order','er');
+        // Clear the spinner: this screen stays in the DOM behind the
+        // work order, and a stale "Building invoice…" would greet
+        // whoever navigates back to it.
+        document.getElementById('invViewBody').innerHTML='';
+        _forceWOEdit=true;
+        openWO(id);
         return;
       }
       var _md0={};try{_md0=JSON.parse(w.machines_data||'{}');}catch(e){}
