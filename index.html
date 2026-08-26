@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.36</title>
+<title>DG Equipment v27.37</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -7045,7 +7045,8 @@ function buildIE(p){
     '<div class="ie-r" style="margin-top:6px"><div class="ie-c"><div class="ie-l">Honda #</div><input class="ie-i" id="ihn_'+p.id+'" value="'+(p.honda_num||'').replace(/"/g,'&quot;')+'" placeholder="Honda #"></div><div style="width:56px"><div class="ie-l">Qty</div><input class="ie-i" id="iqhn_'+p.id+'" type="number" min="0" value="'+(p.qty_honda||0)+'"></div></div>'+
     '</div>'+
     '<div><div class="ie-l" style="margin-bottom:4px">Fits (machines/models)</div><input class="ie-i" id="ift_'+p.id+'" value="'+(p.fits||'').replace(/"/g,'&quot;')+'" placeholder="Wright WS36, Scag Turf Tiger, Toro Z Master…"></div>'+
-    '<div><div class="ie-l" style="margin-bottom:4px">Notes</div><textarea class="ie-i" id="ino_'+p.id+'" rows="2" style="resize:none;min-height:52px" placeholder="e.g. 2 holes, replaces OEM 123...">'+(p.notes||'')+'</textarea></div>'+
+    '<div><div class="ie-l" style="margin-bottom:4px">Part notes</div><textarea class="ie-i" id="ino_'+p.id+'" rows="2" style="resize:none;min-height:52px" placeholder="About the part — e.g. 2 holes, replaces OEM 123...">'+(p.notes||'')+'</textarea></div>'+
+    '<div><div class="ie-l" style="margin-bottom:4px">Purchased from</div><textarea class="ie-i" id="ipn_'+p.id+'" rows="2" style="resize:none;min-height:52px" placeholder="Where it came from — vendor, bill number, date">'+(p.purchase_notes||'')+'</textarea></div>'+
     '<div class="ie-b"><button class="ie-dl" data-pid="'+p.id+'" onclick="openPartHistory(this.dataset.pid)">History</button><button class="ie-dl" onclick="delInv(\''+p.id+'\')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg> Delete</button><button class="ie-sv" onclick="saveInv(\''+p.id+'\')">Save changes</button></div>'+
   '</div>';
 }
@@ -7069,7 +7070,7 @@ async function saveInv(id){
   var kwEl=document.getElementById('ikw_'+id);
   var brEl=document.getElementById('ibr_'+id);
   var hnEl=document.getElementById('ihn_'+id);
-  var data={name:document.getElementById('inm_'+id).value.trim(),category:document.getElementById('ict_'+id).value,item_type:document.getElementById('ityp_'+id)?document.getElementById('ityp_'+id).value:'Stock',cost:parseFloat(document.getElementById('ics_'+id).value)||0,sell_price:sell,sell,min_stock:parseInt(document.getElementById('imn_'+id).value)||0,qty_on_hand:qty,cross_refs:xrEl?xrEl.value.trim():'',stens_num:stEl?stEl.value.trim():'',rotary_num:rtEl?rtEl.value.trim():'',qty_stens:parseFloat((document.getElementById('iqst_'+id)||{}).value)||0,qty_rotary:parseFloat((document.getElementById('iqrt_'+id)||{}).value)||0,wright_num:wrEl?wrEl.value.trim()||null:null,scag_num:scEl?scEl.value.trim()||null:null,redmax_num:rmEl?rmEl.value.trim()||null:null,echo_num:ecEl?ecEl.value.trim()||null:null,toro_num:toEl?toEl.value.trim()||null:null,kawasaki_num:kwEl?kwEl.value.trim()||null:null,briggs_num:brEl?brEl.value.trim()||null:null,honda_num:hnEl?hnEl.value.trim()||null:null,qty_wright:parseFloat((document.getElementById('iqwr_'+id)||{}).value)||0,qty_scag:parseFloat((document.getElementById('iqsc_'+id)||{}).value)||0,qty_redmax:parseFloat((document.getElementById('iqrm_'+id)||{}).value)||0,qty_echo:parseFloat((document.getElementById('iqec_'+id)||{}).value)||0,qty_toro:parseFloat((document.getElementById('iqto_'+id)||{}).value)||0,qty_kawasaki:parseFloat((document.getElementById('iqkw_'+id)||{}).value)||0,qty_briggs:parseFloat((document.getElementById('iqbr_'+id)||{}).value)||0,qty_honda:parseFloat((document.getElementById('iqhn_'+id)||{}).value)||0,fits:(document.getElementById('ift_'+id)?document.getElementById('ift_'+id).value||'':'').trim()||null,notes:(document.getElementById('ino_'+id)?document.getElementById('ino_'+id).value||'':'').trim()};
+  var data={name:document.getElementById('inm_'+id).value.trim(),category:document.getElementById('ict_'+id).value,item_type:document.getElementById('ityp_'+id)?document.getElementById('ityp_'+id).value:'Stock',cost:parseFloat(document.getElementById('ics_'+id).value)||0,sell_price:sell,sell,min_stock:parseInt(document.getElementById('imn_'+id).value)||0,qty_on_hand:qty,cross_refs:xrEl?xrEl.value.trim():'',stens_num:stEl?stEl.value.trim():'',rotary_num:rtEl?rtEl.value.trim():'',qty_stens:parseFloat((document.getElementById('iqst_'+id)||{}).value)||0,qty_rotary:parseFloat((document.getElementById('iqrt_'+id)||{}).value)||0,wright_num:wrEl?wrEl.value.trim()||null:null,scag_num:scEl?scEl.value.trim()||null:null,redmax_num:rmEl?rmEl.value.trim()||null:null,echo_num:ecEl?ecEl.value.trim()||null:null,toro_num:toEl?toEl.value.trim()||null:null,kawasaki_num:kwEl?kwEl.value.trim()||null:null,briggs_num:brEl?brEl.value.trim()||null:null,honda_num:hnEl?hnEl.value.trim()||null:null,qty_wright:parseFloat((document.getElementById('iqwr_'+id)||{}).value)||0,qty_scag:parseFloat((document.getElementById('iqsc_'+id)||{}).value)||0,qty_redmax:parseFloat((document.getElementById('iqrm_'+id)||{}).value)||0,qty_echo:parseFloat((document.getElementById('iqec_'+id)||{}).value)||0,qty_toro:parseFloat((document.getElementById('iqto_'+id)||{}).value)||0,qty_kawasaki:parseFloat((document.getElementById('iqkw_'+id)||{}).value)||0,qty_briggs:parseFloat((document.getElementById('iqbr_'+id)||{}).value)||0,qty_honda:parseFloat((document.getElementById('iqhn_'+id)||{}).value)||0,fits:(document.getElementById('ift_'+id)?document.getElementById('ift_'+id).value||'':'').trim()||null,notes:(document.getElementById('ino_'+id)?document.getElementById('ino_'+id).value||'':'').trim(),purchase_notes:(document.getElementById('ipn_'+id)?document.getElementById('ipn_'+id).value||'':'').trim()||null};
   try{await patch('inventory',data,'?id=eq.'+id);const i=inv.findIndex(x=>x.id===id);if(i>=0)inv[i]={...inv[i],...data};expInvId=null;renderInv();toast('Saved ✓','ok');}
   catch(e){toast('Save failed: '+e.message,'er');if(btn){btn.disabled=false;btn.textContent='Save changes';}}
 }
@@ -7678,12 +7679,13 @@ var BILL_PROMPT=[
   'This is a photograph of a vendor invoice, packing slip, or parts bill from an outdoor power equipment parts supplier (Rotary, Stens, Oregon, Prime Line, or a manufacturer such as Scag, Echo, Toro, Briggs).',
   '',
   'Extract:',
-  '- vendor: the supplier name printed on the bill',
+  '- vendor: the supplier you are buying FROM, as printed at the top of the bill (e.g. Russo Power Equipment, Rotary, Stens). This is a distributor, not necessarily the part manufacturer.',
   '- bill_number: the invoice or order number exactly as printed',
   '- bill_date: the invoice date in YYYY-MM-DD if legible, else empty string',
   '- lines: every line item on the bill, each as',
   '  {"part_number":"<supplier part number exactly as printed>",',
   '   "desc":"<description exactly as printed, plain text, no quotes>",',
+  '   "brand":"<the MANUFACTURER of the part if the line names one — Wright, Scag, Echo, RedMax, Toro, Kawasaki, Briggs, Honda, Stens, Rotary, Oregon. This is NOT the supplier you are buying from. Empty string if the line does not say.>",',
   '   "qty":<quantity as a number>,',
   '   "unit_cost":<price per unit as a number, no currency symbol>,',
   '   "line_total":<extended amount as a number if printed, else 0>}',
@@ -7771,12 +7773,19 @@ async function scanBill(file){
     _billLines=(result.lines||[]).map(function(l,idx){
       var m=matchBillLine(l);
       var cost=parseFloat(l.unit_cost||0)||0;
+      var desc=(l.desc||'').trim();
+      // The bill's own brand field first, then whatever the description says
+      var bm=brandNumColumn(l.brand)||brandFromText(desc);
       return {
         idx:idx,
         part_number:(l.part_number||'').trim(),
-        desc:(l.desc||'').trim(),
+        desc:desc,
+        brand:bm?bm.label:((l.brand||'').trim()||''),
+        brandCol:bm?bm.col:null,
         qty:parseFloat(l.qty||1)||1,
         cost:cost,
+        sell:0,          // filled in below once a category is known
+        sellTouched:false,
         match:m,
         // Only a certain match ticks itself. A likely one, an unmatched
         // line, or a missing price waits to be looked at.
@@ -7784,6 +7793,14 @@ async function scanBill(file){
         target:'stock',      // stock | job
         woId:null
       };
+    });
+
+    // Suggest a sell price for anything that would otherwise be created
+    // at zero, or that the shop has never priced.
+    _billLines.forEach(function(l){
+      var item=l.match&&l.match.item;
+      var existing=item?invSell(item):0;
+      l.sell=existing>0?existing:suggestSellFromCost(l.cost,guessBillCategory(l));
     });
 
     // Keep the bill. A price with a photo behind it can be argued with;
@@ -7831,6 +7848,43 @@ function _numTokens(s){
   return String(s||'').split(/[^A-Za-z0-9-]+/)
     .map(function(t){return pnorm(t);})
     .filter(function(t){return t&&/[0-9]/.test(t);});
+}
+
+// A brand name on a bill line maps to the column that brand's numbers
+// live in, so a Wright number lands in WRIGHT # rather than being
+// dropped into the generic part field.
+var BRAND_NUM_COLUMN=[
+  {re:/^wright/i,           col:'wright_num',    label:'Wright'},
+  {re:/^scag/i,             col:'scag_num',      label:'Scag'},
+  {re:/^red\s*max|^redmax/i,col:'redmax_num',    label:'RedMax'},
+  {re:/^echo/i,             col:'echo_num',      label:'Echo'},
+  {re:/^toro/i,             col:'toro_num',      label:'Toro'},
+  {re:/^kawasaki/i,         col:'kawasaki_num',  label:'Kawasaki'},
+  {re:/^briggs|^b\s*&\s*s/i,col:'briggs_num',    label:'Briggs'},
+  {re:/^honda/i,            col:'honda_num',     label:'Honda'},
+  {re:/^stens/i,            col:'stens_num',     label:'Stens'},
+  {re:/^rotary/i,           col:'rotary_num',    label:'Rotary'},
+  {re:/^oregon/i,           col:'oregon_num',    label:'Oregon'},
+  {re:/^arnold/i,           col:'arnold_num',    label:'Arnold'},
+  {re:/^max\s*power|^maxpower/i,col:'maxpower_num',label:'MaxPower'}
+];
+function brandNumColumn(brand){
+  var b=String(brand||'').trim();
+  if(!b)return null;
+  for(var i=0;i<BRAND_NUM_COLUMN.length;i++)
+    if(BRAND_NUM_COLUMN[i].re.test(b))return BRAND_NUM_COLUMN[i];
+  return null;
+}
+
+// A brand can also be sitting in the part's own description or name —
+// "Wright 53490098 Harness" says who made it without a brand column.
+function brandFromText(s){
+  var t=String(s||'');
+  for(var i=0;i<BRAND_NUM_COLUMN.length;i++){
+    var m=BRAND_NUM_COLUMN[i];
+    if(new RegExp('(^|[^a-z])'+m.label,'i').test(t))return m;
+  }
+  return null;
 }
 
 function _billFields(i){
@@ -7931,6 +7985,45 @@ function pickBillPart(idx,name){
   renderBillReview();
 }
 
+// What to sell a bill-created part for.
+//
+// A new part was being created with no sell price at all, which meant
+// it went onto a job at zero. The shop's price matrix already knows the
+// markup per category, so use that — floored at cost plus a quarter, so
+// nothing ever lands at or below what it cost.
+var BILL_MIN_MARKUP=0.25;
+function suggestSellFromCost(cost,category){
+  var c=parseFloat(cost||0);
+  if(!(c>0))return 0;
+  var fromMatrix=0;
+  try{ fromMatrix=applyPriceMatrix(c,category)||0; }catch(e){}
+  var floor=c*(1+BILL_MIN_MARKUP);
+  return Math.round(Math.max(fromMatrix,floor)*100)/100;
+}
+
+// Category drives the markup, so guess one from the part's own words
+// when the shop hasn't set one. Wrong guesses only affect the suggested
+// price, which is editable before anything is written.
+function guessBillCategory(l){
+  if(l.match&&l.match.item&&l.match.item.category)return l.match.item.category;
+  var t=((l.desc||'')+' '+(l.part_number||'')).toLowerCase();
+  var map=[[/air\s*filter/,'Air Filter'],[/fuel\s*filter/,'Fuel Filter'],[/oil\s*filter/,'Oil Filter'],
+    [/belt/,'Belt'],[/blade/,'Blade'],[/spark\s*plug/,'Spark Plug'],[/carb/,'Carburetor'],
+    [/recoil|starter/,'Recoil / Starter'],[/pulley/,'Pulley'],[/bearing/,'Bearing'],
+    [/cable/,'Cable'],[/fuel\s*line/,'Fuel Line'],[/spring/,'Spring'],[/tire/,'Tire'],
+    [/harness|solenoid|switch|coil|wire/,'Electrical'],[/oil\b/,'Oil'],
+    [/bolt|nut|washer|screw|pin/,'Hardware']];
+  for(var i=0;i<map.length;i++)if(map[i][0].test(t))return map[i][1];
+  return 'Misc';
+}
+
+function setBillSell(idx,v){
+  var l=_billLines[idx];if(!l)return;
+  l.sell=parseFloat(v||0)||0;
+  l.sellTouched=true;
+  renderBillReview();
+}
+
 function setBillTarget(idx,target){
   var l=_billLines[idx];if(!l)return;
   l.target=target;
@@ -7947,7 +8040,12 @@ function toggleBillLine(idx){
   l.include=!l.include;renderBillReview();
 }
 function setBillLineWo(idx,woId){var l=_billLines[idx];if(l)l.woId=woId||null;renderBillReview();}
-function setBillLineCost(idx,v){var l=_billLines[idx];if(l)l.cost=parseFloat(v||0)||0;renderBillReview();}
+function setBillLineCost(idx,v){
+  var l=_billLines[idx];if(!l)return;
+  l.cost=parseFloat(v||0)||0;
+  if(!l.sellTouched)l.sell=suggestSellFromCost(l.cost,guessBillCategory(l));
+  renderBillReview();
+}
 function setBillLineQty(idx,v){var l=_billLines[idx];if(l)l.qty=parseFloat(v||0)||0;renderBillReview();}
 
 function showBillReview(){go('S_billreview');S('S_billreview');renderBillReview();}
@@ -8007,10 +8105,19 @@ function renderBillReview(){
     h+='<div style="font-size:11px;color:var(--tx3);margin-top:2px">'+meta.filter(Boolean).join(' · ')+'</div>';
     if(item&&m.confidence==='likely')
       h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">found by '+esc(m.how)+' — confirm it\'s the right part</div>';
+    if(l.brand)
+      h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">'+esc(l.brand)+(l.brandCol?' — number goes in the '+esc(l.brand)+' field':'')+'</div>';
     if(item&&l.desc&&l.desc.toLowerCase()!==(item.name||'').toLowerCase())
       h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">bill says: '+esc(l.desc)+'</div>';
 
     // What applying would change, spelled out both ways
+    var _sellNum=parseFloat(l.sell||0);
+    if(_sellNum>0&&l.cost>0){
+      var _mg=Math.round((_sellNum-l.cost)/_sellNum*100);
+      h+='<div style="font-size:11px;color:'+(_mg<20?'var(--red)':'var(--tx3)')+';margin-top:3px">sell $'+_sellNum.toFixed(2)+' · '+_mg+'% margin</div>';
+    }else if(l.cost>0){
+      h+='<div style="font-size:11px;color:var(--red);margin-top:3px">no sell price — it would go on a job at $0</div>';
+    }
     if(item){
       var bits=[];
       if(costChanged)bits.push('cost $'+(oldCost||0).toFixed(2)+' → <b style="color:var(--amb)">$'+l.cost.toFixed(2)+'</b>');
@@ -8025,8 +8132,11 @@ function renderBillReview(){
 
     // qty / cost, editable because a misread digit has to be correctable
     h+='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">';
+    h+='<div style="display:flex;gap:6px;font-size:8.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3)"><span style="width:52px;text-align:right">Qty</span><span style="width:66px;text-align:right">Cost</span><span style="width:66px;text-align:right">Sell</span></div>';
+    h+='<div style="display:flex;gap:6px;align-items:center">';
     h+='<input type="number" min="0" step="1" value="'+l.qty+'" onchange="setBillLineQty('+l.idx+',this.value)" style="width:52px;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:4px 6px;font-size:12px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:right;outline:none" title="Quantity">';
     h+='<input type="number" min="0" step="0.01" value="'+l.cost.toFixed(2)+'" onchange="setBillLineCost('+l.idx+',this.value)" style="width:66px;background:var(--sf2);border:1.5px solid '+(l.cost>0?'var(--bd2)':'var(--red)')+';border-radius:var(--rs);padding:4px 6px;font-size:12px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:right;outline:none" title="Unit cost">';
+    h+='<input type="number" min="0" step="0.01" value="'+(parseFloat(l.sell||0)).toFixed(2)+'" onchange="setBillSell('+l.idx+',this.value)" style="width:66px;background:var(--sf2);border:1.5px solid '+(parseFloat(l.sell||0)>0?'var(--grn)':'var(--red)')+';border-radius:var(--rs);padding:4px 6px;font-size:12px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:right;outline:none" title="Sell price">';
     h+='</div></div>';
 
     // Attaching the right part by hand beats creating a duplicate,
@@ -8084,15 +8194,23 @@ async function applyBill(){
       // the quantity on — so its history starts at the bill, like
       // everything else.
       if(!item){
-        var created=await post('inventory',[{
+        var newRow={
           name:l.desc||l.part_number||'New part',
-          part:l.part_number||null,
+          category:guessBillCategory(l),
           cost:l.cost||0,
+          sell_price:parseFloat(l.sell||0)||null,
           qty_on_hand:0,
+          // Who you bought from, which is not who made it
           vendor:_billMeta.vendor||null,
-          primary_brand:_billMeta.vendor||null,
-          notes:'Added from '+ref
-        }]);
+          preferred_vendor:_billMeta.vendor||null,
+          purchase_notes:'Bought from '+ref+(_billMeta.bill_date?' on '+_billMeta.bill_date:''),
+          notes:null
+        };
+        // A Wright number belongs in the Wright field, not the generic one
+        if(l.brandCol&&l.part_number){newRow[l.brandCol]=l.part_number;newRow.primary_brand=l.brand;}
+        else if(l.part_number)newRow.part=l.part_number;
+        if(l.brand&&!newRow.primary_brand)newRow.primary_brand=l.brand;
+        var created=await post('inventory',[newRow]);
         item=created&&created[0];
         if(item)inv.push(item);
       }
@@ -8100,10 +8218,20 @@ async function applyBill(){
 
       var patchBody={};
       if(l.cost>0&&Math.abs(parseFloat(item.cost||0)-l.cost)>0.005)patchBody.cost=l.cost;
+      // Never leave a part unsellable. Only fills a gap — an existing
+      // price is the shop's decision and isn't overwritten.
+      var _curSell=invSell(item);
+      var _newSell=parseFloat(l.sell||0)||0;
+      if(_newSell>0&&(_curSell<=0||l.sellTouched))patchBody.sell_price=_newSell;
       if(_billMeta.vendor&&!item.preferred_vendor)patchBody.preferred_vendor=_billMeta.vendor;
-      // The bill names the brand — this is how brand data fills itself
-      // in without anyone sitting down to log it.
-      if(_billMeta.vendor&&!item.primary_brand)patchBody.primary_brand=_billMeta.vendor;
+      // The bill names the manufacturer, so brand and its number field
+      // fill themselves in on parts that had neither.
+      if(l.brand&&!item.primary_brand)patchBody.primary_brand=l.brand;
+      if(l.brandCol&&l.part_number&&!item[l.brandCol])patchBody[l.brandCol]=l.part_number;
+      // Where it came from, appended rather than replacing what's there
+      var _pn='Bought from '+ref+(_billMeta.bill_date?' on '+_billMeta.bill_date:'');
+      if(!(item.purchase_notes||'').includes(ref))
+        patchBody.purchase_notes=((item.purchase_notes||'')+'\n'+_pn).trim();
 
       var before=parseFloat(item.qty_on_hand||0);
       if(l.target==='stock'){
