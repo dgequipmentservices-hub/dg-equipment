@@ -4712,6 +4712,51 @@ function invNumberCardHtml(p){
 var INV_NUM_FIELDS=['part','oem','stens_num','rotary_num','oregon_num','arnold_num',
   'maxpower_num','wright_num','scag_num','redmax_num','echo_num','toro_num',
   'kawasaki_num','briggs_num','honda_num'];
+// Keep the per-location breakdown adding up to the total.
+//
+// The old deduction took from truck, then garage, then unknown, and
+// never touched the shop — so a part that lives on the shelf lost its
+// total but kept its breakdown, and the two drifted apart a little
+// with every job. Work happens at the shop, so that's where stock
+// comes from first; whatever the named places can't account for is
+// parked in unknown, which keeps the sum honest until a real count.
+function splitStockAcrossLocations(item,newQty){
+  var shop=parseFloat(item.qty_shop||0);
+  var truck=parseFloat(item.qty_truck||0);
+  var garage=parseFloat(item.qty_garage||0);
+  var target=Math.max(0,parseFloat(newQty||0));
+
+  var take=function(have,need){var t=Math.min(have,need);return [have-t,need-t];};
+  var current=shop+truck+garage+parseFloat(item.qty_unknown||0);
+  var drop=current-target;
+  if(drop>0){
+    var r;
+    r=take(shop,drop);   shop=r[0];   drop=r[1];
+    r=take(truck,drop);  truck=r[0];  drop=r[1];
+    r=take(garage,drop); garage=r[0]; drop=r[1];
+  }
+  // Whatever the named places don't account for lands in unknown, so
+  // shop + truck + garage + unknown always equals on hand.
+  var unknown=Math.max(0,target-(shop+truck+garage));
+  if(shop+truck+garage>target){
+    // Breakdown was already over the total — trim the shop to fit
+    shop=Math.max(0,target-(truck+garage));
+    unknown=Math.max(0,target-(shop+truck+garage));
+  }
+  return {qty_shop:shop,qty_truck:truck,qty_garage:garage,qty_unknown:unknown};
+}
+
+// One sell price. The table carries both `sell` and `sell_price` and
+// different screens reached for different ones, so a part could show
+// two prices depending where you looked.
+function invSell(p){
+  if(!p)return 0;
+  var a=parseFloat(p.sell_price);
+  if(!isNaN(a)&&a>0)return a;
+  var b=parseFloat(p.sell);
+  return isNaN(b)?0:b;
+}
+
 function invPrimaryNum(p){
   if(!p)return null;
   for(var i=0;i<INV_NUM_FIELDS.length;i++){
@@ -4778,7 +4823,7 @@ function srchInv(i,q){
 
   function _renderHits(items,xrefHint){
     if(!items.length&&!xrefHint){d.innerHTML='<div class="pi-mt">No match in inventory \u2014 enter your own price below</div>';d.classList.add('op');const pnEl=document.getElementById('pn_'+i);if(pnEl)pnEl.value=q;const ppEl=document.getElementById('pp_'+i);if(ppEl&&!ppEl.value){ppEl.style.borderColor='var(--amb)';ppEl.placeholder='Price (required)';}return;}
-    var rows=items.map(p=>{const qty=parseFloat(p.qty_on_hand||0);const qtyCol=qty===0?'var(--red)':qty<=(p.min_stock||0)?'var(--amb)':'var(--grn)';var _nums=invAllNums(p);return'<div class="pi" onclick="pickPart('+i+',\''+p.id+'\')">'+'<div style="flex:1;min-width:0"><div class="pi-n">'+(p.name||'Part')+'</div>'+(_nums.length?'<div class="pi-no">'+_nums.join(' \u00b7 ')+'</div>':'')+'</div><div style="text-align:right;flex-shrink:0"><div class="pi-pr">$'+parseFloat(p.sell_price||p.sell||0).toFixed(2)+'</div><div style="font-size:10px;color:'+qtyCol+';font-weight:700">'+qty+' stk</div></div></div>';}).join('');
+    var rows=items.map(p=>{const qty=parseFloat(p.qty_on_hand||0);const qtyCol=qty===0?'var(--red)':qty<=(p.min_stock||0)?'var(--amb)':'var(--grn)';var _nums=invAllNums(p);return'<div class="pi" onclick="pickPart('+i+',\''+p.id+'\')">'+'<div style="flex:1;min-width:0"><div class="pi-n">'+(p.name||'Part')+'</div>'+(_nums.length?'<div class="pi-no">'+_nums.join(' \u00b7 ')+'</div>':'')+'</div><div style="text-align:right;flex-shrink:0"><div class="pi-pr">$'+invSell(p).toFixed(2)+'</div><div style="font-size:10px;color:'+qtyCol+';font-weight:700">'+qty+' stk</div></div></div>';}).join('');
     if(xrefHint)rows+='<div class="pi-mt" style="color:var(--blu);font-size:11px">'+xrefHint+'</div>';
     d.innerHTML=rows;d.classList.add('op');
   }
@@ -4808,7 +4853,7 @@ function srchInv(i,q){
     _renderHits(xrefMatches,hint);
   }).catch(function(){_renderHits([],null);});
 }
-function pickPart(i,pid){const p=inv.find(x=>x.id===pid);if(!p)return;const hid=document.getElementById('piid_'+i);if(hid)hid.value=pid;document.getElementById('pn_'+i).value=p.name||p.description||'';document.getElementById('pno_'+i).value=p.part||p.oem||'';const ppEl=document.getElementById('pp_'+i);ppEl.value=parseFloat(p.sell_price||p.sell||0).toFixed(2);ppEl.style.borderColor='';ppEl.placeholder='Price';document.getElementById('ps_'+i).value='';document.getElementById('pd_'+i).classList.remove('op');}
+function pickPart(i,pid){const p=inv.find(x=>x.id===pid);if(!p)return;const hid=document.getElementById('piid_'+i);if(hid)hid.value=pid;document.getElementById('pn_'+i).value=p.name||p.description||'';document.getElementById('pno_'+i).value=p.part||p.oem||'';const ppEl=document.getElementById('pp_'+i);ppEl.value=invSell(p).toFixed(2);ppEl.style.borderColor='';ppEl.placeholder='Price';document.getElementById('ps_'+i).value='';document.getElementById('pd_'+i).classList.remove('op');}
 async function scanPartsOrder(machIdx){
   var inp=document.createElement('input');
   inp.type='file';inp.accept='image/*';inp.capture='environment';
@@ -5249,12 +5294,9 @@ async function saveWO(silent){
       const wasQty=parseFloat(item.qty_on_hand||0);
       const newQty=Math.max(0,wasQty-delta);
       const newSold=parseFloat(item.sold_qty||0)+(delta>0?delta:0);
-      var nTruck=parseFloat(item.qty_truck||0);
-      var nGarage=parseFloat(item.qty_garage||0);
-      var nUnknown=parseFloat(item.qty_unknown||0);
-      if(delta>0){var rem=delta;var ft=Math.min(rem,nTruck);nTruck-=ft;rem-=ft;var fg=Math.min(rem,nGarage);nGarage-=fg;rem-=fg;nUnknown=Math.max(0,nUnknown-rem);}
-      await patch('inventory',{qty_on_hand:newQty,sold_qty:newSold,qty_truck:Math.max(0,nTruck),qty_garage:Math.max(0,nGarage),qty_unknown:Math.max(0,nUnknown)},'?id=eq.'+id);
-      item.qty_on_hand=newQty;item.sold_qty=newSold;item.qty_truck=Math.max(0,nTruck);item.qty_garage=Math.max(0,nGarage);item.qty_unknown=Math.max(0,nUnknown);
+      var locs=splitStockAcrossLocations(item,newQty);
+      await patch('inventory',Object.assign({qty_on_hand:newQty,sold_qty:newSold},locs),'?id=eq.'+id);
+      item.qty_on_hand=newQty;item.sold_qty=newSold;Object.assign(item,locs);
       ledger.push({
         inventory_id:id, item_name:item.name||'Part', category:item.category||null,
         part_number:invPrimaryNum(item), brand:item.primary_brand||item.brand||null,
@@ -6759,7 +6801,7 @@ async function runXrefSearch(q){
         h+='<div style="background:rgba(58,158,104,.06);border:1.5px solid var(--grn);border-radius:var(--r);padding:10px 13px;margin-bottom:8px">';
         h+='<div style="font-size:14px;font-weight:700;color:var(--tx1);margin-bottom:4px">'+esc(p.name||'Part')+'</div>';
         if(nums.length)h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px">'+nums.map(function(n){return'<span style="background:var(--sf2);border:1px solid var(--bd2);border-radius:4px;padding:2px 7px;font-size:11px;font-family:var(--mo)">'+esc(n)+'</span>';}).join('')+'</div>';
-        h+='<div style="font-size:12px"><span style="color:'+qc+';font-weight:700">'+qty+' in stock</span><span style="color:var(--tx3);margin-left:10px">$'+parseFloat(p.sell_price||p.sell||0).toFixed(2)+'</span></div>';
+        h+='<div style="font-size:12px"><span style="color:'+qc+';font-weight:700">'+qty+' in stock</span><span style="color:var(--tx3);margin-left:10px">$'+invSell(p).toFixed(2)+'</span></div>';
         h+='</div>';
       });
     }
@@ -6931,7 +6973,7 @@ function renderInv(){
   const _poByInv={};(partsOnOrder||[]).forEach(function(o){if(o.inventory_id&&(o.status==='ordered'||o.status==='needed'||o.status==='partially received')){_poByInv[o.inventory_id]=(_poByInv[o.inventory_id]||0)+Math.max(0,(o.qty_ordered||0)-(o.qty_received||0));}});
   items.forEach(p=>{
     try{
-    const qty=parseFloat(p.qty_on_hand||0),ms=p.min_stock||0,sell=parseFloat(p.sell_price||p.sell||0),cost=parseFloat(p.cost||0),sold=parseFloat(p.sold_qty||0);
+    const qty=parseFloat(p.qty_on_hand||0),ms=p.min_stock||0,sell=invSell(p),cost=parseFloat(p.cost||0),sold=parseFloat(p.sold_qty||0);
     const _poQ=_poByInv[p.id]||0;
     const _locBits=[['Truck',p.qty_truck],['Shop',p.qty_shop],['Garage',p.qty_garage],['Unknown',p.qty_unknown]].filter(function(x){return parseFloat(x[1]||0)>0;}).map(function(x){return x[0]+' '+parseFloat(x[1]);}).join(' \u00b7 ');
     const isOut=qty===0,isLow=!isOut&&ms>0&&qty<=ms,qc=isOut?'ou':isLow?'wa':'ok',mgn=sell>0&&cost>0?Math.round((sell-cost)/sell*100):null;
@@ -6968,7 +7010,7 @@ function buildIE(p){
     '<div><div class="ie-l" style="margin-bottom:6px">Quantity on hand</div><div class="qa"><button class="qa-b" onclick="adjQ(\''+p.id+'\',-1)">−</button><div class="qa-v" id="iq_'+p.id+'">'+(qty%1===0?qty:qty.toFixed(1))+'</div><button class="qa-b" onclick="adjQ(\''+p.id+'\',1)">+</button></div></div>'+
     '<div class="ie-r"><div class="ie-c" style="flex:2"><div class="ie-l">Name</div><input class="ie-i" id="inm_'+p.id+'" value="'+(p.name||'').replace(/"/g,'&quot;')+'"></div><div class="ie-c"><div class="ie-l">Category</div><select class="ie-i" id="ict_'+p.id+'">'+cats.map(c=>'<option'+(c===cat?' selected':'')+'>'+c+'</option>').join('')+'</select></div></div>'+
     '<div class="ie-r"><div class="ie-c"><div class="ie-l">Item Type</div><select class="ie-i" id="ityp_'+p.id+'"><option'+(itype==='Stock'?' selected':'')+'>Stock</option><option'+(itype==='Non-Stock'?' selected':'')+'>Non-Stock</option><option'+(itype==='Service'?' selected':'')+'>Service</option></select></div><div class="ie-c" style="flex:2"><div style="font-size:11px;color:var(--tx3);padding-top:18px">Stock = carries in inventory · Non-Stock = order per job · Service = labor/fee</div></div></div>'+
-    '<div class="ie-r"><div class="ie-c"><div class="ie-l">Cost</div><input class="ie-i" id="ics_'+p.id+'" type="number" step="0.01" value="'+parseFloat(p.cost||0).toFixed(2)+'" oninput="ieAutoSell(\''+p.id+'\')" onchange="ieAutoSell(\''+p.id+'\')" ></div><div class="ie-c"><div class="ie-l">Sell <span id="isl_pct_'+p.id+'" style="font-size:10px;color:var(--grn);font-weight:700;margin-left:4px"></span></div><input class="ie-i" id="isl_'+p.id+'" type="number" step="0.01" value="'+parseFloat(p.sell_price||p.sell||0).toFixed(2)+'" oninput="ieShowPct(\''+p.id+'\')"></div><div class="ie-c"><div class="ie-l">Min stock</div><input class="ie-i" id="imn_'+p.id+'" type="number" min="0" value="'+(p.min_stock||0)+'"></div></div>'+
+    '<div class="ie-r"><div class="ie-c"><div class="ie-l">Cost</div><input class="ie-i" id="ics_'+p.id+'" type="number" step="0.01" value="'+parseFloat(p.cost||0).toFixed(2)+'" oninput="ieAutoSell(\''+p.id+'\')" onchange="ieAutoSell(\''+p.id+'\')" ></div><div class="ie-c"><div class="ie-l">Sell <span id="isl_pct_'+p.id+'" style="font-size:10px;color:var(--grn);font-weight:700;margin-left:4px"></span></div><input class="ie-i" id="isl_'+p.id+'" type="number" step="0.01" value="'+invSell(p).toFixed(2)+'" oninput="ieShowPct(\''+p.id+'\')"></div><div class="ie-c"><div class="ie-l">Min stock</div><input class="ie-i" id="imn_'+p.id+'" type="number" min="0" value="'+(p.min_stock||0)+'"></div></div>'+
     '<div class="xref">'+
     '<div class="xref-t">OEM / Cross-Reference Numbers</div>'+
     '<div style="font-size:11px;color:var(--tx3);margin-bottom:6px">One per line — brand + number</div>'+
@@ -7036,7 +7078,7 @@ function showLow(){
   const low=inv.filter(p=>{const q=parseFloat(p.qty_on_hand||0),m=p.min_stock||0;return m>0&&q<=m;});
   const el=document.getElementById('invBody');
   let h='<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0 8px"><span style="font-size:12px;color:var(--amb);font-weight:600">'+low.length+' low/out items</span><span style="font-size:12px;color:var(--tx3);cursor:pointer" onclick="renderInv()">Show all ✕</span></div>';
-  low.forEach(p=>{const qty=parseFloat(p.qty_on_hand||0),sell=parseFloat(p.sell_price||p.sell||0),isExp=expInvId===p.id;h+='<div class="icard lo" id="ic_'+p.id+'"><div class="ic-row" data-pid="'+p.id+'" onclick="togInv(this.dataset.pid)">><div style="flex:1;min-width:0"><div class="ic-nm">'+(p.name||'Unnamed')+'</div></div><span class="qb '+(qty===0?'ou':'wa')+'">'+qty+'</span><div style="text-align:right"><div class="ic-pr">$'+sell.toFixed(2)+'</div></div></div>'+(isExp?buildIE(p):'')+'</div>';});
+  low.forEach(p=>{const qty=parseFloat(p.qty_on_hand||0),sell=invSell(p),isExp=expInvId===p.id;h+='<div class="icard lo" id="ic_'+p.id+'"><div class="ic-row" data-pid="'+p.id+'" onclick="togInv(this.dataset.pid)">><div style="flex:1;min-width:0"><div class="ic-nm">'+(p.name||'Unnamed')+'</div></div><span class="qb '+(qty===0?'ou':'wa')+'">'+qty+'</span><div style="text-align:right"><div class="ic-pr">$'+sell.toFixed(2)+'</div></div></div>'+(isExp?buildIE(p):'')+'</div>';});
   el.innerHTML=h;
 }
 function addInvItem(){
@@ -7803,6 +7845,39 @@ function renderPartsUsed(){
 }
 
 // ── One part's whole life ───────────────────────────────────────
+// Pull a hand-typed part into inventory, carrying across what the job
+// already knows about it. Created unstocked — the count decides the
+// quantity, not a guess made here.
+async function addTypedPartToInventory(name,partNum,sell){
+  if(!name)return;
+  if(!confirm('Add "'+name+'" to inventory?'))return;
+  try{
+    var sellNum=parseFloat(sell||0)||0;
+    var created=await post('inventory',[{
+      name:name,
+      part:partNum||null,
+      sell_price:sellNum||null,
+      cost:0,
+      qty_on_hand:0,
+      notes:'Added from a job — it had been typed by hand'
+    }]);
+    var item=created&&created[0];
+    if(!item){toast('Could not add','er');return;}
+    inv.push(item);
+    // Re-point this part's existing history at the new record, so the
+    // usage it already has isn't orphaned behind a name.
+    try{
+      await patch('inventory_transactions',{inventory_id:item.id},
+        '?inventory_id=is.null&item_name=eq.'+encodeURIComponent(name));
+      (_ledger||[]).forEach(function(t){
+        if(!t.inventory_id&&(t.item_name||'')===name)t.inventory_id=item.id;
+      });
+    }catch(e){console.warn('could not re-link history',e);}
+    toast('Added to inventory ✓','ok');
+    openPartHistory(item.id);
+  }catch(e){toast('Could not add: '+e.message,'er');}
+}
+
 async function openPartHistory(key){
   _phKey=key;
   go('S_parthist');S('S_parthist');
@@ -7859,7 +7934,7 @@ function renderPartHistory(){
       if(_fits.length)h+='<div style="font-size:11.5px;color:var(--blu);margin-bottom:9px">Fits: '+_fits.map(esc).join(', ')+'</div>';
     }catch(e){}
     h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px">';
-    var _cost=parseFloat(item.cost||0), _sell=parseFloat(item.sell_price||item.sell||0);
+    var _cost=parseFloat(item.cost||0), _sell=invSell(item);
     var _marg=_sell>0?Math.round((_sell-_cost)/_sell*100):0;
     h+='<div style="background:var(--sf2);border-radius:var(--rs);padding:8px 9px"><div style="font-size:9px;color:var(--tx3);font-weight:800;text-transform:uppercase;letter-spacing:.05em">Cost</div><div style="font-size:15px;font-weight:800;font-family:var(--mo)">$'+_cost.toFixed(2)+'</div></div>';
     h+='<div style="background:var(--sf2);border-radius:var(--rs);padding:8px 9px"><div style="font-size:9px;color:var(--tx3);font-weight:800;text-transform:uppercase;letter-spacing:.05em">List</div><div style="font-size:15px;font-weight:800;font-family:var(--mo)">$'+_sell.toFixed(2)+'</div>'+(_sell>0?'<div style="font-size:10px;color:var(--tx3)">'+_marg+'% margin</div>':'')+'</div>';
@@ -7869,7 +7944,9 @@ function renderPartHistory(){
   }else{
     h+='<div style="background:var(--sf);border:1.5px solid var(--amb);border-radius:var(--r);padding:11px 13px;margin-bottom:9px">';
     h+='<div style="font-size:12.5px;font-weight:700;color:var(--amb);margin-bottom:3px">Not an inventory part</div>';
-    h+='<div style="font-size:12px;color:var(--tx3)">This was typed onto a job by hand, so there is no stock count for it. Adding it to inventory would let it be counted and reordered.</div>';
+    h+='<div style="font-size:12px;color:var(--tx3);margin-bottom:9px">This was typed onto a job by hand, so there is no stock count for it. Adding it to inventory lets it be counted, reordered, and picked from the list next time.</div>';
+    var _seed=all[0]||{};
+    h+='<button data-n="'+esc(title)+'" data-pn="'+esc(_seed.part_number||'')+'" data-s="'+esc(String(_seed.unit_sell||''))+'" onclick="addTypedPartToInventory(this.dataset.n,this.dataset.pn,this.dataset.s)" style="background:var(--red2);border:none;border-radius:var(--rs);padding:9px 14px;font-size:12.5px;font-weight:700;color:#fff;font-family:var(--fn);cursor:pointer">Add to inventory</button>';
     h+='</div>';
   }
 
@@ -8513,7 +8590,7 @@ async function saveReceivedOrder(){
         var _recvExSell=r.sell>0?r.sell:applyPriceMatrix(r.cost,p.category||autoCat(p.name||''));
         // Only update cost/sell if they changed
         if(r.cost!==parseFloat(p.cost||0)){upd.cost=r.cost;}
-        if(_recvExSell>0&&_recvExSell!==parseFloat(p.sell_price||p.sell||0)){upd.sell=_recvExSell;upd.sell_price=_recvExSell;}
+        if(_recvExSell>0&&_recvExSell!==invSell(p)){upd.sell=_recvExSell;upd.sell_price=_recvExSell;}
         await patch('inventory',upd,'?id=eq.'+id);
         // Update local inv array so inventory screen reflects immediately
         var idx=inv.findIndex(function(x){return x.id===id;});
@@ -10921,7 +10998,7 @@ function renderInvReport(){
     inv.forEach(function(p){
       var qty=parseFloat(p.qty_on_hand||0);
       var cost=parseFloat(p.cost||0);
-      var sell=parseFloat(p.sell_price||p.sell||0);
+      var sell=invSell(p);
       if(qty>0){
         totalCost+=qty*cost;
         totalSell+=qty*sell;
@@ -16319,7 +16396,7 @@ function saleSrchParts(q){
   }
   dd.innerHTML = hits.map(function(p){
     var qty = parseFloat(p.qty_on_hand||0);
-    var sell = parseFloat(p.sell_price||p.sell||0);
+    var sell = invSell(p);
     var nums=invAllNums(p).join(' \u00b7 ');
     return '<div data-pid="'+p.id+'" onclick="saleAddPart(this.dataset.pid)" style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px 12px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;gap:10px">'+
       '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">'+(p.name||'Part')+'</div>'+
@@ -16337,7 +16414,7 @@ function saleAddPart(id){
   var existing = saleItems.find(function(s){return s.invId===id;});
   if(existing){existing.qty++;} 
   else {
-    saleItems.push({invId:id,name:p.name,qty:1,price:parseFloat(p.sell_price||p.sell||0),partNum:p.part||p.oem||''});
+    saleItems.push({invId:id,name:p.name,qty:1,price:invSell(p),partNum:p.part||p.oem||''});
   }
   var psrch = document.getElementById('saleItemSearch') || document.getElementById('salePsrch');
   if(psrch) psrch.value='';
@@ -16624,7 +16701,7 @@ function saleSrchItem(q){
   }
   dd.innerHTML = hits.map(function(p){
     var qty  = parseFloat(p.qty_on_hand||0);
-    var sell = parseFloat(p.sell_price||p.sell||0);
+    var sell = invSell(p);
     var nums=invAllNums(p).join(' \u00b7 ');
     return '<div data-pid="'+p.id+'" onclick="saleAddPart(this.dataset.pid)" style="background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:9px 12px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;gap:10px">'+
       '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">'+(p.name||'Part')+'</div>'+
