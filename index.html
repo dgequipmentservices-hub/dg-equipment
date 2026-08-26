@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.35</title>
+<title>DG Equipment v27.36</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -7778,9 +7778,9 @@ async function scanBill(file){
         qty:parseFloat(l.qty||1)||1,
         cost:cost,
         match:m,
-        // A confident match starts ticked; anything unmatched or missing
-        // a price starts unticked so it can't slip through unnoticed.
-        include:!!m&&cost>0,
+        // Only a certain match ticks itself. A likely one, an unmatched
+        // line, or a missing price waits to be looked at.
+        include:!!m&&m.confidence==='certain'&&cost>0,
         target:'stock',      // stock | job
         woId:null
       };
@@ -7813,38 +7813,122 @@ async function scanBill(file){
   }
 }
 
-// Match on numbers first — a wrong match writes a wrong price onto the
-// wrong part, which is worse than no match at all.
+// Find the part a bill line refers to.
+//
+// The first version only checked the fifteen number columns, exact
+// cross-ref tokens, and an exact name. That missed most of the shop:
+// only 125 of 289 parts have a number column filled in at all, and 99
+// keep their part number inside the name — "Redmax 576593801 coil
+// wire", "Briggs Washer 797632", "Carb 16467 Toro Powerclear". The
+// number was sitting right there and nothing looked at it.
+//
+// Matches come back with a confidence, because "definitely this part"
+// and "probably this part" deserve different handling: certain matches
+// tick themselves, likely ones wait to be confirmed.
+
+// Tokens from a name that could plausibly be part numbers.
+function _numTokens(s){
+  return String(s||'').split(/[^A-Za-z0-9-]+/)
+    .map(function(t){return pnorm(t);})
+    .filter(function(t){return t&&/[0-9]/.test(t);});
+}
+
+function _billFields(i){
+  var out=[];
+  INV_NUM_FIELDS.forEach(function(f){ if(i[f])out.push({v:pnorm(i[f]),how:'number'}); });
+  if(i.cross_refs)String(i.cross_refs).split(/[\s,;/|]+/).forEach(function(t){
+    var n=pnorm(t); if(n&&/[0-9]/.test(n))out.push({v:n,how:'cross-ref'});
+  });
+  _numTokens(i.name).forEach(function(t){ out.push({v:t,how:'name'}); });
+  return out;
+}
+
+// Words that carry meaning when comparing descriptions
+var _BILL_STOP=['the','and','for','with','assy','assembly','kit','oem','new','part','pack','ea','each'];
+function _descWords(s){
+  return String(s||'').toLowerCase().split(/[^a-z0-9]+/)
+    .filter(function(w){return w.length>2&&_BILL_STOP.indexOf(w)<0;});
+}
+
 function matchBillLine(l){
-  var pn=(l.part_number||'').trim();
-  if(pn){
-    var norm=(typeof pnorm==='function')?pnorm(pn):pn.toLowerCase().replace(/[^a-z0-9]/g,'');
-    var byNum=(inv||[]).find(function(i){
-      return INV_NUM_FIELDS.some(function(f){
-        var v=i[f];
-        if(!v)return false;
-        var vn=(typeof pnorm==='function')?pnorm(String(v)):String(v).toLowerCase().replace(/[^a-z0-9]/g,'');
-        return vn&&vn===norm;
-      });
+  var pn=pnorm(l.part_number||'');
+  var best=null;
+
+  if(pn&&pn.length>=3){
+    (inv||[]).forEach(function(i){
+      if(best&&best.confidence==='certain')return;
+      var fields=_billFields(i);
+      for(var k=0;k<fields.length;k++){
+        var f=fields[k];
+        if(f.v===pn){
+          // A number column or cross-ref is the shop saying so outright.
+          // A name token of decent length is just as good; a short one
+          // ("916") could be a coincidence, so it waits for a nod.
+          var certain=(f.how!=='name')||pn.length>=4;
+          var cand={item:i,how:f.how==='name'?'number in name':f.how,
+                    confidence:certain?'certain':'likely'};
+          if(certain){best=cand;return;}
+          if(!best)best=cand;
+        }
+      }
     });
-    if(byNum)return {item:byNum,how:'number'};
-    // Cross-refs are a free-text field, so only a whole-token hit counts
-    var byXref=(inv||[]).find(function(i){
-      if(!i.cross_refs)return false;
-      return String(i.cross_refs).split(/[\s,;/]+/).some(function(tok){
-        var tn=(typeof pnorm==='function')?pnorm(tok):tok.toLowerCase().replace(/[^a-z0-9]/g,'');
-        return tn&&tn===norm;
+    if(best&&best.confidence==='certain')return best;
+
+    // One side carrying the other happens with prefixes and suffixes —
+    // a bill printing "A021004920" against a stored "ECHOA021004920".
+    if(pn.length>=5){
+      (inv||[]).forEach(function(i){
+        if(best)return;
+        var fields=_billFields(i);
+        for(var k=0;k<fields.length;k++){
+          var v=fields[k].v;
+          if(v.length>=5&&(v.indexOf(pn)>=0||pn.indexOf(v)>=0)){
+            best={item:i,how:'partial number',confidence:'likely'};
+            return;
+          }
+        }
       });
-    });
-    if(byXref)return {item:byXref,how:'cross-ref'};
+    }
   }
-  // Description only counts on an exact name — anything looser guesses.
+
+  if(best)return best;
+
+  // No usable number. Fall back to the description, but only where it
+  // says something specific — a line reading "belt" must not pick a belt.
   var d=(l.desc||'').trim().toLowerCase();
   if(d.length>3){
-    var byName=(inv||[]).find(function(i){return (i.name||'').trim().toLowerCase()===d;});
-    if(byName)return {item:byName,how:'name'};
+    var exact=(inv||[]).find(function(i){return (i.name||'').trim().toLowerCase()===d;});
+    if(exact)return {item:exact,how:'name',confidence:'certain'};
+
+    var words=_descWords(d);
+    if(words.length>=2){
+      var scored=[];
+      (inv||[]).forEach(function(i){
+        var nameWords=_descWords(i.name);
+        if(!nameWords.length)return;
+        var hits=words.filter(function(w){return nameWords.indexOf(w)>=0;}).length;
+        if(hits>=2&&hits===words.length)scored.push({item:i,hits:hits});
+      });
+      // Only when it lands on exactly one part. Two candidates means the
+      // description isn't specific enough to decide, so it isn't ours to.
+      if(scored.length===1)return {item:scored[0].item,how:'description',confidence:'likely'};
+    }
   }
   return null;
+}
+
+// Attach a part the search missed. Matching by name against what the
+// datalist offered, so the value is always a real part.
+function pickBillPart(idx,name){
+  var l=_billLines[idx];if(!l)return;
+  var n=String(name||'').trim().toLowerCase();
+  if(!n){renderBillReview();return;}
+  var item=(inv||[]).find(function(i){return (i.name||'').trim().toLowerCase()===n;});
+  if(!item){toast('No part by that name — pick one from the list','er');return;}
+  l.match={item:item,how:'you picked it',confidence:'certain'};
+  if(l.cost>0)l.include=true;
+  toast('Attached to '+(item.name||'part')+' ✓','ok');
+  renderBillReview();
 }
 
 function setBillTarget(idx,target){
@@ -7880,8 +7964,25 @@ function renderBillReview(){
   var openJobs=(wos||[]).filter(function(w){return _pssBill(w)==='unbilled';})
     .sort(function(a,b){return new Date(b.created_at||0)-new Date(a.created_at||0);});
 
-  var h='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:11px 13px;margin-bottom:10px">';
+  var certain=_billLines.filter(function(l){return l.match&&l.match.confidence==='certain';}).length;
+  var likely=_billLines.filter(function(l){return l.match&&l.match.confidence==='likely';}).length;
+  var none=_billLines.filter(function(l){return !l.match;}).length;
+
+  var h='<datalist id="billPartList">'+(inv||[]).slice(0,600).map(function(i){
+    var n=invPrimaryNum(i);
+    return '<option value="'+esc(i.name||'')+'">'+esc(n||'')+'</option>';
+  }).join('')+'</datalist>';
+
+  h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:11px 13px;margin-bottom:10px">';
   h+='<div style="font-size:12px;color:var(--tx2);line-height:1.5">Check every line before saving. <b>Nothing is written until you tap Apply</b> — unticked lines are never touched.</div>';
+  if(likely||none){
+    h+='<div style="font-size:11.5px;color:var(--tx3);margin-top:6px;line-height:1.5">';
+    var bits=[];
+    if(certain)bits.push('<b style="color:var(--grn)">'+certain+' matched</b>');
+    if(likely)bits.push('<b style="color:var(--amb)">'+likely+' likely</b>');
+    if(none)bits.push('<b style="color:var(--red)">'+none+' not found</b>');
+    h+=bits.join(' · ')+'. Search your inventory on any line to attach the right part instead of adding a duplicate.</div>';
+  }
   h+='</div>';
 
   _billLines.forEach(function(l){
@@ -7889,7 +7990,7 @@ function renderBillReview(){
     var item=m?m.item:null;
     var oldCost=item?parseFloat(item.cost||0):null;
     var costChanged=item&&l.cost>0&&Math.abs((oldCost||0)-l.cost)>0.005;
-    var edge=!item?'var(--red)':l.target==='job'?'var(--amb)':'var(--grn)';
+    var edge=!item?'var(--red)':(m&&m.confidence==='likely')?'var(--amb)':l.target==='job'?'var(--amb)':'var(--grn)';
 
     h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-left:4px solid '+edge+';border-radius:var(--r);padding:11px 12px;margin-bottom:8px">';
     h+='<div style="display:flex;align-items:flex-start;gap:10px">';
@@ -7899,10 +8000,13 @@ function renderBillReview(){
     h+='<div style="font-size:13px;font-weight:700">'+esc(item?item.name:(l.desc||'Unknown part'))+'</div>';
     var meta=[];
     if(l.part_number)meta.push(esc(l.part_number));
-    meta.push(item
-      ? '<span style="color:var(--grn);font-weight:700">matched on '+esc(m.how)+'</span>'
-      : '<span style="color:var(--red);font-weight:700">no match</span>');
-    h+='<div style="font-size:11px;color:var(--tx3);margin-top:2px">'+meta.join(' · ')+'</div>';
+    if(!item)meta.push('<span style="color:var(--red);font-weight:700">no match</span>');
+    else if(m.confidence==='likely')meta.push('<span style="color:var(--amb);font-weight:700">likely — check this</span>');
+    else meta.push('<span style="color:var(--grn);font-weight:700">matched on '+esc(m.how)+'</span>');
+    if(item&&m.confidence!=='likely'&&m.how)meta.push('');
+    h+='<div style="font-size:11px;color:var(--tx3);margin-top:2px">'+meta.filter(Boolean).join(' · ')+'</div>';
+    if(item&&m.confidence==='likely')
+      h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">found by '+esc(m.how)+' — confirm it\'s the right part</div>';
     if(item&&l.desc&&l.desc.toLowerCase()!==(item.name||'').toLowerCase())
       h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">bill says: '+esc(l.desc)+'</div>';
 
@@ -7924,6 +8028,12 @@ function renderBillReview(){
     h+='<input type="number" min="0" step="1" value="'+l.qty+'" onchange="setBillLineQty('+l.idx+',this.value)" style="width:52px;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:4px 6px;font-size:12px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:right;outline:none" title="Quantity">';
     h+='<input type="number" min="0" step="0.01" value="'+l.cost.toFixed(2)+'" onchange="setBillLineCost('+l.idx+',this.value)" style="width:66px;background:var(--sf2);border:1.5px solid '+(l.cost>0?'var(--bd2)':'var(--red)')+';border-radius:var(--rs);padding:4px 6px;font-size:12px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:right;outline:none" title="Unit cost">';
     h+='</div></div>';
+
+    // Attaching the right part by hand beats creating a duplicate,
+    // which is what happens if a real part reads as "no match".
+    h+='<div style="margin-top:8px">';
+    h+='<input list="billPartList" placeholder="'+(item?'Wrong part? search yours…':'Search your inventory…')+'" value="" onchange="pickBillPart('+l.idx+',this.value)" style="width:100%;background:var(--sf2);border:1.5px solid '+(item?'var(--bd2)':'var(--red)')+';border-radius:var(--rs);padding:7px 9px;font-size:12px;font-family:var(--fn);color:var(--tx)">';
+    h+='</div>';
 
     // Stock or job — the switch that says whether the shelf moves
     h+='<div style="display:flex;gap:6px;margin-top:9px;align-items:center;flex-wrap:wrap">';
