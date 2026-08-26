@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.37</title>
+<title>DG Equipment v27.38</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -8017,6 +8017,46 @@ function guessBillCategory(l){
   return 'Misc';
 }
 
+// Quick markup. Cost is what the bill says; markup is the decision —
+// so the buttons set a percentage over cost and the dollar box shows
+// the result. Either can be driven; they stay in step.
+var BILL_MARKUPS=[10,20,25,50,75,100];
+
+function billMarkupOf(l){
+  var c=parseFloat(l.cost||0), s=parseFloat(l.sell||0);
+  if(!(c>0)||!(s>0))return null;
+  return Math.round((s-c)/c*100);
+}
+function setBillMarkup(idx,pct){
+  var l=_billLines[idx];if(!l)return;
+  var c=parseFloat(l.cost||0);
+  if(!(c>0)){toast('Set a cost first','er');return;}
+  var p=parseFloat(pct);
+  if(isNaN(p)||p<0){toast('Enter a percentage','er');return;}
+  l.sell=Math.round(c*(1+p/100)*100)/100;
+  l.sellTouched=true;
+  renderBillReview();
+}
+// Back to whatever the shop's price matrix says for this category
+function resetBillMarkup(idx){
+  var l=_billLines[idx];if(!l)return;
+  l.sell=suggestSellFromCost(l.cost,guessBillCategory(l));
+  l.sellTouched=false;
+  renderBillReview();
+}
+// Apply one markup to every line at once
+function setAllBillMarkup(pct){
+  var p=parseFloat(pct);
+  if(isNaN(p)||p<0)return;
+  var n=0;
+  _billLines.forEach(function(l){
+    var c=parseFloat(l.cost||0);
+    if(c>0){l.sell=Math.round(c*(1+p/100)*100)/100;l.sellTouched=true;n++;}
+  });
+  toast(p+'% on '+n+' line'+(n!==1?'s':'')+' ✓','ok');
+  renderBillReview();
+}
+
 function setBillSell(idx,v){
   var l=_billLines[idx];if(!l)return;
   l.sell=parseFloat(v||0)||0;
@@ -8081,7 +8121,16 @@ function renderBillReview(){
     if(none)bits.push('<b style="color:var(--red)">'+none+' not found</b>');
     h+=bits.join(' · ')+'. Search your inventory on any line to attach the right part instead of adding a duplicate.</div>';
   }
-  h+='</div>';
+  var _anyCost=_billLines.some(function(l){return parseFloat(l.cost||0)>0;});
+  if(_anyCost){
+    h+='<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;padding:0 2px 10px">';
+    h+='<span style="font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3)">All lines</span>';
+    BILL_MARKUPS.forEach(function(pct){
+      h+='<button onclick="setAllBillMarkup('+pct+')" style="background:transparent;color:var(--tx2);border:1.5px solid var(--bd2);border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;font-family:var(--fn);cursor:pointer">'+pct+'%</button>';
+    });
+    h+='<input type="number" min="0" step="5" placeholder="%" onchange="setAllBillMarkup(this.value);this.value=\'\';" style="width:52px;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:20px;padding:3px 8px;font-size:11px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:center;outline:none">';
+    h+='</div>';
+  }
 
   _billLines.forEach(function(l){
     var m=l.match;
@@ -8114,7 +8163,8 @@ function renderBillReview(){
     var _sellNum=parseFloat(l.sell||0);
     if(_sellNum>0&&l.cost>0){
       var _mg=Math.round((_sellNum-l.cost)/_sellNum*100);
-      h+='<div style="font-size:11px;color:'+(_mg<20?'var(--red)':'var(--tx3)')+';margin-top:3px">sell $'+_sellNum.toFixed(2)+' · '+_mg+'% margin</div>';
+      var _mu=billMarkupOf(l);
+      h+='<div style="font-size:11px;color:'+(_mg<20?'var(--red)':'var(--tx3)')+';margin-top:3px">sell $'+_sellNum.toFixed(2)+' · '+_mu+'% markup · '+_mg+'% margin</div>';
     }else if(l.cost>0){
       h+='<div style="font-size:11px;color:var(--red);margin-top:3px">no sell price — it would go on a job at $0</div>';
     }
@@ -8138,6 +8188,20 @@ function renderBillReview(){
     h+='<input type="number" min="0" step="0.01" value="'+l.cost.toFixed(2)+'" onchange="setBillLineCost('+l.idx+',this.value)" style="width:66px;background:var(--sf2);border:1.5px solid '+(l.cost>0?'var(--bd2)':'var(--red)')+';border-radius:var(--rs);padding:4px 6px;font-size:12px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:right;outline:none" title="Unit cost">';
     h+='<input type="number" min="0" step="0.01" value="'+(parseFloat(l.sell||0)).toFixed(2)+'" onchange="setBillSell('+l.idx+',this.value)" style="width:66px;background:var(--sf2);border:1.5px solid '+(parseFloat(l.sell||0)>0?'var(--grn)':'var(--red)')+';border-radius:var(--rs);padding:4px 6px;font-size:12px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:right;outline:none" title="Sell price">';
     h+='</div></div>';
+
+    // Markup buttons: the fast way to say what this should sell for
+    var _curPct=billMarkupOf(l);
+    if(l.cost>0){
+      h+='<div style="display:flex;gap:5px;margin-top:9px;align-items:center;flex-wrap:wrap">';
+      h+='<span style="font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3)">Markup</span>';
+      BILL_MARKUPS.forEach(function(pct){
+        var on=_curPct===pct;
+        h+='<button onclick="setBillMarkup('+l.idx+','+pct+')" style="background:'+(on?'var(--grn)':'transparent')+';color:'+(on?'#fff':'var(--tx2)')+';border:1.5px solid '+(on?'var(--grn)':'var(--bd2)')+';border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;font-family:var(--fn);cursor:pointer">'+pct+'%</button>';
+      });
+      h+='<input type="number" min="0" step="5" placeholder="%" value="'+((_curPct!==null&&BILL_MARKUPS.indexOf(_curPct)<0)?_curPct:'')+'" onchange="setBillMarkup('+l.idx+',this.value)" style="width:52px;background:var(--sf2);border:1.5px solid '+((_curPct!==null&&BILL_MARKUPS.indexOf(_curPct)<0)?'var(--grn)':'var(--bd2)')+';border-radius:20px;padding:3px 8px;font-size:11px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:center;outline:none">';
+      h+='<button onclick="resetBillMarkup('+l.idx+')" style="background:transparent;color:var(--tx3);border:1.5px solid var(--bd2);border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;font-family:var(--fn);cursor:pointer" title="Back to the price matrix">Matrix</button>';
+      h+='</div>';
+    }
 
     // Attaching the right part by hand beats creating a duplicate,
     // which is what happens if a real part reads as "no match".
