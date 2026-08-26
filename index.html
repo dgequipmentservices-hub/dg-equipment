@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.30</title>
+<title>DG Equipment v27.31</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -6424,121 +6424,220 @@ function setInvSubTab(tab, btn){
   else if(tab==='report'){navTo('S_invReport');}
 }
 
-function renderReorderList(){
+// ─────────────────────────────────────────
+// BUY LIST — builds itself from what actually got used.
+//
+// No part in this shop has ever had a reorder point set, so the old
+// low-stock rule (qty <= point, point > 0) could never fire. Rather
+// than ask for 289 minimums by hand, the point is suggested from real
+// usage in the ledger and shown with its reasoning.
+// ─────────────────────────────────────────
+
+// Usage per inventory item over a window, straight from the ledger.
+function lgUsageMap(days){
+  var since=_lgSince(days), map={};
+  (_ledger||[]).forEach(function(t){
+    if((t.transaction_type||'').toLowerCase()!=='used')return;
+    if(!t.inventory_id)return;
+    if(since&&t.created_at&&new Date(t.created_at)<since)return;
+    var m=map[t.inventory_id]||(map[t.inventory_id]={qty:0,times:0,last:null});
+    m.qty+=Math.abs(parseFloat(t.qty_change||0));
+    m.times++;
+    var d=t.created_at?new Date(t.created_at):null;
+    if(d&&(!m.last||d>m.last))m.last=d;
+  });
+  return map;
+}
+
+// How many to keep on the shelf. Roughly a month of what the last 90
+// days actually consumed — deliberately simple, and shown to the user
+// with the usage it came from so it can be judged at a glance.
+function suggestReorderPoint(used90){
+  if(!used90||used90<=0)return 0;
+  return Math.max(1,Math.round(used90/3));
+}
+function reorderPointOf(item){
+  var p=parseFloat(item.reorder_point||0);
+  if(p>0)return {value:p,fromUser:true};
+  var m=parseFloat(item.min_stock||0);
+  if(m>0)return {value:m,fromUser:true};
+  return {value:0,fromUser:false};
+}
+
+// Everything that wants ordering, with the reason it's here.
+function buildBuyList(){
+  var use90=lgUsageMap(90);
+  var out=[];
+  (inv||[]).forEach(function(i){
+    if((i.category||'')==='Equipment for Sale')return;
+    var qty=parseFloat(i.qty_on_hand||0);
+    var u=use90[i.id]||{qty:0,times:0,last:null};
+    var pt=reorderPointOf(i);
+    var suggested=suggestReorderPoint(u.qty);
+    var point=pt.fromUser?pt.value:suggested;
+
+    var reason=null;
+    if(i.on_reorder_list)reason='flagged';
+    else if(qty<=0&&u.qty>0)reason='out';
+    else if(point>0&&qty<=point)reason='low';
+    if(!reason)return;
+
+    // Bring it up to about two cycles so the next job isn't the one
+    // that runs it out again.
+    var target=Math.max(1,point*2);
+    var suggestQty=Math.max(1,Math.ceil(target-qty));
+    var orderQty=parseFloat(i.reorder_qty||0)||suggestQty;
+
+    out.push({
+      item:i, qty:qty, used90:u.qty, times:u.times, last:u.last,
+      point:point, pointFromUser:pt.fromUser, suggested:suggested,
+      orderQty:orderQty, reason:reason,
+      cost:parseFloat(i.cost||0),
+      vendor:(i.preferred_vendor||i.vendor||'').trim()||'No vendor set'
+    });
+  });
+  // Out of stock first, then the most-used
+  var rank={out:0,flagged:1,low:2};
+  out.sort(function(a,b){
+    if(rank[a.reason]!==rank[b.reason])return rank[a.reason]-rank[b.reason];
+    return b.used90-a.used90;
+  });
+  return out;
+}
+
+async function renderReorderList(){
   S('S_inv');
   var el=document.getElementById('invBody');
   if(!el)return;
-
-  // Recently used: scan all WOs for parts used in last 90 days
-  var cutoff=new Date();cutoff.setDate(cutoff.getDate()-90);
-  var recentUsage={}; // partName -> {count, lastUsed}
-  wos.forEach(function(w){
-    var wdate=new Date(w.created_at||w.scheduled_date||0);
-    if(wdate<cutoff)return;
-    try{
-      var md=JSON.parse(w.machines_data||'{}');
-      Object.values(md).forEach(function(d){
-        (d.parts||[]).forEach(function(p){
-          if(!p.name)return;
-          if(!recentUsage[p.name])recentUsage[p.name]={count:0,lastUsed:wdate};
-          recentUsage[p.name].count+=parseFloat(p.qty||1);
-          if(wdate>recentUsage[p.name].lastUsed)recentUsage[p.name].lastUsed=wdate;
-        });
-      });
-    }catch(e){}
-  });
-
-  // Manually flagged items
-  var flagged=inv.filter(function(i){return i.on_reorder_list;});
-
-  // Low stock items (qty <= reorder_point, or qty <= 1 if no reorder_point set)
-  var lowStock=inv.filter(function(i){
-    var qty=parseFloat(i.qty_on_hand||0);
-    var pt=parseFloat(i.reorder_point||0);
-    return qty<=(pt>0?pt:1)&&!i.on_reorder_list;
-  });
-
-  // Recently used — ALL items used on jobs in last 90 days, including out of stock
-  // Only exclude items already in flagged list (avoid dupes there)
-  var flaggedIds=new Set(flagged.map(function(i){return i.id;}));
-  var recentItems=[];
-  Object.keys(recentUsage).forEach(function(name){
-    var item=inv.find(function(i){return i.name&&i.name.toLowerCase()===name.toLowerCase();});
-    if(item&&!flaggedIds.has(item.id)){
-      recentItems.push({item:item,usage:recentUsage[name]});
-    }
-  });
-  recentItems.sort(function(a,b){return b.usage.count-a.usage.count;});
-  recentItems=recentItems.slice(0,25);
-
-  var h='';
-
-  // Export button
-  h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 10px">';
-  h+='<span style="font-size:12px;font-weight:700;color:var(--tx2)">'+
-    (flagged.length+lowStock.length)+' flagged · '+recentItems.length+' recently used</span>';
-  h+='<button onclick="exportReorderList()" style="background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:5px 12px;font-size:12px;font-weight:700;font-family:var(--fn);color:var(--tx2);cursor:pointer">⬇ Export</button>';
-  h+='</div>';
-
-  function itemRow(i, source){
-    var qty=parseFloat(i.qty_on_hand||0);
-    var rqty=parseFloat(i.reorder_qty||0);
-    var qtyColor=qty<=0?'var(--red)':qty<=2?'var(--amb)':'var(--grn)';
-    var isFlagged=!!i.on_reorder_list;
-    var row='<div style="background:var(--sf);border:1.5px solid '+(qty<=0?'rgba(201,95,63,.3)':qty<=2?'rgba(196,144,48,.3)':'var(--bd2)')+';border-radius:var(--r);padding:11px 13px;margin-bottom:7px;display:flex;align-items:center;gap:10px">';
-    row+='<div onclick="toggleReorderFlag(\''+i.id+'\','+(!isFlagged)+')" style="width:22px;height:22px;border-radius:6px;border:2px solid '+(isFlagged?'var(--grn)':'var(--bd2)')+';background:'+(isFlagged?'var(--grn)':'transparent')+';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0">'+(isFlagged?'<span style="color:#fff;font-size:13px;line-height:1">✓</span>':'')+'</div>';
-    row+='<div style="flex:1;min-width:0">';
-    row+='<div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(i.name||'')+'</div>';
-    row+='<div style="display:flex;gap:10px;margin-top:3px;font-size:11px;flex-wrap:wrap">';
-    row+='<span style="color:'+qtyColor+';font-weight:700;font-family:var(--mo)">'+(qty<=0?'OUT OF STOCK':qty+' in stock')+'</span>';
-    if(i.stens_num)row+='<span style="color:var(--tx3);font-family:var(--mo)">'+esc(i.stens_num)+'</span>';
-    if(source==='recent'&&recentUsage[i.name])row+='<span style="color:var(--blu)">used '+recentUsage[i.name].count+'x · '+fd(recentUsage[i.name].lastUsed)+'</span>';
-    if(source==='low')row+='<span style="color:var(--amb)">⚠ low stock</span>';
-    row+='</div></div>';
-    row+='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">';
-    row+='<span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3)">Order</span>';
-    row+='<input type="number" min="1" step="1" value="'+(rqty>0?rqty:'')+'" placeholder="qty" '+
-      'onchange="saveReorderQty(\''+i.id+'\',this.value)" '+
-      'style="width:52px;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:5px 7px;font-size:13px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:right;outline:none">';
-    row+='</div>';
-    row+='</div>';
-    return row;
-  }
-
-  // ── Recently Used FIRST ──
-  if(recentItems.length){
-    h+='<div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--blu);padding:2px 0 8px;display:flex;align-items:center;justify-content:space-between">';
-    h+='<span>📋 Recently Used — Last 90 Days</span>';
-    h+='<span style="font-size:11px;color:var(--tx3);font-weight:600;text-transform:none;letter-spacing:0">'+recentItems.length+' items</span>';
-    h+='</div>';
-    recentItems.forEach(function(r){h+=itemRow(r.item,'recent');});
-  }
-
-  // ── Divider before reorder sections ──
-  if(recentItems.length&&(flagged.length||lowStock.length)){
-    h+='<div style="border-top:2px solid var(--bd2);margin:16px 0 14px"></div>';
-  }
-
-  // ── Flagged / On Reorder List ──
-  if(flagged.length){
-    h+='<div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--grn);padding:0 0 8px">✓ On Reorder List ('+flagged.length+')</div>';
-    flagged.forEach(function(i){h+=itemRow(i,'flagged');});
-  }
-
-  // ── Low Stock ──
-  if(lowStock.length){
-    h+='<div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--amb);padding:'+(flagged.length?'12px':'0')+' 0 8px">⚠ Low / Out of Stock ('+lowStock.length+')</div>';
-    lowStock.forEach(function(i){h+=itemRow(i,'low');});
-  }
-
-  if(!flagged.length&&!lowStock.length&&!recentItems.length){
-    h+='<div style="text-align:center;padding:20px;color:var(--tx3);font-size:13px">No recent parts usage found</div>';
-  }
-
-  el.innerHTML=h;
+  window._onReorderTab=true;
   var srch=document.querySelector('#S_inv .sw');
   if(srch)srch.parentElement.style.display='none';
-  window._onReorderTab=true;
+
+  if(!_ledger){
+    el.innerHTML='<div class="loading"><div class="spin"></div><br>Reading parts history…</div>';
+    await loadLedger();
+    if(!window._onReorderTab)return; // user moved on while it loaded
+  }
+
+  var list=buildBuyList();
+  if(!list.length){
+    el.innerHTML='<div class="empty" style="margin-top:24px"><div class="et">Nothing to order</div><div class="es">Nothing is out, low, or flagged</div></div>';
+    return;
+  }
+
+  // Group by who you buy it from — one screen is one phone call
+  var groups={};
+  list.forEach(function(r){(groups[r.vendor]=groups[r.vendor]||[]).push(r);});
+  var vendorNames=Object.keys(groups).sort(function(a,b){
+    if(a==='No vendor set')return 1;
+    if(b==='No vendor set')return -1;
+    return a.localeCompare(b);
+  });
+
+  var totalCost=list.reduce(function(s,r){return s+r.cost*r.orderQty;},0);
+  var outCount=list.filter(function(r){return r.reason==='out';}).length;
+
+  var h='';
+  h+='<div style="display:flex;gap:6px;padding:2px 0 10px">';
+  h+='<div style="flex:1;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:8px 9px;text-align:center"><div style="font-size:17px;font-weight:800">'+list.length+'</div><div style="font-size:9px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em">To order</div></div>';
+  if(outCount)h+='<div style="flex:1;background:rgba(232,69,90,.1);border:1.5px solid var(--red);border-radius:var(--r);padding:8px 9px;text-align:center"><div style="font-size:17px;font-weight:800;color:var(--red)">'+outCount+'</div><div style="font-size:9px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:.05em">Out</div></div>';
+  h+='<div style="flex:1;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:8px 9px;text-align:center"><div style="font-size:17px;font-weight:800;font-family:var(--mo)">$'+Math.round(totalCost)+'</div><div style="font-size:9px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em">Est. cost</div></div>';
+  h+='<div style="flex:1;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:8px 9px;text-align:center"><div style="font-size:17px;font-weight:800">'+vendorNames.length+'</div><div style="font-size:9px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em">Vendors</div></div>';
+  h+='</div>';
+
+  h+='<div style="display:flex;justify-content:flex-end;padding-bottom:8px"><button onclick="exportReorderList()" style="background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:5px 12px;font-size:12px;font-weight:700;font-family:var(--fn);color:var(--tx2);cursor:pointer">⬇ Export</button></div>';
+
+  vendorNames.forEach(function(vn){
+    var rows=groups[vn];
+    var vCost=rows.reduce(function(s,r){return s+r.cost*r.orderQty;},0);
+    h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0 7px;border-top:2px solid var(--bd2);margin-top:6px">';
+    h+='<div><div style="font-size:12.5px;font-weight:800">'+esc(vn)+'</div><div style="font-size:11px;color:var(--tx3);font-family:var(--mo)">'+rows.length+' line'+(rows.length!==1?'s':'')+' · $'+vCost.toFixed(2)+'</div></div>';
+    h+='<button data-v="'+esc(vn)+'" onclick="markVendorOrdered(this.dataset.v)" style="background:var(--grn);border:none;border-radius:var(--rs);padding:7px 12px;font-size:12px;font-weight:700;color:#fff;font-family:var(--fn);cursor:pointer;flex-shrink:0">Mark ordered</button>';
+    h+='</div>';
+
+    rows.forEach(function(r){
+      var i=r.item;
+      var col=r.reason==='out'?'var(--red)':r.reason==='flagged'?'var(--grn)':'var(--amb)';
+      var label=r.reason==='out'?'Out of stock':r.reason==='flagged'?'Flagged':'At or below '+r.point;
+      h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-left:4px solid '+col+';border-radius:var(--r);padding:10px 12px;margin-bottom:7px">';
+      h+='<div style="display:flex;align-items:flex-start;gap:10px">';
+      h+='<div onclick="toggleReorderFlag(\''+i.id+'\','+(!i.on_reorder_list)+')" style="width:22px;height:22px;border-radius:6px;border:2px solid '+(i.on_reorder_list?'var(--grn)':'var(--bd2)')+';background:'+(i.on_reorder_list?'var(--grn)':'transparent')+';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:1px">'+(i.on_reorder_list?'<span style="color:#fff;font-size:13px;line-height:1">✓</span>':'')+'</div>';
+      h+='<div style="flex:1;min-width:0;cursor:pointer" data-pid="'+i.id+'" onclick="openPartHistory(this.dataset.pid)">';
+      h+='<div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(i.name||'')+'</div>';
+      var meta=[];
+      var pn=invPrimaryNum(i); if(pn)meta.push(esc(pn));
+      meta.push('<span style="color:'+col+';font-weight:700">'+label+'</span>');
+      meta.push(r.qty+' on hand');
+      h+='<div style="font-size:11px;color:var(--tx3);margin-top:2px">'+meta.join(' · ')+'</div>';
+      // Show the reasoning behind a suggested point so it can be judged
+      if(r.used90>0){
+        h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">used '+Math.round(r.used90)+' in 90 days'+
+           (r.pointFromUser?'':' → suggest keeping '+r.suggested)+'</div>';
+      }else{
+        h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">no usage recorded in 90 days</div>';
+      }
+      h+='</div>';
+      h+='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">';
+      h+='<span style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3)">Order</span>';
+      h+='<input type="number" min="1" step="1" value="'+r.orderQty+'" onchange="saveReorderQty(\''+i.id+'\',this.value)" style="width:54px;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:5px 7px;font-size:13px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:right;outline:none">';
+      if(r.cost>0)h+='<span style="font-size:10px;color:var(--tx3);font-family:var(--mo)">$'+(r.cost*r.orderQty).toFixed(2)+'</span>';
+      h+='</div>';
+      h+='</div>';
+      if(!r.pointFromUser&&r.suggested>0){
+        h+='<div style="margin-top:7px"><button data-pid="'+i.id+'" data-pt="'+r.suggested+'" onclick="event.stopPropagation();acceptReorderPoint(this.dataset.pid,this.dataset.pt)" style="background:none;border:1.5px solid var(--bd2);border-radius:20px;padding:3px 10px;font-size:10.5px;font-weight:700;font-family:var(--fn);color:var(--tx2);cursor:pointer">Keep '+r.suggested+' on the shelf</button></div>';
+      }
+      h+='</div>';
+    });
+  });
+
+  el.innerHTML=h;
+}
+
+// Accept a suggested reorder point — this is what makes the low-stock
+// warning capable of firing at all.
+async function acceptReorderPoint(id,pt){
+  var v=parseFloat(pt||0);if(!(v>0))return;
+  try{
+    await patch('inventory',{reorder_point:v},'?id=eq.'+id);
+    var i=(inv||[]).find(function(x){return x.id===id;});
+    if(i)i.reorder_point=v;
+    toast('Keeping '+v+' on the shelf ✓','ok');
+    renderReorderList();
+  }catch(e){toast('Could not save','er');}
+}
+
+// Everything for one vendor goes onto Parts on Order in one go.
+async function markVendorOrdered(vendor){
+  var rows=buildBuyList().filter(function(r){return r.vendor===vendor;});
+  if(!rows.length)return;
+  if(!confirm('Put '+rows.length+' line'+(rows.length!==1?'s':'')+' from '+vendor+' on order?'))return;
+  var now=new Date().toISOString();
+  var payload=rows.map(function(r){
+    return {
+      inventory_id:r.item.id,
+      part_name:r.item.name||'Part',
+      part_number:invPrimaryNum(r.item),
+      qty_ordered:r.orderQty,
+      cost:r.cost||null,
+      vendor:vendor==='No vendor set'?null:vendor,
+      status:'ordered',
+      ordered_at:now
+    };
+  });
+  try{
+    var created=await post('parts_on_order',payload);
+    if(created&&created.length)partsOnOrder=(partsOnOrder||[]).concat(created);
+    // Clear the hand-flag; it's on order now, not waiting to be decided
+    for(const r of rows){
+      if(r.item.on_reorder_list){
+        await patch('inventory',{on_reorder_list:false},'?id=eq.'+r.item.id).catch(function(){});
+        r.item.on_reorder_list=false;
+      }
+    }
+    toast(rows.length+' on order ✓','ok');
+    counts();
+    renderReorderList();
+  }catch(e){toast('Could not place order: '+e.message,'er');}
 }
 
 async function toggleReorderFlag(id, flag){
@@ -6560,20 +6659,22 @@ async function saveReorderQty(id, val){
 }
 
 function exportReorderList(){
-  var rows=[['Item','Stens#','In Stock','Order Qty','Cost','Sell']];
-  var toOrder=inv.filter(function(i){
-    var qty=parseFloat(i.qty_on_hand||0);
-    var pt=parseFloat(i.reorder_point||0);
-    return i.on_reorder_list||(qty<=(pt>0?pt:1));
-  });
-  toOrder.forEach(function(i){
+  // Same list the screen shows, in vendor order — a CSV that disagreed
+  // with what you were looking at would be worse than none.
+  var rows=[['Vendor','Item','Part #','Why','In Stock','Used 90d','Order Qty','Cost','Line total']];
+  buildBuyList().slice().sort(function(a,b){
+    return a.vendor===b.vendor?b.used90-a.used90:a.vendor.localeCompare(b.vendor);
+  }).forEach(function(r){
     rows.push([
-      i.name||'',
-      i.stens_num||'',
-      parseFloat(i.qty_on_hand||0),
-      parseFloat(i.reorder_qty||0)||'',
-      parseFloat(i.cost||0).toFixed(2),
-      parseFloat(i.sell_price||0).toFixed(2)
+      r.vendor,
+      r.item.name||'',
+      invPrimaryNum(r.item)||'',
+      r.reason==='out'?'Out of stock':r.reason==='flagged'?'Flagged':'At or below '+r.point,
+      r.qty,
+      Math.round(r.used90),
+      r.orderQty,
+      r.cost.toFixed(2),
+      (r.cost*r.orderQty).toFixed(2)
     ]);
   });
   var csv=rows.map(function(r){return r.map(function(v){return'"'+String(v).replace(/"/g,"''")+'"';}).join(',');}).join('\n');
