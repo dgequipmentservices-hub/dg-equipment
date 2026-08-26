@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.38</title>
+<title>DG Equipment v27.39</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -5389,8 +5389,9 @@ async function confirmDelWO(){
       const item=inv.find(x=>x.id===id);if(!item)continue;
       const newQty=parseFloat(item.qty_on_hand||0)+qty;
       const newSold=Math.max(0,parseFloat(item.sold_qty||0)-qty);
-      await patch('inventory',{qty_on_hand:newQty,sold_qty:newSold},'?id=eq.'+id);
-      item.qty_on_hand=newQty;item.sold_qty=newSold;
+      const backLocs=splitStockAcrossLocations(item,newQty);
+      await patch('inventory',Object.assign({qty_on_hand:newQty,sold_qty:newSold},backLocs),'?id=eq.'+id);
+      item.qty_on_hand=newQty;item.sold_qty=newSold;Object.assign(item,backLocs);
     }
     await del('work_orders','?id=eq.'+woId);wos=wos.filter(w=>w.id!==woId);toast('Deleted','ok');backFromWO();
   }catch(e){toast('Delete failed','er');}
@@ -8300,6 +8301,7 @@ async function applyBill(){
       var before=parseFloat(item.qty_on_hand||0);
       if(l.target==='stock'){
         patchBody.qty_on_hand=before+l.qty;
+        Object.assign(patchBody,splitStockAcrossLocations(item,before+l.qty));
       }
 
       if(Object.keys(patchBody).length){
@@ -9336,10 +9338,10 @@ async function saveReceivedOrder(){
       } else {
         var p=r.item;
         var newQty=parseFloat(p.qty_on_hand||0)+r.addQty;
-        var upd={
+        var upd=Object.assign({
           qty_on_hand:newQty,
           qty_received:(parseFloat(p.qty_received||0)+r.addQty)
-        };
+        },splitStockAcrossLocations(p,newQty));
         // Apply matrix if sell is 0 on existing item
         var _recvExSell=r.sell>0?r.sell:applyPriceMatrix(r.cost,p.category||autoCat(p.name||''));
         // Only update cost/sell if they changed
@@ -15056,8 +15058,9 @@ async function _doQuickReceivePart(ordId,machId){
       var invItem=inv.find(function(x){return x.id===o.inventory_id;});
       if(invItem){
         var newQty=parseFloat(invItem.qty_on_hand||0)+qty;
-        await patch('inventory',{qty_on_hand:newQty,qty_received:parseFloat(invItem.qty_received||0)+qty},'?id=eq.'+o.inventory_id).catch(function(){});
-        invItem.qty_on_hand=newQty;
+        var _recvLocs=splitStockAcrossLocations(invItem,newQty);
+        await patch('inventory',Object.assign({qty_on_hand:newQty,qty_received:parseFloat(invItem.qty_received||0)+qty},_recvLocs),'?id=eq.'+o.inventory_id).catch(function(){});
+        invItem.qty_on_hand=newQty;Object.assign(invItem,_recvLocs);
       }
     }
 
