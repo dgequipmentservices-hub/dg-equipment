@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.33</title>
+<title>DG Equipment v27.34</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -17958,7 +17958,12 @@ function renderSettings() {
       '<button onclick="logOut()" style="width:100%;background:none;border:1.5px solid var(--red);border-radius:var(--rs);padding:11px;font-size:14px;font-weight:700;font-family:var(--fn);color:var(--red);cursor:pointer">Lock App / Sign Out</button>' +
     '</div>';
 
-  var version = '<div style="text-align:center;font-size:11px;color:var(--tx3);padding:8px 0 4px">DG Equipment App v25.2 &nbsp;&middot;&nbsp; build Jul 10 &nbsp;&middot;&nbsp; Oceanside NY</div>';
+  // Read the version off the <title> rather than repeating it here.
+  // Hand-typed, this footer had drifted to v25.2 while the app was on
+  // v27.33 — and since this is what gets checked to confirm a deploy
+  // landed, a stale number here reads as "the update didn't ship".
+  var _v=(/v[\d.]+/i.exec(document.title||'')||[''])[0];
+  var version = '<div style="text-align:center;font-size:11px;color:var(--tx3);padding:8px 0 4px">DG Equipment App '+esc(_v||'')+' &nbsp;&middot;&nbsp; Oceanside NY</div>';
 
   el.innerHTML =
     '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--tx3);margin-bottom:8px;margin-top:4px">Users</div>' +
