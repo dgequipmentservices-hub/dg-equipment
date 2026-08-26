@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.31</title>
+<title>DG Equipment v27.32</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -904,6 +904,7 @@ window.addEventListener('offline',function(){
     <div class="ham-item owner-only" onclick="navTo('S_stmt')"><span class="ham-item-ico"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>Statements</div>
     <div class="ham-item owner-only" onclick="navTo('S_recon')"><span class="ham-item-ico"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></span>Reconcile Payments<span id="hamBadgeRecon" style="margin-left:auto;background:var(--amb);color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 7px;display:none">!</span></div>
     <div style="font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--tx3);padding:14px 16px 5px;opacity:.65">Parts &amp; Inventory</div>
+    <div class="ham-item" onclick="navTo('S_photos')"><span class="ham-item-ico"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></span>Photos</div>
     <div class="ham-item" onclick="navTo('S_partsused')"><span class="ham-item-ico"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg></span>Parts Used</div>
     <div class="ham-item owner-only" onclick="navTo('S_parts_order')"><span class="ham-item-ico"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg></span>Parts on Order<span id="hamBadgeParts" style="margin-left:auto;background:var(--amb);color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 7px;display:none">!</span></div>
     <div class="ham-item owner-only" onclick="navTo('S_inv')"><span class="ham-item-ico"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M3 9l9-6 9 6v12a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>Inventory<span id="hamBadgeLowStock" style="margin-left:auto;background:var(--amb);color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 7px;display:none">!</span></div>
@@ -1282,6 +1283,22 @@ Check spark plug" rows="5" style="margin-bottom:8px;resize:none;line-height:1.7;
   </div>
   <div style="display:flex;gap:5px;padding:8px 14px 0;flex-shrink:0;overflow-x:auto;scrollbar-width:none" id="phPeriods"></div>
   <div style="flex:1;overflow-y:auto;padding:6px 14px 80px" id="phBody"></div>
+</div>
+
+<!-- ═══════════ SCREEN: PHOTOS ═══════════ -->
+<div class="scr" id="S_photos">
+  <div class="hdr">
+    <div class="hdr-l"><button class="back-btn" onclick="goBack()">&#8592;</button>
+      <button class="ham-btn" onclick="openHam()"><span></span><span></span><span></span></button>
+      <div class="htitle">Photos</div>
+    </div>
+    <div class="hdr-r"><button class="ibtn" onclick="loadPhotos(true)" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg></button></div>
+  </div>
+  <div style="padding:8px 14px 0;flex-shrink:0">
+    <div class="sw"><input class="sinp" id="phosrch" placeholder="Customer, machine, part..." oninput="renderPhotos()"><span class="sico">&#8981;</span></div>
+  </div>
+  <div style="display:flex;gap:5px;padding:8px 14px 0;flex-shrink:0;overflow-x:auto;scrollbar-width:none" id="phoTabs"></div>
+  <div style="flex:1;overflow-y:auto;padding:6px 14px 80px" id="phoBody"></div>
 </div>
 
 <!-- ═══════════ SCREEN: VIEW IN QBO ═══════════ -->
@@ -1718,6 +1735,7 @@ function _nav(dest){
   else if(dest==='S_invoices'){S('S_invoices');renderInvoices(true);}
   else if(dest==='S_status'){S('S_status');renderStatusOverview();}
   else if(dest==='S_partsused'){showPartsUsed();}
+  else if(dest==='S_photos'){showPhotos();}
   else if(dest==='S_qboview'){S('S_qboview');loadQboView();}
   else if(dest==='S_parts_order'){S('S_parts_order');loadPartsOnOrder();}
   else if(dest==='S_price_matrix'){S('S_price_matrix');loadPriceMatrix();}
@@ -7551,6 +7569,172 @@ async function showPartsUsed(){
 }
 function setPuPeriod(btn){_puPeriod=parseInt(btn.dataset.d,10);renderPartsUsed();}
 
+// ─────────────────────────────────────────
+// PHOTO LIBRARY
+//
+// Photos were only ever reachable by opening the record that owns
+// them, so a machine you scanned couldn't be found again unless you
+// remembered which machine it was. photo_index (migration 010) puts
+// every photo reference behind one query; this screen is the door.
+// ─────────────────────────────────────────
+var _photos=null, _photoOrphans=null, _phoTab='equipment', _photosLoading=false;
+var PHOTO_TABS=[
+  {id:'equipment', label:'Equipment', kinds:['equipment','work_order','capture']},
+  {id:'bill',      label:'Vendor bills', kinds:['bill']},
+  {id:'part',      label:'Parts & diagrams', kinds:['part','diagram']},
+  {id:'missing',   label:'No photo', kinds:[]},
+  {id:'orphan',    label:'Unfiled', kinds:[]}
+];
+
+async function loadPhotos(force){
+  if(_photos&&!force)return _photos;
+  if(_photosLoading)return _photos;
+  _photosLoading=true;
+  try{
+    _restoreSession();
+    _photos=await get('photo_index','?order=taken_at.desc&limit=1000')||[];
+    // Orphans come from a function, not a table — storage.objects isn't
+    // readable by the browser role directly.
+    try{
+      var res=await fetch(SU+'/rest/v1/rpc/orphan_photos',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':SK,'Authorization':'Bearer '+(_sessionToken||SK)},
+        body:'{}'
+      });
+      _photoOrphans=res.ok?await res.json():[];
+    }catch(e){_photoOrphans=[];}
+  }catch(e){
+    _photos=_photos||[];
+    toast('Could not load photos','er');
+  }
+  _photosLoading=false;
+  return _photos;
+}
+
+async function showPhotos(){
+  go('S_photos');S('S_photos');
+  document.getElementById('phoBody').innerHTML='<div class="loading"><div class="spin"></div><br>Finding your photos…</div>';
+  await loadPhotos();
+  renderPhotos();
+}
+function setPhoTab(btn){_phoTab=btn.dataset.t;renderPhotos();}
+
+function _phoBucketUrl(o){
+  return SU+'/storage/v1/object/public/'+o.bucket_id+'/'+encodeURIComponent(o.name).replace(/%2F/g,'/');
+}
+
+function renderPhotos(){
+  var el=document.getElementById('phoBody');if(!el)return;
+  var q=((document.getElementById('phosrch')||{}).value||'').toLowerCase().trim();
+  var all=_photos||[];
+
+  // Machines with nothing on file — the gap worth chipping away at
+  var shot=new Set(all.filter(function(p){return p.kind==='equipment';}).map(function(p){return p.owner_id;}));
+  var missing=(equips||[]).filter(function(e){return !shot.has(e.id);});
+
+  var counts={
+    equipment:all.filter(function(p){return ['equipment','work_order','capture'].includes(p.kind);}).length,
+    bill:all.filter(function(p){return p.kind==='bill';}).length,
+    part:all.filter(function(p){return ['part','diagram'].includes(p.kind);}).length,
+    missing:missing.length,
+    orphan:(_photoOrphans||[]).length
+  };
+
+  var tabsEl=document.getElementById('phoTabs');
+  if(tabsEl){
+    tabsEl.innerHTML=PHOTO_TABS.map(function(t){
+      var n=counts[t.id]||0;
+      var extra=(t.id==='orphan'&&n)?';border-color:var(--amb);color:var(--amb)':'';
+      return '<button data-t="'+t.id+'" onclick="setPhoTab(this)" class="cnt-cat-btn'+(_phoTab===t.id?' active':'')+'" style="font-size:11px;white-space:nowrap'+extra+'">'+t.label+(n?' ('+n+')':'')+'</button>';
+    }).join('');
+  }
+
+  // ── Machines with no photo ──
+  if(_phoTab==='missing'){
+    var rows=missing.filter(function(e){
+      if(!q)return true;
+      var c=cMap[e.customer_id]||{};
+      return [e.make,e.model,e.serial,c.name].filter(Boolean).join(' ').toLowerCase().includes(q);
+    });
+    if(!rows.length){
+      el.innerHTML='<div class="empty" style="margin-top:24px"><div class="et">Every machine has a photo</div></div>';
+      return;
+    }
+    var mh='<div style="font-size:12px;color:var(--tx3);padding:6px 2px 10px">'+rows.length+' machine'+(rows.length!==1?'s':'')+' with nothing on file. Open one to add a photo next time it’s in.</div>';
+    rows.slice(0,200).forEach(function(e){
+      var c=cMap[e.customer_id]||{};
+      mh+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:10px 12px;margin-bottom:6px;cursor:pointer" data-eid="'+e.id+'" data-cid="'+(e.customer_id||'')+'" onclick="editEqFromHistory(this.dataset.eid,this.dataset.cid)">';
+      mh+='<div style="font-size:13px;font-weight:700">'+esc([e.make,e.model].filter(Boolean).join(' ')||'Machine')+'</div>';
+      mh+='<div style="font-size:11px;color:var(--tx3);margin-top:2px">'+esc(c.name||'')+(e.serial?' · SN '+esc(e.serial):'')+'</div>';
+      mh+='</div>';
+    });
+    if(rows.length>200)mh+='<div style="text-align:center;font-size:12px;color:var(--tx3);padding:8px">+'+(rows.length-200)+' more</div>';
+    el.innerHTML=mh;
+    return;
+  }
+
+  // ── Files nothing points at ──
+  if(_phoTab==='orphan'){
+    var orph=_photoOrphans||[];
+    if(!orph.length){
+      el.innerHTML='<div class="empty" style="margin-top:24px"><div class="et">Nothing unfiled</div><div class="es">Every stored photo is attached to something</div></div>';
+      return;
+    }
+    var oh='<div style="font-size:12px;color:var(--tx3);padding:6px 2px 10px">'+orph.length+' file'+(orph.length!==1?'s':'')+' in storage that nothing points at. They were uploaded but the record that referenced them is gone.</div>';
+    oh+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">';
+    orph.forEach(function(o){
+      var u=_phoBucketUrl(o);
+      oh+='<a href="'+esc(u)+'" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">';
+      oh+='<div style="background:var(--sf);border:1.5px solid var(--amb);border-radius:var(--r);overflow:hidden">';
+      oh+='<div style="aspect-ratio:1;background:var(--sf2) center/cover no-repeat url(\''+esc(u)+'\')"></div>';
+      oh+='<div style="padding:7px 8px"><div style="font-size:11px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(o.name.split('/').pop())+'</div>';
+      oh+='<div style="font-size:10px;color:var(--tx3);font-family:var(--mo)">'+(o.created_at?new Date(o.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'')+'</div></div>';
+      oh+='</div></a>';
+    });
+    oh+='</div>';
+    el.innerHTML=oh;
+    return;
+  }
+
+  // ── The galleries ──
+  var tab=PHOTO_TABS.find(function(t){return t.id===_phoTab;})||PHOTO_TABS[0];
+  var list=all.filter(function(p){
+    if(!tab.kinds.includes(p.kind))return false;
+    if(!q)return true;
+    var c=p.customer_id?(cMap[p.customer_id]||{}):{};
+    return [p.title,p.subtitle,c.name].filter(Boolean).join(' ').toLowerCase().includes(q);
+  });
+
+  if(!list.length){
+    el.innerHTML='<div class="empty" style="margin-top:24px"><div class="et">No photos</div><div class="es">'+(q?'Nothing matches that search':'Nothing in this section yet')+'</div></div>';
+    return;
+  }
+
+  var h='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">';
+  list.forEach(function(p){
+    var c=p.customer_id?(cMap[p.customer_id]||{}):{};
+    var when=p.taken_at?new Date(p.taken_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'';
+    // Tapping goes to whatever owns the photo, which is the point —
+    // find the picture, land on the machine or the job.
+    var act='';
+    if(p.kind==='equipment')act='editEqFromHistory(this.dataset.oid,this.dataset.cid)';
+    else if(p.kind==='work_order')act='openWO(this.dataset.oid)';
+    else if(p.kind==='part')act='openPartHistory(this.dataset.oid)';
+    else act='window.open(this.dataset.url,\'_blank\')';
+    h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);overflow:hidden;cursor:pointer" data-oid="'+esc(p.owner_id||'')+'" data-cid="'+esc(p.customer_id||'')+'" data-url="'+esc(p.url)+'" onclick="'+act+'">';
+    h+='<div style="aspect-ratio:1;background:var(--sf2) center/cover no-repeat url(\''+esc(p.url)+'\')"></div>';
+    h+='<div style="padding:7px 8px">';
+    h+='<div style="font-size:11.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.title||'Photo')+'</div>';
+    var sub=[c.name,p.subtitle].filter(Boolean).join(' · ');
+    if(sub)h+='<div style="font-size:10.5px;color:var(--tx3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(sub)+'</div>';
+    if(when)h+='<div style="font-size:10px;color:var(--tx3);font-family:var(--mo);margin-top:1px">'+when+'</div>';
+    h+='</div></div>';
+  });
+  h+='</div>';
+  el.innerHTML=h;
+}
+
+
 function renderPartsUsed(){
   var el=document.getElementById('puBody');if(!el)return;
   _lgPeriodBar('puPeriods',_puPeriod,'setPuPeriod');
@@ -10834,6 +11018,7 @@ function navTo(screen){
   else if(screen==='S_invoices'){S('S_invoices');renderInvoices(true);}
   else if(screen==='S_status'){S('S_status');_statusTab='all';renderStatusOverview();}
   else if(screen==='S_partsused'){S('S_partsused');showPartsUsed();}
+  else if(screen==='S_photos'){S('S_photos');showPhotos();}
   else if(screen==='S_qboview'){S('S_qboview');loadQboView();}
   else if(screen==='S_sale'){prevScr=document.querySelector('.scr.on')?document.querySelector('.scr.on').id:'S_list';S('S_sale');initSaleReceipt();}
   else if(screen==='S_recv'){S('S_recv');recvItems={};renderRecvList();}
