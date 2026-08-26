@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.29</title>
+<title>DG Equipment v27.30</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -904,6 +904,7 @@ window.addEventListener('offline',function(){
     <div class="ham-item owner-only" onclick="navTo('S_stmt')"><span class="ham-item-ico"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>Statements</div>
     <div class="ham-item owner-only" onclick="navTo('S_recon')"><span class="ham-item-ico"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></span>Reconcile Payments<span id="hamBadgeRecon" style="margin-left:auto;background:var(--amb);color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 7px;display:none">!</span></div>
     <div style="font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--tx3);padding:14px 16px 5px;opacity:.65">Parts &amp; Inventory</div>
+    <div class="ham-item" onclick="navTo('S_partsused')"><span class="ham-item-ico"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg></span>Parts Used</div>
     <div class="ham-item owner-only" onclick="navTo('S_parts_order')"><span class="ham-item-ico"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg></span>Parts on Order<span id="hamBadgeParts" style="margin-left:auto;background:var(--amb);color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 7px;display:none">!</span></div>
     <div class="ham-item owner-only" onclick="navTo('S_inv')"><span class="ham-item-ico"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M3 9l9-6 9 6v12a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>Inventory<span id="hamBadgeLowStock" style="margin-left:auto;background:var(--amb);color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 7px;display:none">!</span></div>
     <div style="font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--tx3);padding:14px 16px 5px;opacity:.65">Reports &amp; Settings</div>
@@ -1252,6 +1253,35 @@ Check spark plug" rows="5" style="margin-bottom:8px;resize:none;line-height:1.7;
   <div id="statusSummary" style="padding:8px 14px 0;flex-shrink:0"></div>
   <div style="display:flex;gap:5px;padding:8px 14px 0;flex-shrink:0;overflow-x:auto;scrollbar-width:none" id="statusTabs"></div>
   <div style="flex:1;overflow-y:auto;padding:6px 14px 80px" id="statusBody"></div>
+</div>
+
+<!-- ═══════════ SCREEN: PARTS USED ═══════════ -->
+<div class="scr" id="S_partsused">
+  <div class="hdr">
+    <div class="hdr-l"><button class="back-btn" onclick="goBack()">&#8592;</button>
+      <button class="ham-btn" onclick="openHam()"><span></span><span></span><span></span></button>
+      <div class="htitle">Parts Used</div>
+    </div>
+    <div class="hdr-r"><button class="ibtn" onclick="loadLedger(true)" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg></button></div>
+  </div>
+  <div style="padding:8px 14px 0;flex-shrink:0">
+    <div class="sw"><input class="sinp" id="pusrch" placeholder="Part, customer, number..." oninput="renderPartsUsed()"><span class="sico">&#8981;</span></div>
+  </div>
+  <div style="display:flex;gap:5px;padding:8px 14px 0;flex-shrink:0;overflow-x:auto;scrollbar-width:none" id="puPeriods"></div>
+  <div style="flex:1;overflow-y:auto;padding:6px 14px 80px" id="puBody"></div>
+</div>
+
+<!-- ═══════════ SCREEN: PART HISTORY ═══════════ -->
+<div class="scr" id="S_parthist">
+  <div class="hdr">
+    <div class="hdr-l"><button class="back-btn" onclick="goBack()">&#8592;</button>
+      <button class="ham-btn" onclick="openHam()"><span></span><span></span><span></span></button>
+      <div><div class="htitle" id="ph_title">Part</div><div class="hsub" id="ph_sub"></div></div>
+    </div>
+    <div class="hdr-r"><button class="ibtn" onclick="toggleTheme()"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div>
+  </div>
+  <div style="display:flex;gap:5px;padding:8px 14px 0;flex-shrink:0;overflow-x:auto;scrollbar-width:none" id="phPeriods"></div>
+  <div style="flex:1;overflow-y:auto;padding:6px 14px 80px" id="phBody"></div>
 </div>
 
 <!-- ═══════════ SCREEN: VIEW IN QBO ═══════════ -->
@@ -1652,7 +1682,7 @@ function _lock(key,ms){
 function _unlock(key){delete _busyLocks[key];}
 var cMap={}, eMap={};
 var selCust=null, selEq=null, curCustId=null, curEqId=null;
-var woId=null, mcs=[], prevInvParts={};
+var woId=null, mcs=[], prevInvParts={}, prevFreeParts={};
 var activeCat='All', expInvId=null;
 var countLoc='Truck', countCat='All', countChanges={};
 var rptFilter='all', invTransactions=[];
@@ -1687,6 +1717,7 @@ function _nav(dest){
   else if(dest==='S_inv'){S('S_inv');renderInv();}
   else if(dest==='S_invoices'){S('S_invoices');renderInvoices(true);}
   else if(dest==='S_status'){S('S_status');renderStatusOverview();}
+  else if(dest==='S_partsused'){showPartsUsed();}
   else if(dest==='S_qboview'){S('S_qboview');loadQboView();}
   else if(dest==='S_parts_order'){S('S_parts_order');loadPartsOnOrder();}
   else if(dest==='S_price_matrix'){S('S_price_matrix');loadPriceMatrix();}
@@ -3143,7 +3174,7 @@ async function openWO(id){
   var _tmplBtn=document.getElementById('useTemplateBtn');if(_tmplBtn)_tmplBtn.style.display=id?'none':'inline-flex';
   var _asI=document.getElementById('asInd');if(_asI)_asI.textContent='';
   var _bar=document.getElementById('woInvBar');if(_bar)_bar.style.display='none';
-  prevInvParts={};
+  prevInvParts={};prevFreeParts={};
   resetCustArea();
   setStBy('New');
   renderMcs();recalc();
@@ -3167,8 +3198,14 @@ async function openWO(id){
       const ids=w.equipment_id?[w.equipment_id,...ex]:ex;
       ids.forEach(eid=>{const eq=equips.find(e=>e.id===eid)||eMap[eid];if(!eq)return;const d=md[eid]||{};mcs.push({id:eid,make:eq.make||'',model:eq.model||'',serial:eq.serial||'',type:eq.equipment_type||'',open:true,svcDate:d.svcDate||'',loc:d.loc||'',labor:d.labor||[],parts:(d.parts||[]).map(p=>({...p,inv_id:p.inv_id||null}))});});
       // snapshot inv parts already on this WO so re-save doesn't double-deduct
-      prevInvParts={};
-      mcs.forEach(m=>{(m.parts||[]).forEach(p=>{if(p.inv_id)prevInvParts[p.inv_id]=(prevInvParts[p.inv_id]||0)+p.qty;});});
+      prevInvParts={};prevFreeParts={};
+      mcs.forEach(m=>{(m.parts||[]).forEach(p=>{
+        if(p.inv_id){prevInvParts[p.inv_id]=(prevInvParts[p.inv_id]||0)+p.qty;return;}
+        var k=(p.name||'').trim().toLowerCase();
+        if(!k)return;
+        if(!prevFreeParts[k])prevFreeParts[k]={qty:0,name:p.name,partNum:p.partNum||null,price:p.price,eqId:null};
+        prevFreeParts[k].qty+=p.qty;
+      });});
       renderMcs();recalc();
       // Sync fresh WO data back to wos array
       var _owIdx=wos.findIndex(function(x){return x.id===id;});
@@ -4652,6 +4689,20 @@ function invNumberCardHtml(p){
     return '<div class="numcard-row"><span class="numcard-lbl">'+esc(r[0])+'</span><span class="numcard-val">'+esc(r[1])+'</span></div>';
   }).join('')+'</div>';
 }
+// The single most identifying number for a part, for stamping onto a
+// ledger line. Full cross-ref list stays in invAllNums.
+var INV_NUM_FIELDS=['part','oem','stens_num','rotary_num','oregon_num','arnold_num',
+  'maxpower_num','wright_num','scag_num','redmax_num','echo_num','toro_num',
+  'kawasaki_num','briggs_num','honda_num'];
+function invPrimaryNum(p){
+  if(!p)return null;
+  for(var i=0;i<INV_NUM_FIELDS.length;i++){
+    var v=p[INV_NUM_FIELDS[i]];
+    if(v&&String(v).trim())return String(v).trim();
+  }
+  return null;
+}
+
 function invAllNums(p){
   var out=[];
   if(p.part)out.push('#'+p.part);
@@ -5149,17 +5200,36 @@ async function saveWO(silent){
       }
     }}
     wos=await get('work_orders','?order=created_at.desc&limit=300');counts();
-    // ── inventory deduction ──
-    // tally current inv parts on this WO
-    const curInvParts={};
-    mcs.forEach(m=>{(m.parts||[]).forEach(p=>{if(p.inv_id)curInvParts[p.inv_id]=(curInvParts[p.inv_id]||0)+p.qty;});});
+    // ── inventory deduction + ledger ──
+    // Stock has always been decremented here. What was never written is
+    // any record of the movement, which is why "what did I put on
+    // Maroney's, and do I need another" had no answer. Every change now
+    // also writes an inventory_transactions line.
+    const curInvParts={}, curFreeParts={}, ledger=[];
+    mcs.forEach(m=>{(m.parts||[]).forEach(p=>{
+      if(p.inv_id)curInvParts[p.inv_id]=(curInvParts[p.inv_id]||0)+p.qty;
+      else{
+        // Typed by hand, not picked from stock. It still left the shelf,
+        // so it belongs in the feed even though no count can move.
+        const k=(p.name||'').trim().toLowerCase();
+        if(!k)return;
+        if(!curFreeParts[k])curFreeParts[k]={qty:0,name:p.name,partNum:p.partNum||null,price:p.price,eqId:m.id};
+        curFreeParts[k].qty+=p.qty;
+      }
+    });});
+    // Which machine each stocked part went on — the ledger keeps it so
+    // the feed can say "Toro TimeMaster", not just the customer.
+    const eqForInv={};
+    mcs.forEach(m=>{(m.parts||[]).forEach(p=>{if(p.inv_id&&!eqForInv[p.inv_id])eqForInv[p.inv_id]=m.id;});});
+
     // all inv_ids touched (new + removed)
     const allIds=new Set([...Object.keys(curInvParts),...Object.keys(prevInvParts)]);
     for(const id of allIds){
       const cur=curInvParts[id]||0, prev=prevInvParts[id]||0, delta=cur-prev;
       if(delta===0)continue;
       const item=inv.find(x=>x.id===id);if(!item)continue;
-      const newQty=Math.max(0,parseFloat(item.qty_on_hand||0)-delta);
+      const wasQty=parseFloat(item.qty_on_hand||0);
+      const newQty=Math.max(0,wasQty-delta);
       const newSold=parseFloat(item.sold_qty||0)+(delta>0?delta:0);
       var nTruck=parseFloat(item.qty_truck||0);
       var nGarage=parseFloat(item.qty_garage||0);
@@ -5167,9 +5237,48 @@ async function saveWO(silent){
       if(delta>0){var rem=delta;var ft=Math.min(rem,nTruck);nTruck-=ft;rem-=ft;var fg=Math.min(rem,nGarage);nGarage-=fg;rem-=fg;nUnknown=Math.max(0,nUnknown-rem);}
       await patch('inventory',{qty_on_hand:newQty,sold_qty:newSold,qty_truck:Math.max(0,nTruck),qty_garage:Math.max(0,nGarage),qty_unknown:Math.max(0,nUnknown)},'?id=eq.'+id);
       item.qty_on_hand=newQty;item.sold_qty=newSold;item.qty_truck=Math.max(0,nTruck);item.qty_garage=Math.max(0,nGarage);item.qty_unknown=Math.max(0,nUnknown);
+      ledger.push({
+        inventory_id:id, item_name:item.name||'Part', category:item.category||null,
+        part_number:invPrimaryNum(item), brand:item.primary_brand||item.brand||null,
+        transaction_type:delta>0?'used':'returned',
+        qty_before:wasQty, qty_after:newQty, qty_change:-delta,
+        work_order_id:woId, customer_id:(selCust||{}).id||null,
+        equipment_id:eqForInv[id]||null,
+        unit_cost:item.cost!=null?parseFloat(item.cost):null,
+        unit_sell:item.sell_price!=null?parseFloat(item.sell_price):(item.sell!=null?parseFloat(item.sell):null),
+        source:'job'
+      });
     }
+
+    // Hand-typed parts: no stock to move, but the usage is real.
+    const allFree=new Set([...Object.keys(curFreeParts),...Object.keys(prevFreeParts)]);
+    for(const k of allFree){
+      const c=curFreeParts[k], cur=c?c.qty:0, prev=(prevFreeParts[k]||{}).qty||0;
+      const delta=cur-prev;
+      if(delta===0)continue;
+      const ref=c||prevFreeParts[k];
+      ledger.push({
+        inventory_id:null, item_name:ref.name||'Part', part_number:ref.partNum||null,
+        transaction_type:delta>0?'used':'returned',
+        qty_change:-delta,
+        work_order_id:woId, customer_id:(selCust||{}).id||null,
+        equipment_id:ref.eqId||null,
+        unit_sell:ref.price!=null?parseFloat(ref.price):null,
+        source:'job',
+        notes:'Typed on the job — not an inventory part, so no count moved'
+      });
+    }
+
+    // One request for the batch. A ledger failure must never fail the
+    // save — the work order is the thing that matters.
+    if(ledger.length){
+      try{await post('inventory_transactions',ledger);}
+      catch(e){console.warn('ledger write failed',e);}
+    }
+
     // update snapshot for next save
     prevInvParts={...curInvParts};
+    prevFreeParts=JSON.parse(JSON.stringify(curFreeParts));
   }catch(e){toast('Save failed: '+e.message,'er');}
   btn.disabled=false;btn.textContent='Save';
 }
@@ -7249,6 +7358,297 @@ function setStatusTab(btn){
   btn.classList.add('active');
   _statusTab=btn.dataset.tab;
   renderStatusOverview();
+}
+
+// ─────────────────────────────────────────
+// PARTS LEDGER — every stock movement, newest first.
+//
+// One table answers three questions: what left the shelf lately
+// (the feed), everything that ever happened to one part (the
+// history), and what needs ordering. Stock used to move with no
+// record at all, so none of that was answerable.
+// ─────────────────────────────────────────
+var _ledger=null, _ledgerLoading=false;
+var _puPeriod=30, _phPeriod=90, _phKey=null;
+var LEDGER_PERIODS=[{d:7,label:'7 days'},{d:30,label:'30 days'},{d:90,label:'90 days'},{d:0,label:'All'}];
+
+function _lgSince(days){
+  if(!days)return null;
+  var d=new Date();d.setDate(d.getDate()-days);d.setHours(0,0,0,0);
+  return d;
+}
+
+async function loadLedger(force){
+  if(_ledger&&!force)return _ledger;
+  if(_ledgerLoading)return _ledger;
+  _ledgerLoading=true;
+  try{
+    _restoreSession();
+    _ledger=await get('inventory_transactions','?order=created_at.desc&limit=1000')||[];
+  }catch(e){
+    _ledger=_ledger||[];
+    toast('Could not load parts history','er');
+  }
+  _ledgerLoading=false;
+  return _ledger;
+}
+
+// A movement's display shape, resolved against what's already in memory
+// so these screens work with no connection.
+function _lgRow(t){
+  var item=t.inventory_id?(inv||[]).find(function(x){return x.id===t.inventory_id;}):null;
+  var cust=t.customer_id?(cMap[t.customer_id]||null):null;
+  var eq=t.equipment_id?(eMap[t.equipment_id]||null):null;
+  var qty=Math.abs(parseFloat(t.qty_change||0));
+  var isOut=parseFloat(t.qty_change||0)<0;
+  return {
+    t:t, item:item, qty:qty, isOut:isOut,
+    name:t.item_name||(item&&item.name)||'Part',
+    num:t.part_number||(item?invPrimaryNum(item):null),
+    cust:cust?cust.name:'',
+    mach:eq?[eq.make,eq.model].filter(Boolean).join(' '):'',
+    when:t.created_at?new Date(t.created_at):null,
+    onHand:item?parseFloat(item.qty_on_hand||0):null,
+    key:t.inventory_id||('name:'+(t.item_name||'').trim().toLowerCase())
+  };
+}
+
+function _lgWhen(d){
+  if(!d)return '';
+  var now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  var day=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  var diff=Math.round((today-day)/86400000);
+  if(diff===0)return 'Today';
+  if(diff===1)return 'Yesterday';
+  if(diff<7)return diff+' days ago';
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+}
+
+function _lgTypeLabel(t){
+  var ty=(t.transaction_type||'').toLowerCase();
+  if(ty==='used')return 'Used';
+  if(ty==='returned')return 'Returned';
+  if(ty==='received')return 'Received';
+  if(ty==='count_adjustment')return 'Counted';
+  if(ty==='sold')return 'Sold';
+  return t.transaction_type||'Moved';
+}
+
+function _lgPeriodBar(elId,active,fn){
+  var el=document.getElementById(elId);if(!el)return;
+  el.innerHTML=LEDGER_PERIODS.map(function(p){
+    return '<button data-d="'+p.d+'" onclick="'+fn+'(this)" class="cnt-cat-btn'+(active===p.d?' active':'')+'" style="font-size:11px;white-space:nowrap">'+p.label+'</button>';
+  }).join('');
+}
+
+// ── Feed ────────────────────────────────────────────────────────
+async function showPartsUsed(){
+  go('S_partsused');S('S_partsused');
+  document.getElementById('puBody').innerHTML='<div class="loading"><div class="spin"></div><br>Loading parts history…</div>';
+  await loadLedger();
+  renderPartsUsed();
+}
+function setPuPeriod(btn){_puPeriod=parseInt(btn.dataset.d,10);renderPartsUsed();}
+
+function renderPartsUsed(){
+  var el=document.getElementById('puBody');if(!el)return;
+  _lgPeriodBar('puPeriods',_puPeriod,'setPuPeriod');
+  var q=((document.getElementById('pusrch')||{}).value||'').toLowerCase().trim();
+  var since=_lgSince(_puPeriod);
+
+  var rows=(_ledger||[])
+    .filter(function(t){
+      var ty=(t.transaction_type||'').toLowerCase();
+      if(ty!=='used'&&ty!=='returned')return false;
+      if(since&&t.created_at&&new Date(t.created_at)<since)return false;
+      return true;
+    })
+    .map(_lgRow)
+    .filter(function(r){
+      if(!q)return true;
+      var f=[r.name,r.num||'',r.cust,r.mach].join(' ').toLowerCase();
+      return q.split(/\s+/).every(function(w){return f.includes(w);});
+    });
+
+  if(!rows.length){
+    el.innerHTML='<div class="empty" style="margin-top:24px"><div class="et">Nothing here</div><div class="es">'+(q?'No parts match that search':'No parts used in this period')+'</div></div>';
+    return;
+  }
+
+  // Summary: what this period cost the shelf
+  var totalQty=rows.reduce(function(s,r){return s+(r.isOut?r.qty:-r.qty);},0);
+  var lowNow=rows.filter(function(r){return r.onHand!==null&&r.onHand<=1;}).length;
+  var h='<div style="display:flex;gap:6px;padding:8px 0 4px">';
+  h+='<div style="flex:1;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:8px 9px;text-align:center"><div style="font-size:17px;font-weight:800">'+Math.round(totalQty)+'</div><div style="font-size:9px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em">Parts used</div></div>';
+  h+='<div style="flex:1;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:8px 9px;text-align:center"><div style="font-size:17px;font-weight:800">'+rows.length+'</div><div style="font-size:9px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em">Movements</div></div>';
+  if(lowNow)h+='<div style="flex:1;background:rgba(232,69,90,.1);border:1.5px solid var(--red);border-radius:var(--r);padding:8px 9px;text-align:center"><div style="font-size:17px;font-weight:800;color:var(--red)">'+lowNow+'</div><div style="font-size:9px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:.05em">Now low</div></div>';
+  h+='</div>';
+
+  rows.forEach(function(r){
+    // Red edge when the shelf is empty or down to the last one — that's
+    // the whole point of the screen: notice before the next job needs it.
+    var out=r.onHand!==null&&r.onHand<=0;
+    var last=r.onHand!==null&&r.onHand>0&&r.onHand<=1;
+    var edge=out?'var(--red)':last?'var(--amb)':'var(--bd2)';
+    h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-left:4px solid '+edge+';border-radius:var(--r);padding:10px 12px;margin-bottom:7px;cursor:pointer" data-k="'+esc(r.key)+'" onclick="openPartHistory(this.dataset.k)">';
+    h+='<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">';
+    h+='<div style="flex:1;min-width:0">';
+    h+='<div style="font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.name)+'</div>';
+    var meta=[];
+    if(r.num)meta.push(esc(r.num));
+    if(r.cust)meta.push(esc(r.cust));
+    if(r.mach)meta.push(esc(r.mach));
+    h+='<div style="font-size:11px;color:var(--tx3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+meta.join(' · ')+'</div>';
+    h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">'+_lgWhen(r.when)+' · '+(r.isOut?'':'+')+r.qty+' '+(r.isOut?'used':'back')+'</div>';
+    h+='</div>';
+    h+='<div style="text-align:right;flex-shrink:0">';
+    if(r.onHand===null){
+      h+='<div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.04em">Not in<br>inventory</div>';
+    }else{
+      h+='<div style="font-size:17px;font-weight:800;font-family:var(--mo);color:'+(out?'var(--red)':last?'var(--amb)':'var(--tx)')+'">'+r.onHand+'</div>';
+      h+='<div style="font-size:9px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em">left</div>';
+    }
+    h+='</div></div>';
+    if(out||last){
+      h+='<div style="margin-top:7px"><span style="display:inline-block;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:'+(out?'var(--red)':'var(--amb)')+';border:1.5px solid currentColor;border-radius:20px;padding:2px 9px">'+(out?'Out of stock — order':'Last one — order')+'</span></div>';
+    }
+    h+='</div>';
+  });
+  el.innerHTML=h;
+}
+
+// ── One part's whole life ───────────────────────────────────────
+async function openPartHistory(key){
+  _phKey=key;
+  go('S_parthist');S('S_parthist');
+  document.getElementById('phBody').innerHTML='<div class="loading"><div class="spin"></div><br>Loading…</div>';
+  await loadLedger();
+  renderPartHistory();
+}
+function setPhPeriod(btn){_phPeriod=parseInt(btn.dataset.d,10);renderPartHistory();}
+
+function renderPartHistory(){
+  var el=document.getElementById('phBody');if(!el)return;
+  _lgPeriodBar('phPeriods',_phPeriod,'setPhPeriod');
+  var key=_phKey||'';
+  var byName=key.indexOf('name:')===0;
+  var item=byName?null:(inv||[]).find(function(x){return x.id===key;});
+  var nameKey=byName?key.slice(5):'';
+
+  var all=(_ledger||[]).filter(function(t){
+    return byName
+      ? (t.item_name||'').trim().toLowerCase()===nameKey
+      : t.inventory_id===key;
+  });
+
+  var title=item?item.name:(all[0]&&all[0].item_name)||'Part';
+  document.getElementById('ph_title').textContent=title;
+
+  var since=_lgSince(_phPeriod);
+  var rows=all.filter(function(t){return !since||!t.created_at||new Date(t.created_at)>=since;}).map(_lgRow);
+
+  // Totals across the chosen period
+  var used=0,received=0,counted=0,sold=0;
+  rows.forEach(function(r){
+    var ty=(r.t.transaction_type||'').toLowerCase();
+    if(ty==='used')used+=r.qty;
+    else if(ty==='returned')used-=r.qty;
+    else if(ty==='received')received+=r.qty;
+    else if(ty==='count_adjustment')counted++;
+    if(r.t.unit_sell&&ty==='used')sold+=r.qty*parseFloat(r.t.unit_sell||0);
+  });
+
+  document.getElementById('ph_sub').textContent=item?(invPrimaryNum(item)||''):'not an inventory part';
+
+  var h='';
+
+  // Identity: every cross-reference on one line, as asked
+  if(item){
+    var nums=invAllNums(item);
+    h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:12px 13px;margin-bottom:9px">';
+    if(item.primary_brand||item.brand)h+='<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3);margin-bottom:5px">'+esc(item.primary_brand||item.brand)+'</div>';
+    if(nums.length)h+='<div style="font-size:12px;font-family:var(--mo);color:var(--tx2);line-height:1.6;margin-bottom:9px">'+nums.map(esc).join('<br>')+'</div>';
+    else h+='<div style="font-size:12px;color:var(--tx3);margin-bottom:9px">No part numbers recorded</div>';
+    try{
+      var _fits=invFitsList(item);
+      if(_fits.length)h+='<div style="font-size:11.5px;color:var(--blu);margin-bottom:9px">Fits: '+_fits.map(esc).join(', ')+'</div>';
+    }catch(e){}
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px">';
+    var _cost=parseFloat(item.cost||0), _sell=parseFloat(item.sell_price||item.sell||0);
+    var _marg=_sell>0?Math.round((_sell-_cost)/_sell*100):0;
+    h+='<div style="background:var(--sf2);border-radius:var(--rs);padding:8px 9px"><div style="font-size:9px;color:var(--tx3);font-weight:800;text-transform:uppercase;letter-spacing:.05em">Cost</div><div style="font-size:15px;font-weight:800;font-family:var(--mo)">$'+_cost.toFixed(2)+'</div></div>';
+    h+='<div style="background:var(--sf2);border-radius:var(--rs);padding:8px 9px"><div style="font-size:9px;color:var(--tx3);font-weight:800;text-transform:uppercase;letter-spacing:.05em">List</div><div style="font-size:15px;font-weight:800;font-family:var(--mo)">$'+_sell.toFixed(2)+'</div>'+(_sell>0?'<div style="font-size:10px;color:var(--tx3)">'+_marg+'% margin</div>':'')+'</div>';
+    var _oh=parseFloat(item.qty_on_hand||0);
+    h+='<div style="background:var(--sf2);border-radius:var(--rs);padding:8px 9px"><div style="font-size:9px;color:var(--tx3);font-weight:800;text-transform:uppercase;letter-spacing:.05em">On hand</div><div style="font-size:15px;font-weight:800;font-family:var(--mo);color:'+(_oh<=0?'var(--red)':_oh<=1?'var(--amb)':'var(--grn)')+'">'+_oh+'</div></div>';
+    h+='</div></div>';
+  }else{
+    h+='<div style="background:var(--sf);border:1.5px solid var(--amb);border-radius:var(--r);padding:11px 13px;margin-bottom:9px">';
+    h+='<div style="font-size:12.5px;font-weight:700;color:var(--amb);margin-bottom:3px">Not an inventory part</div>';
+    h+='<div style="font-size:12px;color:var(--tx3)">This was typed onto a job by hand, so there is no stock count for it. Adding it to inventory would let it be counted and reordered.</div>';
+    h+='</div>';
+  }
+
+  // Period totals
+  h+='<div style="display:flex;gap:6px;margin-bottom:9px">';
+  h+='<div style="flex:1;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:8px 9px;text-align:center"><div style="font-size:16px;font-weight:800">'+Math.round(used)+'</div><div style="font-size:9px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em">Used</div></div>';
+  h+='<div style="flex:1;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:8px 9px;text-align:center"><div style="font-size:16px;font-weight:800">'+Math.round(received)+'</div><div style="font-size:9px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em">Received</div></div>';
+  h+='<div style="flex:1;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:8px 9px;text-align:center"><div style="font-size:16px;font-weight:800">'+counted+'</div><div style="font-size:9px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em">Counts</div></div>';
+  h+='<div style="flex:1;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:8px 9px;text-align:center"><div style="font-size:16px;font-weight:800;font-family:var(--mo)">$'+Math.round(sold)+'</div><div style="font-size:9px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em">Sold</div></div>';
+  h+='</div>';
+
+  // Orders — what's been bought through Parts on Order, and what's inbound
+  if(item){
+    var orders=(partsOnOrder||[]).filter(function(o){return o.inventory_id===item.id;})
+      .sort(function(a,b){return (b.ordered_at||b.created_at||'').localeCompare(a.ordered_at||a.created_at||'');});
+    h+='<div style="font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--tx3);margin:4px 0 7px">Orders</div>';
+    if(!orders.length){
+      h+='<div style="font-size:12px;color:var(--tx3);padding:2px 2px 10px">Never ordered through Parts on Order</div>';
+    }else{
+      orders.slice(0,10).forEach(function(o){
+        var sc=o.status==='received'?'var(--grn)':o.status==='ordered'?'var(--amb)':'var(--red)';
+        var od=o.ordered_at?new Date(o.ordered_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):null;
+        var rd=o.received_at?new Date(o.received_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):null;
+        h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-left:4px solid '+sc+';border-radius:var(--r);padding:9px 12px;margin-bottom:6px;display:flex;justify-content:space-between;gap:8px;align-items:center">';
+        h+='<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:700;text-transform:capitalize">'+esc(o.status||'needed')+(o.vendor?' — '+esc(o.vendor):'')+'</div>';
+        h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">'+[od?'ordered '+od:null,rd?'received '+rd:null].filter(Boolean).join(' · ')+'</div></div>';
+        h+='<div style="text-align:right;flex-shrink:0"><div style="font-size:14px;font-weight:800;font-family:var(--mo)">'+(o.qty_ordered||0)+'</div>';
+        if(o.cost)h+='<div style="font-size:10px;color:var(--tx3);white-space:nowrap">$'+parseFloat(o.cost).toFixed(2)+' ea</div>';
+        h+='</div></div>';
+      });
+    }
+  }
+
+  if(!rows.length){
+    h+='<div class="empty" style="margin-top:8px"><div class="et">No movement</div><div class="es">Nothing recorded for this part in this period</div></div>';
+    el.innerHTML=h;return;
+  }
+
+  h+='<div style="font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--tx3);margin:4px 0 7px">Movement</div>';
+  rows.forEach(function(r){
+    var ty=(r.t.transaction_type||'').toLowerCase();
+    var col=ty==='used'?'var(--red)':ty==='received'?'var(--grn)':ty==='returned'?'var(--grn)':'var(--tx3)';
+    var sign=r.t.qty_change>0?'+':'';
+    h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-left:4px solid '+col+';border-radius:var(--r);padding:10px 12px;margin-bottom:6px">';
+    h+='<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">';
+    h+='<div style="flex:1;min-width:0">';
+    h+='<div style="font-size:13px;font-weight:700">'+_lgTypeLabel(r.t)+(r.cust?' — '+esc(r.cust):'')+'</div>';
+    var sub=[];
+    sub.push(r.when?r.when.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'');
+    if(r.mach)sub.push(esc(r.mach));
+    if(r.t.source_ref)sub.push(esc(r.t.source_ref));
+    if(r.t.location)sub.push(esc(r.t.location));
+    h+='<div style="font-size:11px;color:var(--tx3);margin-top:2px">'+sub.filter(Boolean).join(' · ')+'</div>';
+    if(r.t.unit_cost!=null&&ty==='received')h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">$'+parseFloat(r.t.unit_cost).toFixed(2)+' each</div>';
+    h+='</div>';
+    h+='<div style="text-align:right;flex-shrink:0">';
+    h+='<div style="font-size:15px;font-weight:800;font-family:var(--mo);color:'+col+'">'+sign+(r.t.qty_change||0)+'</div>';
+    if(r.t.qty_after!=null)h+='<div style="font-size:10px;color:var(--tx3);white-space:nowrap">→ '+r.t.qty_after+' left</div>';
+    h+='</div></div>';
+    if(r.t.notes)h+='<div style="font-size:11px;color:var(--tx3);margin-top:6px;font-style:italic">'+esc(r.t.notes)+'</div>';
+    h+='</div>';
+  });
+
+  el.innerHTML=h;
 }
 
 // ─────────────────────────────────────────
@@ -9716,56 +10116,10 @@ async function countCrossRefAttach(id){
   }catch(e){toast('Save failed: '+e.message,'er');}
 }
 // ── PART HISTORY: ordered / used / counted, all dates in one sheet ──
-async function openPartHistory(id){
-  var item=inv.find(function(p){return p.id===id;});if(!item)return;
-  var _allNums=invAllNums(item),_fits=invFitsList(item);
-  var h='<div class="mt">'+esc(item.name||'Part')+'</div><div class="ms" style="font-family:var(--mo);font-size:12px">'+(_allNums.length?_allNums.join(' \u00b7 '):'No numbers on file')+'</div>';
-  if(_fits.length)h+='<div class="ms" style="color:var(--blu);font-size:12px;margin-top:-8px">Fits: '+_fits.join(', ')+'</div>';
-  // On order / order history
-  var orders=(partsOnOrder||[]).filter(function(o){return o.inventory_id===id;}).sort(function(a,b){return (b.ordered_at||b.created_at||'').localeCompare(a.ordered_at||a.created_at||'');});
-  h+='<div class="type-hdr">Orders</div>';
-  if(orders.length){orders.slice(0,10).forEach(function(o){
-    var od=o.ordered_at?new Date(o.ordered_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'\u2014';
-    var rd=o.received_at?new Date(o.received_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):null;
-    var sc=o.status==='received'?'var(--grn)':o.status==='ordered'?'var(--amb)':'var(--red)';
-    h+='<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd);font-size:12px">'
-      +'<div style="flex:1;min-width:0">Qty '+(o.qty_ordered||0)+(o.vendor?' \u00b7 '+esc(o.vendor):'')+'</div>'
-      +'<div style="font-family:var(--mo);color:var(--tx3)">'+od+(rd?' \u2192 '+rd:'')+'</div>'
-      +'<span style="font-size:10px;font-weight:700;color:'+sc+';text-transform:capitalize">'+esc(o.status||'')+'</span></div>';
-  });}else h+='<div style="font-size:12px;color:var(--tx3);padding:4px 0 8px">Never ordered through Parts on Order</div>';
-  // Used on work orders — scan machines_data
-  var used=[];
-  (wos||[]).forEach(function(w){
-    var md={};try{md=JSON.parse(w.machines_data||'{}');}catch(e){return;}
-    var n=0;Object.keys(md).forEach(function(eid){((md[eid]||{}).parts||[]).forEach(function(pp){if((pp.invId||pp.inv_id)===id)n+=(pp.qty||1);});});
-    if(n>0)used.push({qty:n,date:w.created_at,cust:(cMap[w.customer_id]||{}).name||'Customer',inv:w.invoice_number});
-  });
-  used.sort(function(a,b){return (b.date||'').localeCompare(a.date||'');});
-  var totUsed=used.reduce(function(s,u){return s+u.qty;},0);
-  h+='<div class="type-hdr">Used on jobs \u2014 '+totUsed+' total</div>';
-  if(used.length){used.slice(0,12).forEach(function(u){
-    h+='<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd);font-size:12px">'
-      +'<div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(u.cust)+(u.inv?' \u00b7 INV-'+u.inv:'')+'</div>'
-      +'<div style="font-family:var(--mo);color:var(--tx3)">'+(u.date?new Date(u.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'')+'</div>'
-      +'<span style="font-family:var(--mo);font-weight:700">\u00d7'+u.qty+'</span></div>';
-  });}else h+='<div style="font-size:12px;color:var(--tx3);padding:4px 0 8px">Not used on any work order yet</div>';
-  // Recent counts
-  h+='<div class="type-hdr">Counts &amp; adjustments</div><div id="phTxns" style="font-size:12px;color:var(--tx3)">Loading\u2026</div>';
-  h+='<div class="mb" style="margin-top:14px"><button class="mc-btn" onclick="closeM()">Close</button></div>';
-  openM(h);
-  try{
-    var txns=await get('inventory_transactions','?inventory_id=eq.'+id+'&order=created_at.desc&limit=10');
-    var te=document.getElementById('phTxns');if(!te)return;
-    if(txns&&txns.length){
-      te.innerHTML=txns.map(function(t){
-        return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd)">'
-          +'<div style="flex:1;color:var(--tx2)">'+esc(t.location||'')+'</div>'
-          +'<div style="font-family:var(--mo)">'+(t.created_at?new Date(t.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):'')+'</div>'
-          +'<span style="font-family:var(--mo);font-weight:700;color:'+((t.qty_change||0)>=0?'var(--grn)':'var(--red)')+'">'+((t.qty_change||0)>=0?'+':'')+(t.qty_change||0)+'</span></div>';
-      }).join('');
-    }else te.textContent='No count history yet';
-  }catch(e){var te2=document.getElementById('phTxns');if(te2)te2.textContent='Could not load';}
-}
+// openPartHistory moved to the parts-ledger section above. The old
+// modal rebuilt usage by re-scanning every work order's JSON, which
+// couldn't show counts, price provenance, or a date range. The full
+// screen reads the ledger instead and covers everything this did.
 
 // ── PARTS DIAGRAMS LIBRARY ──
 var diagrams=null,dgmBrand='All';
@@ -10378,6 +10732,7 @@ function navTo(screen){
   else if(screen==='S_rpt'){openRpt();}
   else if(screen==='S_invoices'){S('S_invoices');renderInvoices(true);}
   else if(screen==='S_status'){S('S_status');_statusTab='all';renderStatusOverview();}
+  else if(screen==='S_partsused'){S('S_partsused');showPartsUsed();}
   else if(screen==='S_qboview'){S('S_qboview');loadQboView();}
   else if(screen==='S_sale'){prevScr=document.querySelector('.scr.on')?document.querySelector('.scr.on').id:'S_list';S('S_sale');initSaleReceipt();}
   else if(screen==='S_recv'){S('S_recv');recvItems={};renderRecvList();}
