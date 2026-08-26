@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.39</title>
+<title>DG Equipment v27.40</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -7283,7 +7283,7 @@ function renderInvoices(force){
     {id:'all',label:'All',cnt:all.length,extra:''},
     {id:'awaiting',label:'Unpaid',cnt:unpaid.length,extra:unpaid.length?'red':''},
     {id:'unbilled',label:'Unbilled',cnt:needsInv.length,extra:needsInv.length?'amb':''},
-    {id:'notpushed',label:'QB Pending',cnt:notPushed.length,extra:notPushed.length?'amb':''},
+    {id:'notpushed',label:'QB Pending',cnt:notPushed.length+qboPendingPayments().length,extra:(notPushed.length||qboPendingPayments().length)?'amb':''},
     {id:'sales',label:'Sales',cnt:sales.length,extra:''}
   ];
   var tabHtml='<div style="display:flex;gap:5px;padding:10px 14px 0;flex-shrink:0;overflow-x:auto;scrollbar-width:none">';
@@ -7350,6 +7350,47 @@ function renderInvoices(force){
       h+='<div class="grp-card" style="margin:0 14px 10px">';
       paid.slice(0,20).forEach(function(w){h+=invRow(w);});
       if(paid.length>20)h+='<div class="more-link">+' +(paid.length-20)+' more</div>';
+      h+='</div>';
+    }
+  } else if(activeTab==='notpushed'){
+    var pendPmts=qboPendingPayments();
+    var blocked=qboBlockedPayments();
+
+    h+='<div class="sh2" style="padding:10px 14px 5px"><span class="sh2-lbl" style="color:var(--amb)">Invoices not in QuickBooks</span><span class="sh2-cnt amb">'+notPushed.length+'</span></div>';
+    if(!notPushed.length){
+      h+='<div style="font-size:12.5px;color:var(--tx3);padding:2px 16px 10px">Every invoice is over there.</div>';
+    }else{
+      h+='<div style="padding:0 14px 8px"><button onclick="qboPushAllInvoices()" style="width:100%;background:#2CA01C;border:none;border-radius:var(--rs);padding:11px;font-size:13px;font-weight:700;color:#fff;font-family:var(--fn);cursor:pointer">Push all '+notPushed.length+' invoice'+(notPushed.length!==1?'s':'')+' to QuickBooks</button></div>';
+      h+='<div class="grp-card" style="margin:0 14px 10px">';
+      notPushed.forEach(function(w){h+=invRow(w);});
+      h+='</div>';
+    }
+
+    var pmtCount=pendPmts.reduce(function(s,g){return s+g.pmts.length;},0);
+    var pmtTotal=pendPmts.reduce(function(s,g){return s+g.total;},0);
+    h+='<div class="sh2" style="padding:10px 14px 5px"><span class="sh2-lbl" style="color:var(--amb)">Payments not in QuickBooks</span><span class="sh2-cnt amb">'+pmtCount+'</span></div>';
+    if(!pmtCount){
+      h+='<div style="font-size:12.5px;color:var(--tx3);padding:2px 16px 10px">Every payment is over there.</div>';
+    }else{
+      h+='<div style="font-size:12px;color:var(--tx3);padding:0 16px 8px">$'+pmtTotal.toFixed(2)+' collected but not showing in your books.</div>';
+      h+='<div style="padding:0 14px 8px"><button onclick="qboPushAllPayments()" style="width:100%;background:#2CA01C;border:none;border-radius:var(--rs);padding:11px;font-size:13px;font-weight:700;color:#fff;font-family:var(--fn);cursor:pointer">Push all '+pmtCount+' payment'+(pmtCount!==1?'s':'')+' to QuickBooks</button></div>';
+      h+='<div class="grp-card" style="margin:0 14px 10px">';
+      pendPmts.slice(0,40).forEach(function(g){
+        var cu=cMap[g.w.customer_id]||{};
+        h+='<div class="grp-row" data-wid="'+g.w.id+'" onclick="openWO(this.dataset.wid)" style="gap:6px">';
+        h+='<span class="grp-num">'+(g.w.invoice_number||'\u2014')+'</span>';
+        h+='<div style="flex:1;min-width:0"><div class="grp-name">'+esc(cu.name||'Unknown')+'</div><div class="grp-sub">'+g.pmts.length+' payment'+(g.pmts.length!==1?'s':'')+'</div></div>';
+        h+='<div style="text-align:right;flex-shrink:0"><div class="grp-amt">$'+g.total.toFixed(0)+'</div><div class="grp-status amb">to push</div></div>';
+        h+='</div>';
+      });
+      if(pendPmts.length>40)h+='<div class="more-link">+'+(pendPmts.length-40)+' more</div>';
+      h+='</div>';
+    }
+
+    if(blocked){
+      h+='<div style="margin:0 14px 10px;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:11px 13px">';
+      h+='<div style="font-size:12.5px;font-weight:700;margin-bottom:3px">'+blocked+' payment'+(blocked!==1?'s':'')+' waiting on their invoice</div>';
+      h+='<div style="font-size:12px;color:var(--tx3)">These sit on jobs whose invoice isn\'t in QuickBooks yet. Push the invoices above first — the payment goes across with it.</div>';
       h+='</div>';
     }
   } else {
@@ -14524,6 +14565,137 @@ function qboLineItemsLookSafe(lineItems){
     bad.map(function(l){return '\u2022 '+(l.description||'Line item')+'  \u2014  qty '+(l.qty||0)+' \u00d7 $'+parseFloat(l.rate||0).toFixed(2)+' = $'+parseFloat(l.amount||0).toFixed(2);}).join('\n')+
     '\n\nThis is the same pattern that zeroed out a blade-sharpening charge before. Push anyway?';
   return confirm(msg);
+}
+
+
+// ─────────────────────────────────────────
+// QUICKBOOKS CATCH-UP
+//
+// Invoices had a "QB Pending" worklist and 60 of 80 made it across.
+// Payments had no list at all — the only way to push one was to open
+// that invoice and find a small button inside it — and 1 of 86 made
+// it. Same worklist, same bulk action, for both.
+//
+// Nothing pushes on its own. This writes to real books, so every run
+// is asked for and reported on.
+// ─────────────────────────────────────────
+var _qboBulkRunning=false;
+
+// Jobs whose invoice is already in QuickBooks but whose payments aren't.
+// An invoice that isn't over there yet is an invoice problem, not a
+// payment one — pushing the invoice carries its payments with it.
+function qboPendingPayments(){
+  var out=[];
+  (wos||[]).forEach(function(w){
+    if(!w.qbo_invoice_id)return;
+    var due=(payments||[]).filter(function(p){return p.work_order_id===w.id&&!p.qbo_payment_id;});
+    if(!due.length)return;
+    out.push({w:w,pmts:due,total:due.reduce(function(s,p){return s+parseFloat(p.amount||0);},0)});
+  });
+  return out.sort(function(a,b){
+    return new Date(a.w.invoiced_at||a.w.created_at||0)-new Date(b.w.invoiced_at||b.w.created_at||0);
+  });
+}
+
+// Payments on jobs whose invoice hasn't been pushed — they can't go on
+// their own, so they're counted separately rather than looking stuck.
+function qboBlockedPayments(){
+  var n=0;
+  (wos||[]).forEach(function(w){
+    if(w.qbo_invoice_id)return;
+    n+=(payments||[]).filter(function(p){return p.work_order_id===w.id&&!p.qbo_payment_id;}).length;
+  });
+  return n;
+}
+
+function _qboProgress(done,total,label,extra){
+  var el=document.getElementById('qboBulkProg');
+  if(el)el.innerHTML='<div style="font-size:13px;font-weight:700">'+label+' '+done+' of '+total+'</div>'+
+    (extra?'<div style="font-size:12px;color:var(--tx3);margin-top:3px">'+esc(extra)+'</div>':'');
+}
+
+// Walk a queue one at a time. Stops after three failures in a row —
+// past that it's a problem with the connection, not the records, and
+// grinding through 80 more won't help.
+async function _qboBulkRun(items,label,fn){
+  if(_qboBulkRunning){toast('Already running','er');return;}
+  if(!items.length){toast('Nothing to push ✓','ok');return;}
+  if(!confirm('Push '+items.length+' '+label+' to QuickBooks?\n\nThis writes to your real books.'))return;
+  _qboBulkRunning=true;
+  openM('<div class="mt">Pushing to QuickBooks</div><div class="ms" id="qboBulkProg">Starting…</div>'+
+        '<div style="display:flex;justify-content:center;padding:16px 0"><div class="spin"></div></div>');
+  var ok=0,failed=0,streak=0,lastErr='';
+  for(var i=0;i<items.length;i++){
+    _qboProgress(i+1,items.length,label.charAt(0).toUpperCase()+label.slice(1),items[i].label||'');
+    try{
+      var r=await fn(items[i]);
+      if(r&&r.ok){ok++;streak=0;}
+      else{failed++;streak++;lastErr=(r&&r.error)||'unknown';}
+    }catch(e){failed++;streak++;lastErr=e.message||String(e);}
+    if(streak>=3){
+      closeM();
+      _qboBulkRunning=false;
+      toast('Stopped after 3 failures in a row: '+lastErr,'er');
+      renderInvoices();
+      return;
+    }
+  }
+  closeM();
+  _qboBulkRunning=false;
+  toast(ok+' pushed'+(failed?', '+failed+' failed — '+lastErr:'')+' ✓',failed?'er':'ok');
+  counts();renderInvoices();
+}
+
+async function qboPushAllInvoices(){
+  var list=(wos||[]).filter(function(w){
+    return w.invoice_number&&!w.qbo_pushed&&!w.qbo_invoice_id&&!(w.problem||'').startsWith('Parts sale');
+  }).sort(function(a,b){return (a.invoice_number||0)-(b.invoice_number||0);})
+    .map(function(w){return {w:w,label:'INV-'+w.invoice_number};});
+  await _qboBulkRun(list,'invoices',async function(it){
+    await pushToQBO(it.w.id);
+    // pushToQBO reports through toasts; the row itself is the record of
+    // whether it landed.
+    var fresh=(wos||[]).find(function(x){return x.id===it.w.id;})||{};
+    return {ok:!!(fresh.qbo_invoice_id||fresh.qbo_pushed)};
+  });
+}
+
+async function qboPushAllPayments(){
+  var groups=qboPendingPayments();
+  var list=[];
+  groups.forEach(function(g){
+    g.pmts.forEach(function(p){
+      list.push({w:g.w,pmt:p,label:'INV-'+(g.w.invoice_number||'?')+' · $'+parseFloat(p.amount||0).toFixed(2)});
+    });
+  });
+  await _qboBulkRun(list,'payments',async function(it){
+    var c=cMap[it.w.customer_id]||{};
+    var res=await fetch(QBO_PUSH_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
+      body:JSON.stringify({
+        action:'push_payment',
+        qbo_invoice_id:it.w.qbo_invoice_id,
+        customer_name:c.name||'Customer',
+        payment:{
+          amount:parseFloat(it.pmt.amount||0),
+          date:(it.pmt.payment_date||it.pmt.created_at||new Date().toISOString()).split('T')[0],
+          method:it.pmt.method||'Other',
+          note:it.pmt.note||''
+        }
+      })
+    });
+    var data=await res.json();
+    if(data.qbo_disconnected)return {ok:false,error:'QuickBooks disconnected'};
+    if(data.error)return {ok:false,error:data.error};
+    if(data.success){
+      var id=data.qbo_payment_id||'pushed';
+      await patch('payments',{qbo_payment_id:id},'?id=eq.'+it.pmt.id).catch(function(){});
+      it.pmt.qbo_payment_id=id;
+      return {ok:true};
+    }
+    return {ok:false,error:'no confirmation from QuickBooks'};
+  });
 }
 
 async function pushToQBO(woId,allowDup){
