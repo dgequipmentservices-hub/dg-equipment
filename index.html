@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.34</title>
+<title>DG Equipment v27.35</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -7699,23 +7699,47 @@ var BILL_PROMPT=[
   '{"vendor":"","bill_number":"","bill_date":"","lines":[]}'
 ].join('\n');
 
+// Vendor bills arrive two ways: photographed off the counter, or
+// emailed as a PDF. Claude reads a PDF directly as a document block —
+// no conversion, and multi-page bills come through whole — so the only
+// difference is which content block wraps the bytes.
+var AI_FILE_MAX_MB=25;   // the API caps the whole request at 32MB, and base64 adds a third
+
+function _isPdf(file){
+  return /pdf$/i.test(file.type||'')||/\.pdf$/i.test(file.name||'');
+}
+
+async function aiFileBlock(file){
+  var mb=(file.size||0)/1048576;
+  if(mb>AI_FILE_MAX_MB)throw new Error('That file is '+mb.toFixed(1)+'MB — too big to send. Photograph the pages instead, or split the PDF.');
+  var b64=await new Promise(function(res,rej){
+    var r=new FileReader();
+    r.onload=function(){res(String(r.result).split(',')[1]);};
+    r.onerror=function(){rej(new Error('Could not read the file'));};
+    r.readAsDataURL(file);
+  });
+  if(_isPdf(file)){
+    return {type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}};
+  }
+  return {type:'image',source:{type:'base64',media_type:file.type||'image/jpeg',data:b64}};
+}
+
 function scanBillStart(){
   var inp=document.createElement('input');
-  inp.type='file';inp.accept='image/*';inp.capture='environment';
+  // No capture attribute: it forces the camera on a phone, which would
+  // make an emailed PDF unreachable. The picker still offers the camera.
+  inp.type='file';inp.accept='image/*,application/pdf';
   inp.onchange=function(){if(inp.files&&inp.files[0])scanBill(inp.files[0]);};
   inp.click();
 }
 
-async function _billAsk(b64,mediaType,model){
+async function _billAsk(block,model){
   var resp=await fetch(SU+'/functions/v1/ai-proxy',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
     body:JSON.stringify({
-      model:model,max_tokens:4000,
-      messages:[{role:'user',content:[
-        {type:'image',source:{type:'base64',media_type:mediaType,data:b64}},
-        {type:'text',text:BILL_PROMPT}
-      ]}]
+      model:model,max_tokens:8000,
+      messages:[{role:'user',content:[block,{type:'text',text:BILL_PROMPT}]}]
     })
   });
   var data=await resp.json();
@@ -7730,19 +7754,16 @@ async function scanBill(file){
         '<div style="display:flex;justify-content:center;padding:20px 0"><div class="spin"></div></div>');
   try{
     _restoreSession();
-    var b64=await new Promise(function(res,rej){
-      var r=new FileReader();
-      r.onload=function(){res(r.result.split(',')[1]);};
-      r.onerror=rej;r.readAsDataURL(file);
-    });
-    var mediaType=file.type||'image/jpeg';
-    var pr=document.getElementById('billProg');if(pr)pr.textContent='Reading the line items';
+    var isPdf=_isPdf(file);
+    var block=await aiFileBlock(file);
+    var pr=document.getElementById('billProg');
+    if(pr)pr.textContent=isPdf?'Reading the PDF — every page':'Reading the line items';
 
     var result;
-    try{ result=await _billAsk(b64,mediaType,BILL_MODEL); }
+    try{ result=await _billAsk(block,BILL_MODEL); }
     catch(e){
       // Unknown model at the proxy shouldn't stop the shop working.
-      if(/model/i.test(e.message||''))result=await _billAsk(b64,mediaType,BILL_MODEL_FALLBACK);
+      if(/model/i.test(e.message||''))result=await _billAsk(block,BILL_MODEL_FALLBACK);
       else throw e;
     }
 
@@ -7769,11 +7790,12 @@ async function scanBill(file){
     // one without can only be trusted or doubted.
     if(pr)pr.textContent='Filing the photo';
     try{
-      var ext=(mediaType.includes('png'))?'png':'jpg';
+      var mt=file.type||(isPdf?'application/pdf':'image/jpeg');
+      var ext=isPdf?'pdf':(mt.includes('png')?'png':'jpg');
       var fname='bills/'+Date.now()+'.'+ext;
       var up=await fetch(SU+'/storage/v1/object/equipment-photos/'+fname,{
         method:'POST',
-        headers:{'Content-Type':mediaType,'apikey':SK,'Authorization':'Bearer '+(_sessionToken||SK)},
+        headers:{'Content-Type':mt,'apikey':SK,'Authorization':'Bearer '+(_sessionToken||SK)},
         body:file
       });
       if(up.ok)_billPhotoUrl=SU+'/storage/v1/object/public/equipment-photos/'+fname;
@@ -7781,7 +7803,7 @@ async function scanBill(file){
 
     closeM();
     if(!_billLines.length){
-      toast('No line items found on that photo','er');
+      toast(isPdf?'No line items found in that PDF':'No line items found on that photo','er');
       return;
     }
     showBillReview();
@@ -11177,25 +11199,17 @@ async function dgmProcessFiles(files){
     var pt=document.getElementById('dgmProgTxt');if(pt)pt.textContent='Analyzing '+(i+1)+' of '+files.length+': '+f.name;
     var isPdf=/pdf$/i.test(f.type)||/\.pdf$/i.test(f.name);
     var entry={file:f,previewUrl:isPdf?null:URL.createObjectURL(f),brand:'',model:'',section:'',parts:[],file_type:isPdf?'pdf':'image',error:null};
-    if(isPdf){
-      entry.error='PDFs can\'t be auto-read yet \u2014 fill in details below and save; open the file separately to check part numbers.';
-      entry.section='Diagram';
-      _dgmPending.push(entry);
-      continue;
-    }
     try{
-      var b64=await new Promise(function(res,rej){
-        var r=new FileReader();
-        r.onload=function(){res(r.result.split(',')[1]);};
-        r.onerror=rej;r.readAsDataURL(f);
-      });
-      var mediaType=f.type||'image/jpeg';
+      // PDFs read directly now — the same document block the bill
+      // scanner uses. A parts manual page is often a PDF, and refusing
+      // them meant retyping numbers off the screen.
+      var _blk=await aiFileBlock(f);
       var resp=await fetch('https://ddxjszzceaullxheejnq.supabase.co/functions/v1/ai-proxy',{
         method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
         body:JSON.stringify({
-          model:'claude-sonnet-4-6',max_tokens:2000,
+          model:'claude-sonnet-4-6',max_tokens:4000,
           messages:[{role:'user',content:[
-            {type:'image',source:{type:'base64',media_type:mediaType,data:b64}},
+            _blk,
             {type:'text',text:'This is a page from an outdoor power equipment (OPE) parts manual, illustrated parts list (IPL), or a parts-lookup screenshot (e.g. PartsTree). It may show an exploded-view diagram with reference numbers, and/or a table listing part numbers with descriptions and quantities.\n\nExtract:\n- brand: the manufacturer (Wright, Scag, Echo, RedMax, Husqvarna, Toro, Exmark, Stihl, Honda, Kawasaki, Briggs & Stratton, Kohler, etc.)\n- model: the specific machine or engine model this page is for, exactly as printed (e.g. "WS36FS600RE", "SRM-225", "FX730V"). If the page covers a modular assembly that fits several models, use the broadest model family name shown.\n- section: short name for what this specific page/assembly shows (e.g. "Deck & belts", "Carburetor", "Rear drive, left", "Engine")\n- parts: array of every part visible with a part/reference number, each as {"ref":"<part number exactly as printed>","desc":"<description exactly as printed, plain text, no quotes>","qty":<quantity as a number, default 1 if not shown>}\n\nRules:\n- Read every row of any parts table completely \u2014 do not skip or truncate\n- Use the manufacturer\'s exact part number as ref, not a reference/balloon number if a real part number is also shown\n- If brand or model is not visible or not confidently identifiable, leave that field as an empty string \u2014 never guess\n- If no parts table or numbers are visible at all, return an empty parts array\n\nReply ONLY with valid JSON, no markdown, no explanation:\n{"brand":"","model":"","section":"","parts":[]}'}
           ]}]
         })
