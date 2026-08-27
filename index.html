@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.40</title>
+<title>DG Equipment v27.41</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -924,7 +924,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-08-22 · V27.27</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-08-27 · V27.41</div>
   </div>
 </div>
 
@@ -1047,15 +1047,18 @@ Check spark plug" rows="5" style="margin-bottom:8px;resize:none;line-height:1.7;
           <select class="fi" id="locSel" onchange="autoSaveWO()"><option value="">— select —</option></select>
         </div>
       </div>
+      <div style="margin-top:8px"><div class="flbl">PO # <span style="font-weight:400;color:var(--tx3);text-transform:none;letter-spacing:0">— the customer's own purchase order, printed on the invoice</span></div>
+        <input class="fi" id="poNum" placeholder="Their PO number (optional)" autocomplete="off" oninput="trigAutoSave()">
+      </div>
     </div>
 
     <!-- MACHINES & WORK -->
     <div class="sec">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <div class="slbl" style="margin-bottom:0">Machines &amp; work</div>
-        <button class="amc" id="addMcBtn" disabled onclick="openMcPicker()" style="margin:0;padding:6px 12px;font-size:12px">+ Add Machine</button>
+        <div class="slbl" style="margin-bottom:0">Machines, parts &amp; sales</div>
+        <div style="display:flex;gap:6px;flex-shrink:0"><button class="amc" id="addMcBtn" disabled onclick="openMcPicker()" style="margin:0;padding:6px 12px;font-size:12px;width:auto">+ Machine</button><button class="amc" id="addSaleBtn" disabled onclick="openSalePicker()" style="margin:0;padding:6px 12px;font-size:12px;width:auto">+ Sale</button></div>
       </div>
-      <div id="mcHint" style="font-size:12px;color:var(--tx3);padding:0 0 8px;display:none">← Select a customer above to add machines</div>
+      <div id="mcHint" style="font-size:12px;color:var(--tx3);padding:0 0 8px;display:none">← Select a customer above to add machines or sales</div>
       <div id="mcList"></div>
     </div>
 
@@ -3194,12 +3197,13 @@ async function openWO(id){
   document.getElementById('wo_title').textContent=id?'Work Order':'New Work Order';
   document.getElementById('wo_sub').textContent=id?'#'+id.slice(0,8).toUpperCase():'unsaved';
   document.getElementById('descInput').value='';
+  var _po0=document.getElementById('poNum');if(_po0)_po0.value='';
   document.getElementById('schedDate').value=new Date().toISOString().split('T')[0];
   _fillLocSel();
   document.getElementById('locSel').value='';
   document.getElementById('taxTog').checked=true;
   document.getElementById('ccTog').checked=false;
-  document.getElementById('addMcBtn').disabled=true;
+  _setMcBtns(false);
   document.getElementById('delWOBtn').style.display=id?'flex':'none';
   var _wCB=document.getElementById('woCustBtn');
   if(_wCB){var _wCId=id?(wos.find(function(w){return w.id===id;})||{}).customer_id:null;_wCB.style.display=_wCId?'inline-flex':'none';}
@@ -3223,12 +3227,25 @@ async function openWO(id){
       var _cct=document.getElementById('ccTog');if(_cct)_cct.checked=!!w.cc_fee;
       recalc();
       var _int=document.getElementById('internalNotes');if(_int)_int.value=w.internal_notes||'';
+      var _po=document.getElementById('poNum');if(_po)_po.value=w.po_number||'';
       setStBy(cs(w.status));
-      if(w.customer_id){const c=custs.find(c=>c.id===w.customer_id);if(c){selCust=c;renderCustSel(c);document.getElementById('addMcBtn').disabled=false;var _h=document.getElementById('mcHint');if(_h)_h.style.display='none';var _tt=document.getElementById('taxTog');if(_tt)_tt.checked=!c.tax_exempt;}}
+      if(w.customer_id){const c=custs.find(c=>c.id===w.customer_id);if(c){selCust=c;renderCustSel(c);_setMcBtns(true);var _h=document.getElementById('mcHint');if(_h)_h.style.display='none';var _tt=document.getElementById('taxTog');if(_tt)_tt.checked=!c.tax_exempt;}}
       const md=JSON.parse(w.machines_data||'{}');
       const ex=JSON.parse(w.extra_equipment_ids||'[]');
       const ids=w.equipment_id?[w.equipment_id,...ex]:ex;
       ids.forEach(eid=>{const eq=equips.find(e=>e.id===eid)||eMap[eid];if(!eq)return;const d=md[eid]||{};mcs.push({id:eid,make:eq.make||'',model:eq.model||'',serial:eq.serial||'',type:eq.equipment_type||'',open:true,svcDate:d.svcDate||'',loc:d.loc||'',labor:d.labor||[],parts:(d.parts||[]).map(p=>({...p,inv_id:p.inv_id||null}))});});
+      // Sale groups — supplies, counter parts, units sold. They have no
+      // equipment row, so they are found by their key rather than by the
+      // equipment id list. Quick Sale has always written 'invId'; the WO
+      // screen reads 'inv_id', so normalise on the way in or the stock
+      // deduction would treat a stocked part as hand-typed.
+      Object.keys(md).forEach(function(k){
+        if(ids.indexOf(k)>=0)return;
+        var d=md[k]||{};
+        if(!d.sale&&!_isSaleKey(k))return;
+        mcs.push({id:k,sale:true,saleType:d.saleType||'supplies',label:d.label||'',open:true,svcDate:'',loc:d.loc||'',
+          labor:d.labor||[],parts:(d.parts||[]).map(function(p){return Object.assign({},p,{inv_id:p.inv_id||p.invId||null});})});
+      });
       // snapshot inv parts already on this WO so re-save doesn't double-deduct
       prevInvParts={};prevFreeParts={};
       mcs.forEach(m=>{(m.parts||[]).forEach(p=>{
@@ -3289,7 +3306,7 @@ function onCS(q){
   dd.innerHTML=h;dd.style.display='block';
 }
 function hl(s,q){if(!q)return s;return s.replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),'<strong style="color:var(--red)">$1</strong>');}
-function pickCust(id){const c=custs.find(c=>c.id===id);if(c){selCust=c;renderCustSel(c);document.getElementById('taxTog').checked=!c.tax_exempt;document.getElementById('addMcBtn').disabled=false;}const dd=document.getElementById('csdd');if(dd)dd.style.display='none';recalc();}
+function pickCust(id){const c=custs.find(c=>c.id===id);if(c){selCust=c;renderCustSel(c);document.getElementById('taxTog').checked=!c.tax_exempt;_setMcBtns(true);}const dd=document.getElementById('csdd');if(dd)dd.style.display='none';recalc();}
 function renderCustSel(c){
   const biz=['Contractor','Commercial'].includes(c.customer_type);
   document.getElementById('custArea').innerHTML=
@@ -3307,7 +3324,7 @@ function renderCustSel(c){
     '<span onclick="clearCust()" style="font-size:18px;color:var(--tx3);cursor:pointer;padding:0 2px">✕</span></div>';
 
 }
-function clearCust(){selCust=null;mcs=[];document.getElementById('addMcBtn').disabled=true;resetCustArea();renderMcs();recalc();
+function clearCust(){selCust=null;mcs=[];_setMcBtns(false);resetCustArea();renderMcs();recalc();
   var h=document.getElementById('mcHint');if(h)h.style.display='block';
 }
 document.addEventListener('click',e=>{const dd=document.getElementById('csdd');const inp=document.getElementById('csinp');if(dd&&!dd.contains(e.target)&&e.target!==inp)dd.style.display='none';});
@@ -3408,7 +3425,7 @@ function renderMcs(){
   _mcBanner.innerHTML=_poHtml;
 
   if(!mcs.length){
-    el.innerHTML='<div style="text-align:center;padding:16px 0;color:var(--tx3);font-size:13px">'+(selCust?'No machines yet — tap + Add Machine above':'Select a customer first')+'</div>';
+    el.innerHTML='<div style="text-align:center;padding:16px 0;color:var(--tx3);font-size:13px">'+(selCust?'Nothing on this job yet — tap + Machine, or + Sale for supplies, parts or a unit sold':'Select a customer first')+'</div>';
     recalc();return;
   }
   el.innerHTML=mcs.map((m,i)=>{
@@ -3419,11 +3436,11 @@ function renderMcs(){
     return '<div style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);margin-bottom:10px;overflow:hidden" id="mc_'+i+'">'+
       // Machine header - tap to expand
       '<div style="display:flex;align-items:center;gap:10px;padding:11px 13px;cursor:pointer;border-bottom:'+(m.open?'1px solid var(--bd)':'none')+'" onclick="togMc('+i+')">'+
-        '<div style="font-size:22px;line-height:1">'+eico(m.type)+'</div>'+
+        '<div style="font-size:22px;line-height:1">'+(m.sale?_saleIco(m.saleType):eico(m.type))+'</div>'+
         '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+m.make+' '+(m.model||'')+'</div>'+
+          '<div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(m.sale?esc(m.label||_saleDefLabel(m.saleType)):m.make+' '+(m.model||''))+'</div>'+
           '<div style="font-size:11px;color:var(--tx3);font-family:var(--mo);margin-top:1px">'+
-            (m.serial?'SN: '+m.serial+' · ':'')+
+            (m.sale?_saleKindLbl(m.saleType)+' · ':(m.serial?'SN: '+m.serial+' · ':''))+
             (lc?lc+' labor':'')+
             (lc&&pc?' · ':'')+
             (pc?pc+' part'+(pc>1?'s':''):'')+
@@ -3431,7 +3448,7 @@ function renderMcs(){
           '</div>'+
         '</div>'+
         '<div style="display:flex;align-items:center;gap:8px">'+
-          '<button data-mk="'+esc(m.make||'')+'" data-md="'+esc(m.model||'')+'" onclick="event.stopPropagation();openPartsLookupMM(this.dataset.mk,this.dataset.md)" title="Parts lookup" style="background:var(--sf2);border:1px solid var(--bd2);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:var(--tx2);cursor:pointer;flex-shrink:0"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>'+
+          (m.sale?'':'<button data-mk="'+esc(m.make||'')+'" data-md="'+esc(m.model||'')+'" onclick="event.stopPropagation();openPartsLookupMM(this.dataset.mk,this.dataset.md)" title="Parts lookup" style="background:var(--sf2);border:1px solid var(--bd2);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:var(--tx2);cursor:pointer;flex-shrink:0"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>')+
           (sub>0?'<span style="font-size:14px;font-weight:700;font-family:var(--mo);color:var(--grn)">$'+sub.toFixed(2)+'</span>':'')+
           '<button onclick="rmMc(event,'+i+')" style="background:none;border:none;color:var(--tx3);font-size:18px;cursor:pointer;padding:0">✕</button>'+
           '<span style="color:var(--tx3);font-size:14px;transition:transform .2s;display:inline-block;transform:'+(m.open?'rotate(180deg)':'rotate(0)')+'"">▼</span>'+
@@ -3440,6 +3457,15 @@ function renderMcs(){
       // Expanded body
       (m.open?
         '<div style="padding:12px 13px">'+
+          // Sale groups carry a free-text label instead of a serial
+          // and a service date — "case of 2-stroke oil", "fuel lines
+          // for his Redmax" — so the invoice can say what it was for.
+          (m.sale?
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--bd2)">'+
+              '<div style="font-size:13px;font-weight:700;color:var(--tx2);white-space:nowrap">What it\'s for</div>'+
+              '<input id="saleLbl_'+i+'" value="'+esc(m.label||'')+'" placeholder="'+esc(_saleDefLabel(m.saleType))+'" onchange="setSaleLabel('+i+',this.value)" style="flex:1;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:7px 10px;font-size:13px;font-family:var(--fn);color:var(--tx)">'+
+            '</div>'
+          :
           // Service date field
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
             '<div style="font-size:13px;font-weight:700;color:var(--tx2);white-space:nowrap">Service date</div>'+
@@ -3449,7 +3475,7 @@ function renderMcs(){
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--bd2)">'+
             '<div style="font-size:13px;font-weight:700;color:var(--tx2);white-space:nowrap">Where it is</div>'+
             '<select id="mcLoc_'+i+'" onchange="setMcLoc('+i+',this.value)" style="flex:1;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:7px 10px;font-size:13px;font-family:var(--fn);color:var(--tx)">'+_locOpts(m.loc||'','Same as job'+(document.getElementById('locSel')&&document.getElementById('locSel').value?' ('+esc(document.getElementById('locSel').value)+')':''))+'</select>'+
-          '</div>'+
+          '</div>')+
           // Labor section
           '<div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--tx3);margin-bottom:8px">Labor</div>'+
           (m.labor.length?
@@ -3492,7 +3518,7 @@ function renderMcs(){
           '<div id="pf_'+i+'" style="display:none"></div>'+
           // Machine subtotal
           (sub>0?'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--bd)">'+
-            '<span style="font-size:13px;color:var(--tx3)">Machine subtotal</span>'+
+            '<span style="font-size:13px;color:var(--tx3)">'+(m.sale?'Subtotal':'Machine subtotal')+'</span>'+
             '<span style="font-size:15px;font-weight:700;font-family:var(--mo)">$'+sub.toFixed(2)+'</span>'+
           '</div>':'')+
         '</div>'
@@ -3578,6 +3604,213 @@ function setMcLoc(i,val){
 }
 
 function rmMc(e,i){e.stopPropagation();mcs.splice(i,1);renderMcs();}
+
+// ═══════════════════════════════════════════════════════════════
+// SUPPLIES / PARTS / UNITS SOLD
+//
+// A work order used to be nothing but machines. But a case of
+// 2-stroke oil sold over the counter, fuel lines for a Redmax that
+// never came in, and a new SRM-225 walking out the door are all real
+// money on a real customer's account — and there was nowhere to put
+// them. A "sale group" is a card on the job that holds parts and
+// labor exactly like a machine card does, minus the serial number,
+// the service date and the reminder: it isn't a machine, it's stuff
+// sold.
+//
+// It rides in machines_data under a synthetic key ("sale_...") the
+// same way the Quick Sale screen has always done, so nothing in the
+// totals, the invoice math or the ledger needed a new shape. The one
+// rule: a synthetic key must never reach work_orders.equipment_id,
+// which is a real foreign key — see saveWO.
+// ═══════════════════════════════════════════════════════════════
+function _setMcBtns(on){
+  var a=document.getElementById('addMcBtn');if(a)a.disabled=!on;
+  var b=document.getElementById('addSaleBtn');if(b)b.disabled=!on;
+}
+function _isSaleKey(k){return /^sale_/.test(k||'');}
+// Every billable group on a work order: the machines first, then the
+// sale groups, which have no equipment row and so are invisible to
+// equipment_id / extra_equipment_ids.
+function _woGroupIds(w,md){
+  var ex=[];try{ex=JSON.parse(w.extra_equipment_ids||'[]');}catch(e){}
+  var ids=(w.equipment_id?[w.equipment_id]:[]).concat(ex||[]);
+  Object.keys(md||{}).forEach(function(k){
+    if(ids.indexOf(k)>=0)return;
+    var d=md[k]||{};
+    if(d.sale||_isSaleKey(k))ids.push(k);
+  });
+  return ids;
+}
+// What to call a group on paper: the machine, or what the sale was for.
+function _woGroupName(eid,md){
+  var eq=eMap[eid];
+  if(eq)return ((eq.make||'')+' '+(eq.model||'')).trim();
+  var d=(md||{})[eid]||{};
+  if(d.sale||_isSaleKey(eid))return d.label||_saleDefLabel(d.saleType);
+  return '';
+}
+function _saleIco(t){return t==='unit'?'🏷️':t==='parts'?'🔩':'🧴';}
+function _saleKindLbl(t){return t==='unit'?'Unit sold':t==='parts'?'Parts sold — machine not here':'Supplies sold';}
+function _saleDefLabel(t){return t==='unit'?'Equipment sold':t==='parts'?'Parts sold':'Shop supplies';}
+function setSaleLabel(i,val){
+  if(!mcs[i])return;
+  mcs[i].label=(val||'').trim();
+  var hdr=document.getElementById('mc_'+i);
+  if(hdr){var t=hdr.querySelector('div[style*="text-overflow:ellipsis"]');if(t)t.textContent=mcs[i].label||_saleDefLabel(mcs[i].saleType);}
+  autoSaveWO();
+}
+
+function openSalePicker(){
+  if(!selCust){toast('Select a customer first','er');return;}
+  var btn=function(ico,title,sub,fn,col){
+    return '<div class="mpk" onclick="'+fn+'" style="align-items:center;gap:10px">'+
+      '<div style="font-size:22px;line-height:1;flex-shrink:0">'+ico+'</div>'+
+      '<div><div style="font-size:14px;font-weight:700;color:'+(col||'var(--tx)')+'">'+title+'</div>'+
+      '<div style="font-size:11px;color:var(--tx3);margin-top:1px">'+sub+'</div></div></div>';
+  };
+  var h='<div class="mt">Supplies, parts or a unit sold</div>'+
+    '<div class="ms">Goes on this job for '+esc(selCust.name)+' — no machine needed</div>'+
+    btn('🧴','Shop supplies','Oil, filters, line, blades — sold off the shelf',"addSaleGroup('supplies','')")+
+    btn('🔩','Parts for a machine','Parts for a machine you are not working on',"openPartsOnlyForm()")+
+    btn('🏷️','Equipment sold','A new or used unit sold to this customer',"openUnitSaleForm()")+
+    '<div style="margin-top:12px"><button class="mc-btn" style="width:100%" onclick="closeM()">Cancel</button></div>';
+  openM(h);
+}
+
+// Adds the card, opens it, and drops straight into the Add Part form —
+// the next thing wanted is always "which oil", never another menu.
+function addSaleGroup(type,label,skipPartForm){
+  var g={id:'sale_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),sale:true,saleType:type,
+         label:(label||'').trim(),open:true,labor:[],parts:[],svcDate:'',loc:''};
+  mcs.push(g);
+  closeM();renderMcs();
+  var idx=mcs.length-1;
+  if(!skipPartForm)setTimeout(function(){var el=document.getElementById('pf_'+idx);if(el)togPF(idx);},60);
+  return idx;
+}
+
+// "A new customer needs fuel lines for a Redmax I'm not working on" —
+// the machine never becomes equipment on file, it's just what the
+// parts were for, so the invoice reads right.
+function openPartsOnlyForm(){
+  openM('<div class="mt">Parts for a machine</div>'+
+    '<div class="ms">Which machine are the parts for? It won\'t be added to '+esc(selCust.name)+'’s machines.</div>'+
+    '<div class="mf"><div><div class="mlbl">Machine</div>'+
+      '<input class="mi" id="pof_for" placeholder="e.g. Redmax trimmer, Toro 22″ mower" autocomplete="off"></div></div>'+
+    '<div class="mb"><button class="mc-btn" onclick="openSalePicker()">Back</button>'+
+    '<button class="mo-btn" onclick="submitPartsOnly()">Add parts</button></div>');
+  setTimeout(function(){var el=document.getElementById('pof_for');if(el)el.focus();},80);
+}
+function submitPartsOnly(){
+  var forWhat=((document.getElementById('pof_for')||{}).value||'').trim();
+  addSaleGroup('parts',forWhat?forWhat+' — parts':'');
+}
+
+// A unit sold. The three things that matter: it comes off the shelf
+// (so stock moves), it lands on the invoice, and it becomes the
+// customer's machine so next spring's service knows we sold it.
+function openUnitSaleForm(){
+  var units=(inv||[]).filter(function(p){return (p.category||'')==='Equipment for Sale'||(p.item_type||'')==='Equipment for Sale';})
+    .sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
+  var chips='';
+  if(units.length){
+    chips='<div class="mlbl" style="margin-bottom:5px">From stock</div><div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">';
+    units.forEach(function(u){
+      var q=parseFloat(u.qty_on_hand||0);
+      chips+='<button type="button" data-uid="'+u.id+'" onclick="pickUnitFromStock(this.dataset.uid)" style="background:var(--sf3);border:1px solid '+(q>0?'var(--grn)':'var(--bd2)')+';border-radius:14px;padding:5px 11px;font-size:12px;font-family:var(--fn);color:var(--tx2);cursor:pointer;white-space:nowrap">'+esc(u.name||'Unit')+' <span style="font-family:var(--mo);color:var(--tx3)">$'+invSell(u).toFixed(0)+' · '+q+' stk</span></button>';
+    });
+    chips+='</div>';
+  }
+  var typeOpts=ET.map(function(t){return '<option'+(t==='Trimmer'?'':'')+'>'+t+'</option>';}).join('');
+  openM('<div class="mt">Equipment sold</div>'+
+    '<div class="ms">Sold to '+esc(selCust.name)+'</div>'+
+    '<div class="mf">'+chips+
+      '<input type="hidden" id="us_invid" value="">'+
+      '<div style="display:flex;gap:8px"><div style="flex:1"><div class="mlbl">Make *</div><input class="mi" id="us_make" placeholder="Echo" autocomplete="off"></div>'+
+      '<div style="flex:1"><div class="mlbl">Model</div><input class="mi" id="us_model" placeholder="SRM-225" autocomplete="off"></div></div>'+
+      '<div style="display:flex;gap:8px"><div style="flex:1"><div class="mlbl">Type</div><select class="mi" id="us_type">'+typeOpts+'</select></div>'+
+      '<div style="flex:1"><div class="mlbl">Price *</div><input class="mi" id="us_price" type="number" min="0" step=".01" placeholder="0.00"></div></div>'+
+      '<div><div class="mlbl">Serial #</div><input class="mi" id="us_sn" placeholder="Serial # (helps warranty later)" autocomplete="off"></div>'+
+      '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--tx2);padding:2px 0">'+
+        '<input type="checkbox" id="us_addmach" checked style="width:16px;height:16px;accent-color:var(--grn)"> Add to '+esc(selCust.name)+'’s machines</label>'+
+      '<div style="font-size:11px;color:var(--tx3);line-height:1.5">Keeps the sale on record so service, reminders and warranty follow the unit.</div>'+
+    '</div>'+
+    '<div class="mb"><button class="mc-btn" onclick="openSalePicker()">Back</button>'+
+    '<button class="mo-btn" id="usOk" onclick="saveUnitSale()">Add to job</button></div>');
+}
+function pickUnitFromStock(id){
+  var u=(inv||[]).find(function(x){return x.id===id;});if(!u)return;
+  document.getElementById('us_invid').value=u.id;
+  // "Echo Srm 225" — first word is the make, the rest is the model.
+  var words=String(u.name||'').trim().split(/\s+/);
+  var mk=words.shift()||'';
+  document.getElementById('us_make').value=mk;
+  document.getElementById('us_model').value=words.join(' ');
+  document.getElementById('us_price').value=invSell(u).toFixed(2);
+  var t=document.getElementById('us_type');
+  if(t){
+    var guess=_guessEqType((u.name||'')+' '+(u.description||''));
+    if(guess)t.value=guess;
+  }
+  toast(esc(u.name||'Unit')+' — comes off stock ✓','ok');
+}
+function _guessEqType(txt){
+  var l=String(txt||'').toLowerCase();
+  if(/trimmer|srm|weed|string/.test(l))return 'Trimmer';
+  if(/blower|ebz|handheld|backpack/.test(l))return 'Blower';
+  if(/chain ?saw|\bcs\b/.test(l))return 'Chainsaw';
+  if(/snow/.test(l))return 'Snowblower';
+  if(/stand[- ]?on/.test(l))return 'Stand-on Mower';
+  if(/zero[- ]?turn|\bztr\b/.test(l))return 'Zero-turn Mower';
+  if(/rider|riding|tractor/.test(l))return 'Riding Mower';
+  if(/mower|walk[- ]?behind/.test(l))return 'Walk-behind Mower';
+  if(/pressure|washer/.test(l))return 'Pressure Washer';
+  if(/generator/.test(l))return 'Generator';
+  return '';
+}
+async function saveUnitSale(){
+  var make=((document.getElementById('us_make')||{}).value||'').trim();
+  var model=((document.getElementById('us_model')||{}).value||'').trim();
+  var serial=((document.getElementById('us_sn')||{}).value||'').trim();
+  var type=((document.getElementById('us_type')||{}).value||'').trim();
+  var invId=((document.getElementById('us_invid')||{}).value||'')||null;
+  var priceRaw=((document.getElementById('us_price')||{}).value||'').trim();
+  if(!make){toast('Make required','er');return;}
+  if(!priceRaw){toast('Enter the price it sold for','er');return;}
+  var price=parseFloat(priceRaw)||0;
+  var addMach=!!((document.getElementById('us_addmach')||{}).checked);
+  var name=(make+' '+model).trim();
+  var btn=document.getElementById('usOk');if(btn){btn.disabled=true;btn.textContent='Adding…';}
+  var line={name:name+' — unit sold',partNum:serial||'',qty:1,price:price,inv_id:invId};
+  try{
+    if(addMach){
+      // A real equipment row: the sale is also the moment this machine
+      // joins the customer's fleet, and everything downstream (history,
+      // reminders, the parts lookup) keys off that row existing.
+      var today=new Date().toISOString().split('T')[0];
+      var payload={customer_id:selCust.id,make:make,model:model||'',serial:serial||'',
+        equipment_type:type||null,purchase_date:today,purchased_from_us:true,
+        purchase_price:price,notes:'Sold new by DG Equipment '+today+(serial?'\nSerial: '+serial:'')};
+      var res=await post('equipment',payload);
+      var eq=Array.isArray(res)?res[0]:res;
+      if(!eq||!eq.id)throw new Error('equipment not created');
+      equips.push(eq);eMap[eq.id]=eq;
+      mcs.push({id:eq.id,make:eq.make||'',model:eq.model||'',serial:eq.serial||'',
+        type:eq.equipment_type||'',open:true,svcDate:'',loc:'',labor:[],parts:[line]});
+      closeM();renderMcs();
+      toast('Sold '+esc(name)+' — added to '+esc(selCust.name)+'’s machines ✓','ok');
+    } else {
+      var idx=addSaleGroup('unit',name+' — unit sold',true);
+      mcs[idx].parts.push(line);
+      renderMcs();
+      toast('Sold '+esc(name)+' ✓','ok');
+    }
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='Add to job';}
+    toast('Could not save: '+e.message,'er');
+  }
+}
+
 
 // machine picker
 function openMcPicker(){
@@ -5262,8 +5495,17 @@ function autoSaveWO(){
 async function saveWO(silent){
   if(!selCust){if(!silent)toast('Select a customer first','er');return;}
   const btn=document.getElementById('saveBtn');if(btn&&!silent){btn.disabled=true;btn.textContent='Saving…';}
-  const md={};mcs.forEach(m=>{md[m.id]={labor:m.labor,parts:m.parts,svcDate:m.svcDate||'',loc:m.loc||''};});
-  const pay={customer_id:selCust.id,equipment_id:mcs.length?mcs[0].id:null,extra_equipment_ids:JSON.stringify(mcs.length>1?mcs.slice(1).map(m=>m.id):[]),machines_data:JSON.stringify(md),status:woSt,problem:document.getElementById('descInput').value.trim()||null,scheduled_date:document.getElementById('schedDate').value||null,scheduled_time:(document.getElementById('schedTime')&&document.getElementById('schedTime').value)||null,location:document.getElementById('locSel').value||null,urgent:!!(document.getElementById('urgentTog')||{checked:false}).checked,internal_notes:(document.getElementById('internalNotes')||{value:''}).value.trim()||null,cc_fee:!!(document.getElementById('ccTog')||{checked:false}).checked};
+  const md={};mcs.forEach(m=>{
+    md[m.id]={labor:m.labor,parts:m.parts,svcDate:m.svcDate||'',loc:m.loc||''};
+    // Supplies, counter parts and units sold aren't machines. They ride
+    // in machines_data under a synthetic key and carry their own label,
+    // so the invoice can name what was sold.
+    if(m.sale){md[m.id].sale=true;md[m.id].saleType=m.saleType||'supplies';md[m.id].label=m.label||_saleDefLabel(m.saleType);}
+  });
+  // equipment_id is a real foreign key — a sale group's synthetic id
+  // would be rejected by the database, so only machines go in it.
+  const realMcs=mcs.filter(function(m){return !m.sale;});
+  const pay={customer_id:selCust.id,equipment_id:realMcs.length?realMcs[0].id:null,extra_equipment_ids:JSON.stringify(realMcs.length>1?realMcs.slice(1).map(m=>m.id):[]),machines_data:JSON.stringify(md),status:woSt,problem:document.getElementById('descInput').value.trim()||null,scheduled_date:document.getElementById('schedDate').value||null,scheduled_time:(document.getElementById('schedTime')&&document.getElementById('schedTime').value)||null,location:document.getElementById('locSel').value||null,urgent:!!(document.getElementById('urgentTog')||{checked:false}).checked,internal_notes:(document.getElementById('internalNotes')||{value:''}).value.trim()||null,po_number:(document.getElementById('poNum')||{value:''}).value.trim()||null,cc_fee:!!(document.getElementById('ccTog')||{checked:false}).checked};
   try{
     if(woId){await patch('work_orders',pay,'?id=eq.'+woId);toast('Saved ✓','ok');updateWOInvBar(Object.assign({id:woId},pay));}
     else{const [w]=await post('work_orders',pay);if(w&&w.id){woId=w.id;document.getElementById('wo_title').textContent='Work Order';document.getElementById('wo_sub').textContent='#'+woId.slice(0,8).toUpperCase();document.getElementById('delWOBtn').style.display='flex';toast('WO created ✓','ok');updateWOInvBar(w);dpLinkAfterWOSave(woId);
@@ -8838,11 +9080,15 @@ function _pssMachineList(w){
     var ex=[];try{ex=JSON.parse(w.extra_equipment_ids||'[]');}catch(e){}
     ids=(w.equipment_id?[w.equipment_id]:[]).concat(ex||[]);
   }
+  var md={};try{md=JSON.parse(w.machines_data||'{}');}catch(e){}
   var out=[];
   ids.forEach(function(eid){
     var eq=eMap[eid];
-    if(!eq)return;
-    out.push({name:[eq.make,eq.model].filter(Boolean).join(' ')||'Machine',loc:machineLoc(w,eid)});
+    if(eq){out.push({name:[eq.make,eq.model].filter(Boolean).join(' ')||'Machine',loc:machineLoc(w,eid)});return;}
+    // Supplies, counter parts, a unit sold — no equipment row, but the
+    // sheet still has to say what the job is for.
+    var d=md[eid]||{};
+    if(d.sale||_isSaleKey(eid))out.push({name:d.label||_saleDefLabel(d.saleType),loc:''});
   });
   if(!out.length)out.push({name:'—',loc:w.location||''});
   return out;
@@ -12994,6 +13240,38 @@ async function openInvoice(id, create) {
       machinesHtml += '</div>';
     });
 
+    // Supplies, counter parts and units sold — they have no equipment
+    // row, so they are not in `ids`. Without this loop they were on the
+    // work order and in every total but invisible on the invoice.
+    Object.keys(md).forEach(function(k){
+      if (ids.indexOf(k) >= 0) return;
+      const d = md[k] || {};
+      if (!d.sale && !_isSaleKey(k)) return;
+      const ps = d.parts || [], ls = d.labor || [];
+      parts += ps.reduce(function(t,p){return t + p.qty * p.price;}, 0);
+      labor += ls.reduce(function(t,l){return t + laborAmt(l);}, 0);
+      if (!ps.length && !ls.length) return;
+      // The customer's copy says "counter sale", not the shop's own
+      // "machine not here" — the label above already says what it was for.
+      machinesHtml += '<div class="inv-mach"><div class="inv-mach-nm">'+esc(d.label||_saleDefLabel(d.saleType))+
+        '<span style="font-size:11px;color:var(--tx3);font-family:var(--mo);font-weight:400"> \u00b7 '+(d.saleType==='unit'?'Equipment sale':'Counter sale')+'</span></div>';
+      if (ls.length) {
+        machinesHtml += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--tx3);margin:6px 0 3px">Labor</div>';
+        ls.forEach(function(l){
+          if(l._adj) return;
+          machinesHtml += '<div class="inv-li" style="align-items:flex-start"><div class="inv-li-d"><div>'+_fmtLaborDesc(l.desc,false)+'</div><span class="inv-li-sub">'+(l.kind==='trimmer'?l.qty+' trimmer'+(l.qty!==1?'s':'')+' \u00d7 $'+parseFloat(l.unit_price).toFixed(2):l.unit_price!=null?l.qty+' blade'+(l.qty!==1?'s':'')+' \u00d7 $'+parseFloat(l.unit_price).toFixed(2):l.hours+'h \u00d7 $'+l.rate+'/hr')+'</span></div><span class="inv-li-a">'+(l.no_charge?'No charge':'$'+laborAmt(l).toFixed(2))+'</span></div>';
+        });
+      }
+      if (ps.length) {
+        machinesHtml += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--tx3);margin:6px 0 3px">'+(d.saleType==='unit'?'Equipment':'Parts')+'</div>';
+        ps.forEach(function(p){
+          if(p._adj) return;
+          machinesHtml += '<div class="inv-li"><div class="inv-li-d"><div>'+esc(p.name||'')+(p.partNum?' <span style="font-size:11px;color:var(--tx3)">#'+esc(p.partNum)+'</span>':'')+'</div><span class="inv-li-sub">qty '+p.qty+' &times; $'+p.price.toFixed(2)+'</span></div><span class="inv-li-a">$'+(p.qty*p.price).toFixed(2)+'</span></div>';
+        });
+      }
+      machinesHtml += '</div>';
+    });
+
     const sub = parts + labor;
     var _ccOn=w.cc_fee||false;
     var _taxExempt=!!(c&&c.tax_exempt);
@@ -13063,6 +13341,9 @@ async function openInvoice(id, create) {
           '<div style="font-size:15px;font-weight:800;color:var(--red);font-family:var(--mo);margin-bottom:3px">'+invNum+'</div>' +
           '<div style="font-size:12px;color:var(--tx2);cursor:pointer" onclick="openInvDatePicker(\''+ id +'\')" title="Tap to change date">'+today+' <span style="font-size:9px;color:var(--tx3);opacity:.7">✎</span></div>' +
           '<div style="font-size:11px;color:var(--tx3);margin-top:3px">'+dueDate+'</div>' +
+          // Their PO number, back on the paper that goes to their
+          // accounts payable — without it a commercial invoice sits.
+          (w.po_number?'<div style="font-size:12px;font-weight:700;color:var(--tx2);margin-top:5px">PO #'+esc(w.po_number)+'</div>':'') +
         '</div>' +
       '</div>' +
 
@@ -14349,16 +14630,17 @@ async function updateInQBO(woId){
   if(!w||!w.qbo_invoice_id){toast('No QBO invoice ID found','er');return;}
   var c=cMap[w.customer_id]||{};
   var md={};try{md=JSON.parse(w.machines_data||'{}');}catch(e){}
-  var ex=JSON.parse(w.extra_equipment_ids||'[]');
-  var ids=w.equipment_id?[w.equipment_id].concat(ex):ex;
+  // Supplies and units sold are billable groups too — leaving them out
+  // pushed a QuickBooks invoice short by exactly their amount.
+  var ids=_woGroupIds(w,md);
   var invNum=w.invoice_number?'INV-'+w.invoice_number:'INV-'+(w.id||'').slice(0,8).toUpperCase();
   var biz=['Contractor','Commercial'].includes(c.customer_type);
   var today=getInvDateStr(w);
   var dueDateStr=getDueDateStr(w,biz);
   var lineItems=[];
   ids.forEach(function(eid){
-    var eq=eMap[eid];var d=md[eid]||{};
-    var machName=eq?(eq.make+' '+(eq.model||'')).trim():'';
+    var d=md[eid]||{};
+    var machName=_woGroupName(eid,md);
     (d.labor||[]).forEach(function(l){
       lineItems.push({item_name:'Labor',description:_plainLaborDesc(l.desc||'Labor')+(machName?' ('+machName+')':'')+(l.no_charge?' — No charge':''),qty:(l.unit_price!=null?(l.qty||1):l.hours),rate:(l.no_charge?0:(l.unit_price!=null?(l.unit_price||0):l.rate)),amount:parseFloat((laborAmt(l)).toFixed(2)),no_charge:!!l.no_charge});
     });
@@ -14408,7 +14690,8 @@ async function updateInQBO(woId){
         customer_name:c.name||'Customer',
         date:today,
         due_date:dueDateStr,
-        memo:w.problem||'',
+        po_number:(w.po_number||'').trim()||null,
+        memo:((w.po_number||'').trim()?'PO #'+w.po_number.trim()+' — ':'')+(w.problem||''),
         tax_amount:taxTotalQbo,
         line_items:lineItems
       }
@@ -14729,17 +15012,16 @@ async function pushToQBO(woId,allowDup){
     }
     const c=cMap[w.customer_id]||{};
     var md={};try{md=JSON.parse(w.machines_data||'{}');}catch(e){}
-    const ex=JSON.parse(w.extra_equipment_ids||'[]');
-    const ids=w.equipment_id?[w.equipment_id].concat(ex):ex;
+    // Supplies and units sold are billable groups too — see updateInQBO.
+    const ids=_woGroupIds(w,md);
     const invNum=w.invoice_number?'INV-'+w.invoice_number:'INV-'+(w.id||'').slice(0,8).toUpperCase();
     const biz=['Contractor','Commercial'].includes(c.customer_type);
     const today=getInvDateStr(w);
     const dueDateStr=getDueDateStr(w,biz);
     const lineItems=[];
     ids.forEach(function(eid){
-      const eq=eMap[eid];
       const d=md[eid]||{};
-      const machName=eq?(eq.make+' '+(eq.model||'')).trim():'';
+      const machName=_woGroupName(eid,md);
       (d.labor||[]).forEach(function(l){
         lineItems.push({item_name:'Labor',description:_plainLaborDesc(l.desc||'Labor')+(machName?' ('+machName+')':'')+(l.no_charge?' — No charge':''),qty:(l.unit_price!=null?(l.qty||1):l.hours),rate:(l.no_charge?0:(l.unit_price!=null?(l.unit_price||0):l.rate)),amount:parseFloat((laborAmt(l)).toFixed(2)),no_charge:!!l.no_charge});
       });
@@ -14780,7 +15062,8 @@ async function pushToQBO(woId,allowDup){
     var woPaymentsForPush=payments.filter(function(p){return p.work_order_id===woId;}).map(function(p){
       return {amount:parseFloat(p.amount||0),method:p.method||'Other',note:p.note||'',date:(p.payment_date||p.created_at||today).split('T')[0]};
     });
-    const payload={action:'push_invoice',invoice:{invoice_number:invNum,customer_name:c.name||'Customer',customer_phone:c.phone||'',date:today,due_date:dueDateStr,memo:w.problem||'',tax_amount:taxTotalQbo,line_items:lineItems,payments:woPaymentsForPush}};
+    const _poRef=(w.po_number||'').trim();
+    const payload={action:'push_invoice',invoice:{invoice_number:invNum,customer_name:c.name||'Customer',customer_phone:c.phone||'',date:today,due_date:dueDateStr,po_number:_poRef||null,memo:(_poRef?'PO #'+_poRef+' — ':'')+(w.problem||''),tax_amount:taxTotalQbo,line_items:lineItems,payments:woPaymentsForPush}};
     if(!qboLineItemsLookSafe(lineItems)){toast('Push cancelled','');return;}
     const res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify(payload)});
     const data=await res.json();
@@ -15012,10 +15295,9 @@ async function saveInvAdjust(woId){
   try{
     var w=wos.find(function(x){return x.id===woId;});if(!w)return;
     var md={};try{md=JSON.parse(w.machines_data||'{}');}catch(e){}
-    var ex=JSON.parse(w.extra_equipment_ids||'[]');
-    var ids=w.equipment_id?[w.equipment_id].concat(ex):ex;
+    var ids=_woGroupIds(w,md);
     var targetId=ids[0];
-    if(!targetId){closeM();toast('No machine on WO','er');return;}
+    if(!targetId){closeM();toast('Add parts or labor first','er');return;}
     if(!md[targetId])md[targetId]={parts:[],labor:[]};
     if(type==='labor'){
       if(!md[targetId].labor)md[targetId].labor=[];
