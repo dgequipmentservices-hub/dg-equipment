@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.44</title>
+<title>DG Equipment v27.45</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -925,7 +925,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-08-27 · V27.44</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-01 · V27.45</div>
   </div>
 </div>
 
@@ -1362,6 +1362,7 @@ Check spark plug" rows="5" style="margin-bottom:8px;resize:none;line-height:1.7;
   <div class="hdr">
     <div class="hdr-l"><button class="back-btn" onclick="goBack()">&#8592;</button><button class="ham-btn" onclick="openHam()"><span></span><span></span><span></span></button><div class="htitle">Parts on Order</div></div>
     <div class="hdr-r">
+      <button class="ibtn" onclick="scanPartFromPhoto()" title="Scan an invoice — photo or PDF" style="margin-right:4px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
       <button class="ibtn" onclick="openAddPartOrder()" style="margin-right:4px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
       <button class="ibtn" onclick="toggleTheme()"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
     </div>
@@ -5320,46 +5321,11 @@ function srchInv(i,q){
   }).catch(function(){_renderHits([],null);});
 }
 function pickPart(i,pid){const p=inv.find(x=>x.id===pid);if(!p)return;const hid=document.getElementById('piid_'+i);if(hid)hid.value=pid;document.getElementById('pn_'+i).value=p.name||p.description||'';document.getElementById('pno_'+i).value=p.part||p.oem||'';const ppEl=document.getElementById('pp_'+i);ppEl.value=invSell(p).toFixed(2);ppEl.style.borderColor='';ppEl.placeholder='Price';document.getElementById('ps_'+i).value='';document.getElementById('pd_'+i).classList.remove('op');}
-async function scanPartsOrder(machIdx){
-  var inp=document.createElement('input');
-  inp.type='file';inp.accept='image/*';inp.capture='environment';
-  inp.onchange=async function(){
-    var file=inp.files[0];if(!file)return;
-    toast('Scanning…','');
-    var reader=new FileReader();
-    reader.onload=async function(e){
-      try{
-        var b64=e.target.result.split(',')[1];
-        window._lastInvoiceB64=b64;
-        window._lastInvoiceMime=file.type||'image/jpeg';
-        var res=await fetch('https://ddxjszzceaullxheejnq.supabase.co/functions/v1/ai-proxy',{
-          method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
-          body:JSON.stringify({
-            model:'claude-sonnet-4-6',max_tokens:1000,
-            messages:[{role:'user',content:[
-              {type:'image',source:{type:'base64',media_type:file.type||'image/jpeg',data:b64}},
-              {type:'text',text:'Extract every line item from this parts invoice or packing slip. Return ONLY a raw JSON array, no other text:\n[{"name":"part description","partNum":"part number","qty":1,"cost":0.00,"vendor":"supplier"}]\nRules: (1) cost = unit price per item only, never the extended/line total. (2) partNum = exactly as printed. (3) name = full description from invoice unchanged. (4) vendor = the SELLER company name from the invoice header (Rolusso, Stens, Amazon, etc) — NOT the brand of the part.'}
-            ]}]
-          })
-        });
-        var data=await res.json();
-        var _raw=(data.content&&data.content[0]&&data.content[0].text||'').replace(/```json|```/g,'').trim();
-        var _s=_raw.indexOf('['),_e=_raw.lastIndexOf(']');
-        var txt=(_s>=0&&_e>_s)?_raw.slice(_s,_e+1):_raw;
-        var items=JSON.parse(txt);
-        if(!Array.isArray(items)||!items.length){toast('No parts found','er');return;}
-        var mc=mcs[machIdx];if(!mc){toast('Machine not found','er');return;}
-        items.forEach(function(p){
-          mc.parts.push({name:p.name||'Part',partNum:p.partNum||'',qty:parseFloat(p.qty)||1,price:parseFloat(p.price)||0,invId:null});
-        });
-        renderMachines();recalc();
-        toast(items.length+' part'+(items.length!==1?'s':'')+' added ✓','ok');
-      }catch(err){toast('Scan failed: '+err.message,'er');}
-    };
-    reader.readAsDataURL(file);
-  };
-  inp.click();
-}
+// The work-order builder used to carry a second, older invoice reader of
+// its own. It read the price out of a field the model never filled, so
+// every scanned line arrived at $0.00, and nothing on the screen called
+// it any more. Parts on Order's reader — runPartsScan — is the one that
+// is kept working, and it handles PDFs as well as photos.
 
 function pickOrderedPart(i,enc){
   try{
@@ -16823,192 +16789,312 @@ function renderPartsOnOrder(){
   });
   el.innerHTML=h;
 }
-async function scanPartFromPhoto(){
+// ── Reading an invoice into Parts on Order ────────────────────────
+//
+// A bill reaches the shop two ways: photographed off the counter, or
+// emailed as a PDF. Both come through here, and both are kept — the
+// file goes to storage and every part it created points back at it.
+//
+// The prompt asks for the unit price and the extended amount as two
+// separate numbers on purpose. Asking for one number gives no way to
+// tell a misread from a good read; asking for both makes the line
+// checkable — qty x unit has to come to the line total, and when it
+// doesn't the arithmetic says which number was misread.
+var PARTS_SCAN_PROMPT=[
+  'This is a vendor invoice, packing slip, or parts bill from an outdoor power equipment supplier (Russo, Rotary, Stens, Oregon, Prime Line, or a manufacturer such as Scag, Echo, Toro, Briggs). It may be a photograph of one page or a PDF of several.',
+  '',
+  'Extract:',
+  '- vendor: the company the parts were bought FROM, as printed at the top of the bill. A distributor, not the brand of the part.',
+  '- bill_number: the invoice or order number exactly as printed, else empty string',
+  '- bill_date: the invoice date as YYYY-MM-DD if legible, else empty string',
+  '- bill_total: the grand total printed on the bill as a number, else 0',
+  '- lines: every part line on the bill, each as',
+  '  {"partNum":"<supplier part number exactly as printed>",',
+  '   "name":"<description exactly as printed, plain text, no quotes>",',
+  '   "qty":<quantity shipped as a number>,',
+  '   "unit_cost":<price for ONE unit, a number, no currency symbol>,',
+  '   "line_total":<extended amount for that line as printed, a number, else 0>}',
+  '',
+  'Rules:',
+  '- unit_cost and line_total are two different columns on the bill. Copy each from the column it is actually printed in. Never put the extended amount in unit_cost, and never multiply or divide anything yourself — if only one price is printed, put it in the column it is labelled as and leave the other 0.',
+  '- qty is the quantity shipped or ordered on that line. It is not a backorder quantity and not a package size such as "5 PK".',
+  '- Read EVERY line on EVERY page. Do not skip, summarise, or truncate.',
+  '- Never guess a digit. If any character of a part number or a price is unclear, put what you can read and leave the unclear field empty rather than inventing a value.',
+  '- Ignore freight, shipping, handling, tax, core charges, discounts and totals — those are not parts. Do not include them as lines.',
+  '- If this is not a parts bill at all, return an empty lines array.',
+  '',
+  'Reply ONLY with valid JSON, no markdown, no explanation:',
+  '{"vendor":"","bill_number":"","bill_date":"","bill_total":0,"lines":[]}'
+].join('\n');
+
+var _scanFile=null;   // the invoice exactly as it arrived, kept so it can be filed
+var _scanMeta={};     // vendor, bill number, date and total read off it
+
+// "$1,234.56" · "12.00" · "2 EA" · 14 → a number
+function _scanNum(v){
+  if(typeof v==='number')return isFinite(v)?v:0;
+  var n=parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,''));
+  return isFinite(n)?n:0;
+}
+
+// Settle what one line actually cost per unit.
+//
+// The mistake that used to put wrong money on the screen was always the
+// same one: the extended amount read as the unit price, so a qty of 6
+// came in at six times the real cost. Now qty x unit is checked against
+// the printed line total. When they agree the price is trusted; when
+// the unit price equals the whole line instead, it gets divided back
+// down; when neither holds, the printed unit price is kept and the line
+// is flagged so somebody looks at it before it is saved.
+function reconcileScanLine(l){
+  var qty=Math.round(Math.abs(_scanNum(l.qty!=null?l.qty:l.quantity)));
+  if(!(qty>0))qty=1;
+  var unit=Math.abs(_scanNum(l.unit_cost!=null?l.unit_cost:(l.cost!=null?l.cost:l.price)));
+  var tot=Math.abs(_scanNum(l.line_total!=null?l.line_total:(l.extended!=null?l.extended:l.amount)));
+  var check=false;
+  function near(a,b){return Math.abs(a-b)<=Math.max(0.02,Math.abs(b)*0.01);}
+  if(unit>0&&tot>0){
+    if(near(unit*qty,tot)){/* the two columns agree — nothing to fix */}
+    else if(qty>1&&near(unit,tot)){unit=tot/qty;}   // the extended amount, read as the unit price
+    else check=true;                                 // can't be squared — keep the unit price, flag it
+  }else if(unit<=0&&tot>0){
+    unit=tot/qty;                                    // only an extended amount printed
+  }else if(unit<=0&&tot<=0){
+    check=true;                                      // no price read at all
+  }
+  return {qty:qty,cost:Math.round(unit*100)/100,costCheck:check};
+}
+
+// Lines that are money but not parts. The prompt says to leave them out;
+// this is the second net.
+var _SCAN_NOT_A_PART=/^(freight|shipping|handling|delivery|fuel\s*surcharge|sales\s*tax|tax|core\s*charge|discount|credit|subtotal|total|balance)\b/i;
+
+// The reply is meant to be {vendor,…,lines:[]}, but a bare array is
+// still worth reading rather than throwing away.
+function normalizeScanLines(result){
+  var lines=[],meta={};
+  if(Array.isArray(result))lines=result;
+  else if(result&&typeof result==='object'){
+    lines=Array.isArray(result.lines)?result.lines:(Array.isArray(result.items)?result.items:[]);
+    meta={vendor:(result.vendor||'').trim(),bill_number:(result.bill_number||'').trim(),
+          bill_date:/^\d{4}-\d{2}-\d{2}$/.test(result.bill_date||'')?result.bill_date:'',
+          total:_scanNum(result.bill_total)};
+  }
+  var parts=lines.map(function(l){
+    var r=reconcileScanLine(l);
+    var nm=String(l.name||l.desc||l.description||'').trim();
+    var pn=String(l.partNum||l.part_number||l.part||'').trim();
+    // A Stens number printed inside the description, with nothing in the
+    // part-number column, is still the part number.
+    var stensInName=nm.match(/\b(\d{3}-\d{3,4})\b/);
+    if(stensInName&&(!pn||!/^\d{3}-\d{3,4}$/.test(pn)))pn=stensInName[1];
+    return {name:nm,partNum:pn,qty:r.qty,cost:r.cost,price:r.cost,costCheck:r.costCheck,
+            vendor:String(l.vendor||meta.vendor||'').trim()};
+  }).filter(function(p){
+    return (p.name||p.partNum)&&!_SCAN_NOT_A_PART.test(p.name);
+  });
+  return {parts:parts,meta:meta};
+}
+
+async function _partsScanAsk(block,model){
+  var resp=await fetch(SU+'/functions/v1/ai-proxy',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
+    body:JSON.stringify({
+      model:model,max_tokens:8000,
+      messages:[{role:'user',content:[block,{type:'text',text:PARTS_SCAN_PROMPT}]}]
+    })
+  });
+  if(!resp.ok)throw new Error('AI scan failed ('+resp.status+')');
+  var data=await resp.json();
+  if(data.error)throw new Error(typeof data.error==='string'?data.error:(data.error.message||'AI error'));
+  var raw=((data.content&&data.content[0]&&data.content[0].text)||'').replace(/```json|```/g,'').trim();
+  if(!raw)throw new Error('the reader came back empty — try again');
+  // Object first, then a bare array, then whatever parses.
+  var o=raw.indexOf('{'),oe=raw.lastIndexOf('}');
+  var a=raw.indexOf('['),ae=raw.lastIndexOf(']');
+  var txt=(o>=0&&oe>o&&(a<0||o<a))?raw.slice(o,oe+1):((a>=0&&ae>a)?raw.slice(a,ae+1):raw);
+  try{return JSON.parse(txt);}
+  catch(e){
+    var fixed=txt.replace(/,\s*$/,'').replace(/,\s*\]$/,']');
+    if(a>=0&&!fixed.trim().endsWith(']')&&!fixed.trim().endsWith('}'))fixed+=']';
+    return JSON.parse(fixed);
+  }
+}
+
+// The invoice itself goes to storage under the batch that made the parts,
+// so a price on the screen can always be taken back to the paper it came from.
+async function uploadScanFile(file,batchId){
+  var mt=file.type||(_isPdf(file)?'application/pdf':'image/jpeg');
+  var ext=_isPdf(file)?'pdf':(/png/i.test(mt)?'png':/webp/i.test(mt)?'webp':/heic|heif/i.test(mt)?'heic':'jpg');
+  var fname='invoices/'+batchId+'.'+ext;
+  var up=await fetch(SU+'/storage/v1/object/invoice-photos/'+fname,{
+    method:'POST',
+    headers:{'Content-Type':mt,'apikey':SK,'Authorization':'Bearer '+(_sessionToken||SK)},
+    body:file
+  });
+  if(!up.ok)throw new Error('upload failed ('+up.status+')');
+  return SU+'/storage/v1/object/public/invoice-photos/'+fname;
+}
+
+var _SCAN_BTN_ICO='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>';
+function _scanBtnIdle(btn){
+  if(!btn)return;
+  btn.innerHTML=_SCAN_BTN_ICO+' Scan Photo / PDF';
+  btn.disabled=false;
+}
+
+function scanPartFromPhoto(){
   var inp=document.createElement('input');
-  inp.type='file';inp.accept='image/*';
-  inp.onchange=async function(){
-    var file=inp.files[0];if(!file)return;
-    var btn=document.querySelector('[onclick="scanPartFromPhoto()"]');
-    if(btn){btn.textContent='Reading...';btn.disabled=true;}
-    window._scanWoId=document.getElementById('po_wo')?document.getElementById('po_wo').value:null;
-    window._scanEqId=document.getElementById('po_eq')?document.getElementById('po_eq').value:null;
-    var reader=new FileReader();
-    reader.onload=async function(e){
-      try{
-        var b64=e.target.result.split(',')[1];
-        // Compress photo for storage (max 1200px, 0.7 quality)
-        try{
-          var _img=new Image();
-          _img.src=e.target.result;
-          await new Promise(function(r){_img.onload=r;});
-          var _cv=document.createElement('canvas');
-          var _mw=1200,_sc=Math.min(1,_mw/_img.width);
-          _cv.width=Math.round(_img.width*_sc);_cv.height=Math.round(_img.height*_sc);
-          _cv.getContext('2d').drawImage(_img,0,0,_cv.width,_cv.height);
-          window._scanPhotoB64=_cv.toDataURL('image/jpeg',0.75);
-        }catch(_e){window._scanPhotoB64=e.target.result;}
-        // Use compressed image for API call
-        var _apiB64=window._scanPhotoB64?window._scanPhotoB64.split(',')[1]:b64;
-        var res=await fetch('https://ddxjszzceaullxheejnq.supabase.co/functions/v1/ai-proxy',{
-          method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
-          body:JSON.stringify({
-            model:'claude-sonnet-4-6',max_tokens:2000,
-            messages:[{role:'user',content:[
-              {type:'image',source:{type:'base64',media_type:'image/jpeg',data:_apiB64}},
-              {type:'text',text:'Extract every line item from this parts invoice or packing slip. Return ONLY a raw JSON array, no other text. Example format:\n[{"name":"part description","partNum":"part number","qty":1,"cost":0.00,"vendor":"supplier"}]\nRules: (1) cost = unit price per item only, never the extended/line total. (2) partNum = exactly as printed. (3) name = full description from invoice. (4) vendor = the SELLER company name from the invoice header.'}
-            ]}]
-          })
-        });
-        if(!res.ok){toast('AI scan failed ('+res.status+')','er');if(btn){btn.innerHTML='&#128247; Scan Photo to Fill';btn.disabled=false;}return;}
-        var data=await res.json();
-        var _raw=(data.content&&data.content[0]&&data.content[0].text||'').replace(/```json[\s\S]*?```|```/g,'').trim();
-        if(!_raw){toast('AI returned empty response — try again','er');if(btn){btn.innerHTML='&#128247; Scan Photo to Fill';btn.disabled=false;}return;}
-        var _s=_raw.indexOf('['),_e=_raw.lastIndexOf(']');
-        var txt=(_s>=0&&_e>_s)?_raw.slice(_s,_e+1):_raw;
-        var parts;
-        try{parts=JSON.parse(txt);}catch(_je){
-          // Try to extract partial valid JSON
-          var _fixed=txt.replace(/,\s*$/, '').replace(/,\s*\]$/, ']');
-          if(!_fixed.endsWith(']'))_fixed+=']';
-          try{parts=JSON.parse(_fixed);}catch(_je2){
-            toast('Could not parse AI response — try a clearer photo','er');
-            if(btn){btn.innerHTML='&#128247; Scan Photo to Fill';btn.disabled=false;}return;
-          }
-        }
-        if(!Array.isArray(parts))parts=[parts];
-        // Post-process: fix common AI mistakes
-        parts=parts.map(function(p){
-          var nm=(p.name||'').trim();
-          var pn=(p.partNum||'').trim();
-          // If partNum looks like a Stens number (###-###) keep it
-          // If it doesn't, check the name for an embedded Stens number and promote it
-          var stensInName=nm.match(/\b(\d{3}-\d{3,4})\b/);
-          if(stensInName&&(!pn||!/^\d{3}-\d{3,4}$/.test(pn))){
-            p.partNum=stensInName[1];
-          }
-          // Clean the name: if name starts with partNum already, keep as-is
-          // Otherwise apply clean naming
-          if(p.partNum&&nm.toLowerCase().startsWith(p.partNum.toLowerCase())){
-            // Already clean, just trim
-            p.name=nm;
-          } else if(p.partNum){
-            p.name=_cleanPartName(p.partNum,nm);
-          }
-          // Fix cost: if it looks like an extended amount (cost/qty > reasonable unit price)
-          // and there's a qty > 1, check if dividing gives a more reasonable number
-          var qty=parseInt(p.qty)||1;
-          var cost=parseFloat(p.cost)||0;
-          if(qty>1&&cost>0){
-            var unitCost=cost/qty;
-            // If unit cost is less than $50 and looks more reasonable, use it
-            // (heuristic: if cost > 3x unit cost, likely AI grabbed extended total)
-            if(unitCost<cost&&unitCost>0.5&&cost/unitCost===qty){
-              p.cost=parseFloat(unitCost.toFixed(2));
-            }
-          }
-          return p;
-        });
-        if(!parts.length){toast('No parts found','er');if(btn){btn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Scan Photo to Fill';btn.disabled=false;}return;}
-        if(parts.length===1){
-          var p=parts[0];
-          var nm=document.getElementById('po_name');if(nm&&p.name)nm.value=p.name;
-          var pn=document.getElementById('po_num');if(pn&&p.partNum)pn.value=p.partNum;
-          var qt=document.getElementById('po_qty');if(qt&&p.qty)qt.value=p.qty;
-          var co=document.getElementById('po_cost');if(co&&p.cost)co.value=parseFloat(p.cost).toFixed(2);
-          var vn=document.getElementById('po_vendor');if(vn&&p.vendor)vn.value=p.vendor;
-          if(btn){btn.textContent='✓ 1 part filled';btn.style.background='rgba(46,160,67,.12)';btn.style.color='var(--grn)';btn.style.borderColor='var(--grn)';btn.disabled=false;}
-        } else {
-          // Reload inventory fresh before matching so stens_num is current
-          try{var _fi=await get('inventory','?order=name&limit=1000');if(_fi&&_fi.length)inv=_fi;}catch(e){}
-          window._scannedParts=parts;
-          // _scanPhotoB64 already set (compressed) before API call
-          var matchCount=0;
-          // Build WO options for picker in scan results
-          var _woOpts='<option value="">— No WO (stock only) —</option>';
-          wos.filter(function(w){return w.status!=='Invoiced';}).slice(0,60).forEach(function(w){
-            var _c=cMap[w.customer_id];var _e=eMap[w.equipment_id];
-            var _lbl=(_c?_c.name+' — ':'')+(_e?_e.make+' '+(_e.model||''):'WO')+( w.invoice_number?' #'+w.invoice_number:'');
-            _woOpts+='<option value="'+w.id+'"'+(w.id===window._scanWoId?' selected':'')+'>'+esc(_lbl)+'</option>';
-          });
-          // normalize cost field
-          parts = parts.map(function(p){ if(p.cost!=null&&p.price==null)p.price=p.cost; return p; });
-          var listHtml='<div style="font-weight:700;font-size:14px;margin-bottom:12px">'+parts.length+' parts found — assign each below:</div>';
-          parts.forEach(function(p,pi){
-            var invMatch=_matchInv(p.partNum);
-            if(invMatch)matchCount++;
-            var displayName=_cleanPartName(p.partNum,p.name)||p.name||'';
-            var invId=invMatch?invMatch.id:'';
-            var invQty=invMatch?parseFloat(invMatch.qty_on_hand||0):0;
-            var invQc=invQty===0?'var(--red)':invQty<=(invMatch&&invMatch.min_stock||0)?'var(--amb)':'var(--grn)';
-            var invLabel=invMatch?('✓ '+esc(invMatch.name)+' ('+invQty+' in stock)'):'No inventory match';
-            listHtml+=
-              '<div style="background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--r);padding:12px;margin-bottom:10px">'+
-              // Row 1: checkbox + part name
-              '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
-                '<input type="checkbox" id="sp_'+pi+'" checked style="width:18px;height:18px;flex-shrink:0">'+
-                '<input id="sp_nm_'+pi+'" value="'+esc(displayName)+'" style="flex:1;background:var(--sf);border:1.5px solid var(--blu);border-radius:6px;padding:6px 8px;font-size:13px;font-weight:700;font-family:var(--fn);color:var(--tx)">'+
-                '<input id="sp_co_'+pi+'" type="number" step="0.01" value="'+(p.price?parseFloat(p.price).toFixed(2):'0.00')+'" oninput="spAutoSell('+pi+')" style="width:72px;background:var(--sf);border:1px solid var(--bd2);border-radius:6px;padding:6px;font-size:12px;font-family:var(--fn);color:var(--tx);flex-shrink:0" placeholder="$cost">'+
-              '</div>'+
-              // Row 2: WO / Stock / Both toggle
-              '<div style="display:flex;gap:6px;margin-bottom:8px">'+
-                '<button data-pi="'+pi+'" data-dest="wo"    onclick="spSetDest(this)" id="sp_dest_wo_'+pi+'"   style="flex:1;padding:8px 4px;border-radius:var(--rs);font-size:12px;font-weight:800;font-family:var(--fn);cursor:pointer;background:rgba(58,127,196,.18);border:2px solid var(--blu);color:var(--blu)">&#128295; WO</button>'+
-                '<button data-pi="'+pi+'" data-dest="stock" onclick="spSetDest(this)" id="sp_dest_st_'+pi+'"  style="flex:1;padding:8px 4px;border-radius:var(--rs);font-size:12px;font-weight:800;font-family:var(--fn);cursor:pointer;background:var(--sf);border:1.5px solid var(--bd2);color:var(--tx3)">&#128230; Stock</button>'+
-                '<button data-pi="'+pi+'" data-dest="both"  onclick="spSetDest(this)" id="sp_dest_both_'+pi+'" style="flex:1;padding:8px 4px;border-radius:var(--rs);font-size:12px;font-weight:800;font-family:var(--fn);cursor:pointer;background:var(--sf);border:1.5px solid var(--bd2);color:var(--tx3)">Both</button>'+
-              '</div>'+
-              '<input type="hidden" id="sp_dest_'+pi+'" value="wo">'+
-              // WO section (visible when WO or Both)
-              '<div id="sp_wo_sec_'+pi+'" style="background:rgba(58,127,196,.06);border:1px solid var(--blu);border-radius:var(--rs);padding:8px;margin-bottom:6px">'+
-                '<div style="font-size:10px;font-weight:800;color:var(--blu);text-transform:uppercase;margin-bottom:5px">&#128295; Work Order</div>'+
-                '<select id="sp_wo_'+pi+'" onchange="spLoadEqFor('+pi+')" style="width:100%;background:var(--sf);border:1px solid var(--bd2);border-radius:var(--rs);padding:7px;font-size:12px;font-family:var(--fn);color:var(--tx);margin-bottom:5px">'+_woOpts+'</select>'+
-                '<select id="sp_eq_'+pi+'" style="width:100%;background:var(--sf);border:1px solid var(--bd2);border-radius:var(--rs);padding:7px;font-size:12px;font-family:var(--fn);color:var(--tx);margin-bottom:5px"><option value="">— Machine (optional) —</option></select>'+
-                '<div style="display:flex;align-items:center;gap:6px">'+
-                  '<div style="font-size:10px;color:var(--tx3);font-weight:700">Qty:</div>'+
-                  '<input id="sp_woqty_'+pi+'" type="number" value="'+(p.qty||1)+'" min="1" style="width:60px;background:var(--sf);border:1px solid var(--blu);border-radius:6px;padding:5px;font-size:13px;font-weight:700;font-family:var(--fn);color:var(--tx)">'+
-                '</div>'+
-              '</div>'+
-              // Stock section (hidden by default, shown when Stock or Both)
-              '<div id="sp_st_sec_'+pi+'" style="display:none;background:rgba(58,158,104,.06);border:1px solid var(--grn);border-radius:var(--rs);padding:8px;margin-bottom:6px">'+
-                '<div style="font-size:10px;font-weight:800;color:var(--grn);text-transform:uppercase;margin-bottom:5px">&#128230; Stock Inventory</div>'+
-                '<input id="sp_isrch_'+pi+'" placeholder="Search inventory to link..." oninput="spSearchInv(this,'+pi+')" autocomplete="off" style="width:100%;background:var(--sf);border:1px solid var(--bd2);border-radius:6px;padding:6px 8px;font-size:12px;font-family:var(--fn);color:var(--tx);margin-bottom:4px">'+
-                '<div id="sp_idrop_'+pi+'" style="background:var(--sf);border:1px solid var(--bd2);border-radius:6px;max-height:120px;overflow-y:auto;display:none;margin-top:2px"></div>'+
-                '<input type="hidden" id="sp_iid_'+pi+'" value="'+invId+'">'+
-                (invMatch?'<div style="font-size:10px;color:'+invQc+';font-weight:700;margin-top:3px">'+invLabel+'</div>':'')+
-                '<div style="display:flex;align-items:center;gap:6px;margin-top:5px">'+
-                  '<div style="font-size:10px;color:var(--tx3);font-weight:700">Qty:</div>'+
-                  '<input id="sp_stqty_'+pi+'" type="number" value="'+(p.qty||1)+'" min="0" style="width:60px;background:var(--sf);border:1px solid var(--grn);border-radius:6px;padding:5px;font-size:13px;font-weight:700;font-family:var(--fn);color:var(--tx)">'+
-                  '<div style="font-size:10px;color:var(--tx3);font-weight:700;margin-left:6px">Sell:</div>'+
-                  '<input id="sp_sell_'+pi+'" type="number" step="0.01" placeholder="auto" style="width:70px;background:var(--sf);border:1px solid var(--bd2);border-radius:6px;padding:5px;font-size:12px;font-family:var(--fn);color:var(--tx)" oninput="spShowPct('+pi+')">'+
-                  '<span id="sp_sell_pct_'+pi+'" style="font-size:10px;font-weight:700;color:var(--grn)"></span>'+
-                '</div>'+
-                // New inventory checkbox
-                '<label style="display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer">'+
-                  '<input type="checkbox" id="sp_newinv_'+pi+'"'+(invMatch?'':' checked')+' style="width:16px;height:16px">'+
-                  '<span style="font-size:11px;font-weight:700;color:var(--tx2)">Create new inventory item</span>'+
-                '</label>'+
-              '</div>'+
-              // Part # + vendor info line
-              '<div style="font-size:10px;color:var(--tx3)">'+(p.partNum?'#'+p.partNum+' ':'')+(p.vendor?'· '+p.vendor:'')+'</div>'+
-              '</div>';
-          });
-          if(matchCount>0)listHtml='<div style="font-size:11px;color:var(--grn);font-weight:700;margin-bottom:8px">✓ '+matchCount+' part'+(matchCount!==1?'s':'')+' matched to your inventory</div>'+listHtml;
-          listHtml+='<div style="display:flex;gap:8px;margin-top:14px">'+
-            '<button onclick="addScannedParts()" style="flex:2;background:var(--red);color:#fff;border:none;border-radius:var(--rs);padding:13px;font-size:14px;font-weight:700;font-family:var(--fn);cursor:pointer">Add Selected</button>'+
-            '<button onclick="closeM()" style="flex:1;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:13px;font-size:13px;font-family:var(--fn);cursor:pointer;color:var(--tx2)">Cancel</button>'+
-            '</div>';
-          var mfEl=document.querySelector('.mf');
-          var mbEl=document.querySelector('.mb');
-          if(mfEl){mfEl.innerHTML=listHtml;if(mbEl)mbEl.style.display='none';setTimeout(function(){if(window._scanWoId)spLoadEq();},50);}
-          else{openM('<div class="mt">'+parts.length+' Parts Found</div><div class="mf">'+listHtml+'</div>');}
-          if(btn){btn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Scan Photo to Fill';btn.disabled=false;}
-        }
-      }catch(err){
-        if(btn){btn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Scan Photo to Fill';btn.disabled=false;}
-        toast('Could not read: '+err.message,'er');
-      }
-    };
-    reader.readAsDataURL(file);
-  };
+  // No capture attribute: it forces the camera on a phone, which would put
+  // an emailed PDF out of reach. The picker still offers the camera.
+  inp.type='file';inp.accept='image/*,application/pdf';
+  inp.onchange=function(){if(inp.files&&inp.files[0])runPartsScan(inp.files[0]);};
   inp.click();
+}
+
+async function runPartsScan(file){
+  var btn=document.getElementById('scanPoBtn');
+  var isPdf=_isPdf(file);
+  if(btn){btn.textContent=isPdf?'Reading the PDF…':'Reading…';btn.disabled=true;}
+  else toast(isPdf?'Reading the PDF…':'Reading the invoice…','');
+  window._scanWoId=document.getElementById('po_wo')?document.getElementById('po_wo').value:null;
+  window._scanEqId=document.getElementById('po_eq')?document.getElementById('po_eq').value:null;
+  _scanFile=file;_scanMeta={};window._scannedParts=null;
+  try{
+    _restoreSession();
+    // The file goes to the reader at full resolution. Squeezing a dense
+    // parts bill down to 1200px first is how prices got misread.
+    var block=await aiFileBlock(file);
+    var result;
+    try{ result=await _partsScanAsk(block,BILL_MODEL); }
+    catch(e){
+      if(/model/i.test(e.message||''))result=await _partsScanAsk(block,BILL_MODEL_FALLBACK);
+      else throw e;
+    }
+    var norm=normalizeScanLines(result);
+    var parts=norm.parts;
+    _scanMeta=norm.meta||{};
+    if(!parts.length){
+      toast(isPdf?'No parts found in that PDF':'No parts found on that photo','er');
+      _scanBtnIdle(btn);return;
+    }
+    parts.forEach(function(p){
+      if(p.partNum&&!p.name.toLowerCase().startsWith(p.partNum.toLowerCase()))
+        p.name=_cleanPartName(p.partNum,p.name)||p.name;
+    });
+    if(parts.length===1&&document.getElementById('po_name')){
+      var p=parts[0];
+      var nm=document.getElementById('po_name');if(nm&&p.name)nm.value=p.name;
+      var pn=document.getElementById('po_num');if(pn&&p.partNum)pn.value=p.partNum;
+      var qt=document.getElementById('po_qty');if(qt&&p.qty)qt.value=p.qty;
+      var co=document.getElementById('po_cost');if(co)co.value=p.cost?p.cost.toFixed(2):'';
+      var vn=document.getElementById('po_vendor');
+      if(vn&&(p.vendor||_scanMeta.vendor))vn.value=p.vendor||_scanMeta.vendor;
+      window._scannedParts=parts;
+      if(btn){
+        btn.textContent=p.costCheck?'✓ filled — check the price':'✓ 1 part filled';
+        btn.style.background='rgba(46,160,67,.12)';btn.style.color='var(--grn)';btn.style.borderColor='var(--grn)';
+        btn.disabled=false;
+      }
+      if(p.costCheck)toast('Cost couldn’t be checked against the line total — confirm it','er');
+      return;
+    }
+    // Reload inventory fresh before matching so stens_num is current
+    try{var _fi=await get('inventory','?order=name&limit=1000');if(_fi&&_fi.length)inv=_fi;}catch(e){}
+    window._scannedParts=parts;
+    var matchCount=0,flagged=0;
+    var _woOpts='<option value="">— No WO (stock only) —</option>';
+    wos.filter(function(w){return w.status!=='Invoiced';}).slice(0,60).forEach(function(w){
+      var _c=cMap[w.customer_id];var _e=eMap[w.equipment_id];
+      var _lbl=(_c?_c.name+' — ':'')+(_e?_e.make+' '+(_e.model||''):'WO')+(w.invoice_number?' #'+w.invoice_number:'');
+      _woOpts+='<option value="'+w.id+'"'+(w.id===window._scanWoId?' selected':'')+'>'+esc(_lbl)+'</option>';
+    });
+    var listHtml='<div style="font-weight:700;font-size:14px;margin-bottom:4px">'+parts.length+' parts found — assign each below:</div>';
+    var _hdr=[];
+    if(_scanMeta.vendor)_hdr.push(esc(_scanMeta.vendor));
+    if(_scanMeta.bill_number)_hdr.push('#'+esc(_scanMeta.bill_number));
+    if(_scanMeta.bill_date)_hdr.push(esc(_scanMeta.bill_date));
+    if(_scanMeta.total>0)_hdr.push('$'+_scanMeta.total.toFixed(2));
+    if(_hdr.length)listHtml+='<div style="font-size:11px;color:var(--tx3);margin-bottom:10px">'+_hdr.join(' · ')+'</div>';
+    parts.forEach(function(p,pi){
+      var invMatch=_matchInv(p.partNum);
+      if(invMatch)matchCount++;
+      if(p.costCheck)flagged++;
+      var displayName=p.name||'';
+      var invId=invMatch?invMatch.id:'';
+      var invQty=invMatch?parseFloat(invMatch.qty_on_hand||0):0;
+      var invQc=invQty===0?'var(--red)':invQty<=(invMatch&&invMatch.min_stock||0)?'var(--amb)':'var(--grn)';
+      var invLabel=invMatch?('✓ '+esc(invMatch.name)+' ('+invQty+' in stock)'):'No inventory match';
+      var costBorder=p.costCheck?'2px solid var(--amb)':'1px solid var(--bd2)';
+      listHtml+=
+        '<div style="background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--r);padding:12px;margin-bottom:10px">'+
+        // Row 1: checkbox + part name + unit cost
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:'+(p.costCheck?'4px':'8px')+'">'+
+          '<input type="checkbox" id="sp_'+pi+'" checked style="width:18px;height:18px;flex-shrink:0">'+
+          '<input id="sp_nm_'+pi+'" value="'+esc(displayName)+'" style="flex:1;background:var(--sf);border:1.5px solid var(--blu);border-radius:6px;padding:6px 8px;font-size:13px;font-weight:700;font-family:var(--fn);color:var(--tx)">'+
+          '<input id="sp_co_'+pi+'" type="number" step="0.01" value="'+p.cost.toFixed(2)+'" oninput="spAutoSell('+pi+')" title="Cost each" style="width:72px;background:var(--sf);border:'+costBorder+';border-radius:6px;padding:6px;font-size:12px;font-family:var(--fn);color:var(--tx);flex-shrink:0" placeholder="$ea">'+
+        '</div>'+
+        (p.costCheck?'<div style="font-size:10px;font-weight:700;color:var(--amb);margin:0 0 8px 26px">&#9888; Cost each didn’t match the line total — check it against the bill</div>':'')+
+        // Row 2: WO / Stock / Both toggle
+        '<div style="display:flex;gap:6px;margin-bottom:8px">'+
+          '<button data-pi="'+pi+'" data-dest="wo"    onclick="spSetDest(this)" id="sp_dest_wo_'+pi+'"   style="flex:1;padding:8px 4px;border-radius:var(--rs);font-size:12px;font-weight:800;font-family:var(--fn);cursor:pointer;background:rgba(58,127,196,.18);border:2px solid var(--blu);color:var(--blu)">&#128295; WO</button>'+
+          '<button data-pi="'+pi+'" data-dest="stock" onclick="spSetDest(this)" id="sp_dest_st_'+pi+'"  style="flex:1;padding:8px 4px;border-radius:var(--rs);font-size:12px;font-weight:800;font-family:var(--fn);cursor:pointer;background:var(--sf);border:1.5px solid var(--bd2);color:var(--tx3)">&#128230; Stock</button>'+
+          '<button data-pi="'+pi+'" data-dest="both"  onclick="spSetDest(this)" id="sp_dest_both_'+pi+'" style="flex:1;padding:8px 4px;border-radius:var(--rs);font-size:12px;font-weight:800;font-family:var(--fn);cursor:pointer;background:var(--sf);border:1.5px solid var(--bd2);color:var(--tx3)">Both</button>'+
+        '</div>'+
+        '<input type="hidden" id="sp_dest_'+pi+'" value="wo">'+
+        // WO section (visible when WO or Both)
+        '<div id="sp_wo_sec_'+pi+'" style="background:rgba(58,127,196,.06);border:1px solid var(--blu);border-radius:var(--rs);padding:8px;margin-bottom:6px">'+
+          '<div style="font-size:10px;font-weight:800;color:var(--blu);text-transform:uppercase;margin-bottom:5px">&#128295; Work Order</div>'+
+          '<select id="sp_wo_'+pi+'" onchange="spLoadEqFor('+pi+')" style="width:100%;background:var(--sf);border:1px solid var(--bd2);border-radius:var(--rs);padding:7px;font-size:12px;font-family:var(--fn);color:var(--tx);margin-bottom:5px">'+_woOpts+'</select>'+
+          '<select id="sp_eq_'+pi+'" style="width:100%;background:var(--sf);border:1px solid var(--bd2);border-radius:var(--rs);padding:7px;font-size:12px;font-family:var(--fn);color:var(--tx);margin-bottom:5px"><option value="">— Machine (optional) —</option></select>'+
+          '<div style="display:flex;align-items:center;gap:6px">'+
+            '<div style="font-size:10px;color:var(--tx3);font-weight:700">Qty:</div>'+
+            '<input id="sp_woqty_'+pi+'" type="number" value="'+p.qty+'" min="1" style="width:60px;background:var(--sf);border:1px solid var(--blu);border-radius:6px;padding:5px;font-size:13px;font-weight:700;font-family:var(--fn);color:var(--tx)">'+
+          '</div>'+
+        '</div>'+
+        // Stock section (hidden by default, shown when Stock or Both)
+        '<div id="sp_st_sec_'+pi+'" style="display:none;background:rgba(58,158,104,.06);border:1px solid var(--grn);border-radius:var(--rs);padding:8px;margin-bottom:6px">'+
+          '<div style="font-size:10px;font-weight:800;color:var(--grn);text-transform:uppercase;margin-bottom:5px">&#128230; Stock Inventory</div>'+
+          '<input id="sp_isrch_'+pi+'" placeholder="Search inventory to link..." oninput="spSearchInv(this,'+pi+')" autocomplete="off" style="width:100%;background:var(--sf);border:1px solid var(--bd2);border-radius:6px;padding:6px 8px;font-size:12px;font-family:var(--fn);color:var(--tx);margin-bottom:4px">'+
+          '<div id="sp_idrop_'+pi+'" style="background:var(--sf);border:1px solid var(--bd2);border-radius:6px;max-height:120px;overflow-y:auto;display:none;margin-top:2px"></div>'+
+          '<input type="hidden" id="sp_iid_'+pi+'" value="'+invId+'">'+
+          (invMatch?'<div style="font-size:10px;color:'+invQc+';font-weight:700;margin-top:3px">'+invLabel+'</div>':'')+
+          '<div style="display:flex;align-items:center;gap:6px;margin-top:5px">'+
+            '<div style="font-size:10px;color:var(--tx3);font-weight:700">Qty:</div>'+
+            '<input id="sp_stqty_'+pi+'" type="number" value="'+p.qty+'" min="0" style="width:60px;background:var(--sf);border:1px solid var(--grn);border-radius:6px;padding:5px;font-size:13px;font-weight:700;font-family:var(--fn);color:var(--tx)">'+
+            '<div style="font-size:10px;color:var(--tx3);font-weight:700;margin-left:6px">Sell:</div>'+
+            '<input id="sp_sell_'+pi+'" type="number" step="0.01" placeholder="auto" style="width:70px;background:var(--sf);border:1px solid var(--bd2);border-radius:6px;padding:5px;font-size:12px;font-family:var(--fn);color:var(--tx)" oninput="spShowPct('+pi+')">'+
+            '<span id="sp_sell_pct_'+pi+'" style="font-size:10px;font-weight:700;color:var(--grn)"></span>'+
+          '</div>'+
+          // New inventory checkbox
+          '<label style="display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer">'+
+            '<input type="checkbox" id="sp_newinv_'+pi+'"'+(invMatch?'':' checked')+' style="width:16px;height:16px">'+
+            '<span style="font-size:11px;font-weight:700;color:var(--tx2)">Create new inventory item</span>'+
+          '</label>'+
+        '</div>'+
+        // Part # + vendor info line
+        '<div style="font-size:10px;color:var(--tx3)">'+(p.partNum?'#'+esc(p.partNum)+' ':'')+(p.vendor?'· '+esc(p.vendor):'')+'</div>'+
+        '</div>';
+    });
+    var _top='';
+    if(matchCount>0)_top+='<div style="font-size:11px;color:var(--grn);font-weight:700;margin-bottom:4px">✓ '+matchCount+' part'+(matchCount!==1?'s':'')+' matched to your inventory</div>';
+    if(flagged>0)_top+='<div style="font-size:11px;color:var(--amb);font-weight:700;margin-bottom:8px">&#9888; '+flagged+' price'+(flagged!==1?'s':'')+' need'+(flagged===1?'s':'')+' a look — the bill’s own arithmetic didn’t agree</div>';
+    listHtml=_top+listHtml;
+    listHtml+='<div style="font-size:10px;color:var(--tx3);text-align:center;margin-top:10px">'+(isPdf?'The PDF':'The photo')+' is filed with these parts when you save</div>';
+    listHtml+='<div style="display:flex;gap:8px;margin-top:8px">'+
+      '<button onclick="addScannedParts()" style="flex:2;background:var(--red);color:#fff;border:none;border-radius:var(--rs);padding:13px;font-size:14px;font-weight:700;font-family:var(--fn);cursor:pointer">Add Selected</button>'+
+      '<button onclick="closeM()" style="flex:1;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:13px;font-size:13px;font-family:var(--fn);cursor:pointer;color:var(--tx2)">Cancel</button>'+
+      '</div>';
+    var mfEl=document.querySelector('.mf');
+    var mbEl=document.querySelector('.mb');
+    if(mfEl){mfEl.innerHTML=listHtml;if(mbEl)mbEl.style.display='none';setTimeout(function(){if(window._scanWoId)spLoadEq();},50);}
+    else{openM('<div class="mt">'+parts.length+' Parts Found</div><div class="mf">'+listHtml+'</div>');}
+    _scanBtnIdle(btn);
+  }catch(err){
+    _scanBtnIdle(btn);
+    toast('Could not read: '+err.message,'er');
+  }
 }
 
 // Central inventory matcher - given a part number string, find the best inventory match
@@ -17275,52 +17361,51 @@ async function addScannedParts(){
       added++;
     }
   }
-  // Upload invoice photo to storage if available
+  // File the invoice, then hang every part it produced off it. A price on
+  // the screen is worth arguing with only if the paper behind it is still
+  // there — and the paper is the file as it arrived, PDF pages and all.
+  var _batchId = 'scan_' + Date.now();
   var _photoUrl = null;
-  var _batchId = 'batch_' + Date.now();
-  if(window._lastInvoiceB64){
-    try{
-      var _mime = window._lastInvoiceMime||'image/jpeg';
-      var _ext = _mime.includes('png')?'png':'jpg';
-      var _fname = 'invoices/'+_batchId+'.'+_ext;
-      var _byteStr = atob(window._lastInvoiceB64);
-      var _ab = new ArrayBuffer(_byteStr.length);
-      var _ia = new Uint8Array(_ab);
-      for(var _bi=0;_bi<_byteStr.length;_bi++) _ia[_bi]=_byteStr.charCodeAt(_bi);
-      var _blob = new Blob([_ab],{type:_mime});
-      var _upRes = await fetch('https://ddxjszzceaullxheejnq.supabase.co/storage/v1/object/invoice-photos/'+_fname,{
-        method:'POST',
-        headers:{'Content-Type':_mime,'apikey':SK,'Authorization':'Bearer '+(_sessionToken||SK)},
-        body:_blob
-      });
-      if(_upRes.ok){
-        _photoUrl='https://ddxjszzceaullxheejnq.supabase.co/storage/v1/object/public/invoice-photos/'+_fname;
-        window._lastInvoiceB64=null;
-      }
-    }catch(_ue){console.warn('Photo upload failed:',_ue.message);}
+  if(_scanFile){
+    try{ _photoUrl = await uploadScanFile(_scanFile,_batchId); }
+    catch(_ue){ console.warn('Invoice upload failed:',_ue.message); toast('Invoice file not stored: '+_ue.message,'er'); }
   }
+  var _madeIds=[];
   for(var _si=0;_si<saveList.length;_si++){
     if(_photoUrl){saveList[_si].invoice_photo_url=_photoUrl;saveList[_si].invoice_photo_batch=_batchId;}
-    try{await post('parts_on_order',saveList[_si]);}catch(e){console.warn('Part save failed:',e.message);added--;}
+    try{
+      var _made=await post('parts_on_order',saveList[_si]);
+      var _row=Array.isArray(_made)?_made[0]:_made;
+      if(_row&&_row.id&&String(_row.id).indexOf('tmp_')!==0)_madeIds.push(_row.id);
+    }catch(e){console.warn('Part save failed:',e.message);added--;}
   }
   partsOnOrder=await get('parts_on_order','?order=created_at.desc').catch(function(){return[];});
-  // Save invoice photo if we have one
-  if(window._scanPhotoB64){
+  // One row per scan on the Invoices tab: what was read, what it cost, and
+  // which parts came off it.
+  if(_photoUrl){
     try{
-      var _vendor=window._scannedParts&&window._scannedParts[0]?window._scannedParts[0].vendor||'':'';
-      var _photoResult=await post('invoice_photos',{
-        photo_data:window._scanPhotoB64,
-        mime_type:'image/jpeg',
+      var _total=(_scanMeta&&_scanMeta.total>0)?_scanMeta.total:saveList.reduce(function(s,r){
+        return s+(parseFloat(r.cost)||0)*(parseInt(r.qty_ordered)||0);
+      },0);
+      await post('invoice_photos',{
+        file_url:_photoUrl,
+        file_name:(_scanFile&&_scanFile.name)||'',
+        mime_type:(_scanFile&&_scanFile.type)||'image/jpeg',
         source:'parts_scan',
-        vendor:_vendor
+        vendor:(_scanMeta&&_scanMeta.vendor)||(parts[0]&&parts[0].vendor)||'',
+        bill_number:(_scanMeta&&_scanMeta.bill_number)||'',
+        bill_date:(_scanMeta&&_scanMeta.bill_date)||null,
+        line_count:parts.length,
+        total_amount:Math.round(_total*100)/100,
+        batch_id:_batchId,
+        parts_on_order_ids:_madeIds
       });
-      window._scanPhotoB64=null;
-      console.log('Photo saved:',_photoResult);
     }catch(e){
-      console.error('Photo save failed:',e.message);
-      toast('Photo not saved: '+e.message,'er');
+      console.error('Invoice record failed:',e.message);
+      toast('Invoice not filed: '+e.message,'er');
     }
   }
+  _scanFile=null;_scanMeta={};
   closeM();
   renderPartsOnOrder();
   var msg=added+' part'+(added!==1?'s':'')+' added';
@@ -17336,32 +17421,48 @@ async function loadInvoicePhotos(){
   if(!el)return;
   el.innerHTML='<div class="loading"><div class="spin"></div><br>Loading…</div>';
   try{
-    var photos=await get('invoice_photos','?order=created_at.desc&limit=50');
+    var photos=await get('invoice_photos','?order=created_at.desc&limit=100');
     if(!photos||!photos.length){
-      el.innerHTML='<div class="empty"><div class="ei">&#128247;</div><div class="et">No invoice photos yet</div><div class="es">Scanned invoices will appear here</div></div>';
+      el.innerHTML='<div class="empty"><div class="ei">&#128247;</div><div class="et">No invoices filed yet</div><div class="es">Photos and PDFs you scan land here</div></div>';
       return;
     }
     var h='<div style="padding:4px 0">';
     photos.forEach(function(ph){
       var dt=new Date(ph.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
       var tm=new Date(ph.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+      // Newer scans keep the file in storage; the first few kept the image
+      // inline as base64. Both still open.
+      var src=ph.file_url||ph.photo_data||'';
+      var isPdf=/pdf/i.test(ph.mime_type||'')||/\.pdf($|\?)/i.test(ph.file_url||'');
+      var sub=[dt+' · '+tm];
+      if(ph.bill_number)sub.push('#'+esc(ph.bill_number));
+      if(ph.bill_date)sub.push(esc(ph.bill_date));
+      var facts=[];
+      if(ph.line_count)facts.push(ph.line_count+' line'+(ph.line_count!==1?'s':''));
+      var _n=(ph.parts_on_order_ids||[]).length;
+      if(_n)facts.push(_n+' part'+(_n!==1?'s':'')+' on order');
+      if(parseFloat(ph.total_amount)>0)facts.push('$'+parseFloat(ph.total_amount).toFixed(2));
       h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);margin-bottom:10px;overflow:hidden">'+
-        '<div style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center">'+
-          '<div>'+
-            '<div style="font-size:13px;font-weight:700">'+(ph.vendor||'Invoice')+'</div>'+
-            '<div style="font-size:11px;color:var(--tx3)">'+dt+' · '+tm+'</div>'+
+        '<div style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px">'+
+          '<div style="min-width:0">'+
+            '<div style="font-size:13px;font-weight:700">'+(isPdf?'&#128196; ':'')+esc(ph.vendor||'Invoice')+'</div>'+
+            '<div style="font-size:11px;color:var(--tx3)">'+sub.join(' · ')+'</div>'+
+            (facts.length?'<div style="font-size:11px;color:var(--tx3)">'+facts.join(' · ')+'</div>':'')+
             (ph.notes?'<div style="font-size:11px;color:var(--tx3)">'+esc(ph.notes)+'</div>':'')+
           '</div>'+
-          '<button data-pid="'+ph.id+'" onclick="togInvoicePhoto(this.dataset.pid)" style="background:var(--sf2);border:1px solid var(--bd2);border-radius:var(--rs);padding:5px 10px;font-size:12px;font-family:var(--fn);cursor:pointer;color:var(--tx2)">View</button>'+
+          '<div style="display:flex;gap:6px;flex-shrink:0">'+
+            (src&&!isPdf?'<button data-pid="'+ph.id+'" onclick="togInvoicePhoto(this.dataset.pid)" style="background:var(--sf2);border:1px solid var(--bd2);border-radius:var(--rs);padding:5px 10px;font-size:12px;font-family:var(--fn);cursor:pointer;color:var(--tx2)">View</button>':'')+
+            (ph.file_url?'<a href="'+esc(ph.file_url)+'" target="_blank" rel="noopener" style="background:var(--sf2);border:1px solid var(--bd2);border-radius:var(--rs);padding:5px 10px;font-size:12px;font-family:var(--fn);cursor:pointer;color:var(--blu);text-decoration:none">Open</a>':'')+
+          '</div>'+
         '</div>'+
-        '<div id="iphoto_'+ph.id+'" style="display:none">'+
-          '<img src="'+ph.photo_data+'" style="width:100%;display:block;max-height:500px;object-fit:contain;background:#000">'+
-        '</div>'+
+        (src&&!isPdf?'<div id="iphoto_'+ph.id+'" style="display:none">'+
+          '<img src="'+esc(src)+'" style="width:100%;display:block;max-height:500px;object-fit:contain;background:#000">'+
+        '</div>':'')+
       '</div>';
     });
     h+='</div>';
     el.innerHTML=h;
-  }catch(e){el.innerHTML='<div class="empty"><div class="et">Could not load photos</div></div>';}
+  }catch(e){el.innerHTML='<div class="empty"><div class="et">Could not load invoices</div><div class="es">'+esc(e.message||'')+'</div></div>';}
 }
 
 function togInvoicePhoto(id){
@@ -17379,7 +17480,7 @@ function openAddPartOrder(woId){
   openM('<div class="mt">&#128230; Add Part to Order</div>'
     +'<div class="mf">'
     // Scan button
-    +'<button onclick="scanPartFromPhoto()" style="width:100%;background:#E6F1FB;border:1.5px solid var(--blu);border-radius:var(--rs);padding:11px;font-size:14px;font-weight:700;font-family:var(--fn);color:var(--blu);cursor:pointer;margin-bottom:10px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Scan Photo / Invoice</button>'
+    +'<button id="scanPoBtn" onclick="scanPartFromPhoto()" style="width:100%;background:#E6F1FB;border:1.5px solid var(--blu);border-radius:var(--rs);padding:11px;font-size:14px;font-weight:700;font-family:var(--fn);color:var(--blu);cursor:pointer;margin-bottom:10px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Scan Photo / PDF</button>'
     // Quick multi-line entry
     +'<div style="margin-bottom:12px">'
     +'<div class="mlbl">Quick multi-line entry <span style="font-weight:400;color:var(--tx3)">one per line: partnumber name  or  just name</span></div>'
