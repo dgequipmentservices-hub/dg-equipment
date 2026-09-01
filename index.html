@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.45</title>
+<title>DG Equipment v27.46</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -925,7 +925,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-01 · V27.45</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-01 · V27.46</div>
   </div>
 </div>
 
@@ -8251,14 +8251,21 @@ async function scanBill(file){
       var m=matchBillLine(l);
       var cost=parseFloat(l.unit_cost||0)||0;
       var desc=(l.desc||'').trim();
-      // The bill's own brand field first, then whatever the description says
-      var bm=brandNumColumn(l.brand)||brandFromText(desc);
+      // Whose number is this? On a Rotary or Stens bill it is theirs,
+      // whatever brand the description names — that brand is the machine
+      // it fits. Off an OEM or dealer bill, the line's own brand names
+      // the column, as before.
+      var vend=vendorNumColumn(_billMeta.vendor);
+      var bm=vend||brandNumColumn(l.brand)||brandFromText(desc);
+      var fitsB=fitsBrandFromText(desc)||(vend?((l.brand||'').trim()||null):null);
+      if(fitsB&&bm&&fitsB.toLowerCase()===bm.label.toLowerCase())fitsB=null;
       return {
         idx:idx,
         part_number:(l.part_number||'').trim(),
         desc:desc,
         brand:bm?bm.label:((l.brand||'').trim()||''),
         brandCol:bm?bm.col:null,
+        fitsBrand:fitsB,
         qty:parseFloat(l.qty||1)||1,
         cost:cost,
         sell:0,          // filled in below once a category is known
@@ -8364,6 +8371,158 @@ function brandFromText(s){
   return null;
 }
 
+// Whose number is printed on the line?
+//
+// Rotary invoice IN29392175: one line, "17675 · ELECTRIC CLUTCH FOR
+// WRIGHT". 17675 is a ROTARY number. Wright is the machine it fits.
+// Reading the brand out of the description put 17675 in the Wright
+// field, on top of the real Wright number (71410014) — which is worse
+// than not filing it at all, because the next Wright bill then matches
+// the wrong thing.
+//
+// An aftermarket house prints its own numbers, so on its bill the
+// vendor names the column. A brand in the description is fitment.
+var VENDOR_NUM_COLUMN=[
+  {re:/rotary/i,                col:'rotary_num',   label:'Rotary'},
+  {re:/stens/i,                 col:'stens_num',    label:'Stens'},
+  {re:/oregon/i,                col:'oregon_num',   label:'Oregon'},
+  {re:/arnold/i,                col:'arnold_num',   label:'Arnold'},
+  {re:/max\s*power|maxpower/i,  col:'maxpower_num', label:'MaxPower'}
+];
+function vendorNumColumn(vendor){
+  var v=String(vendor||'').trim();
+  if(!v)return null;
+  for(var i=0;i<VENDOR_NUM_COLUMN.length;i++)
+    if(VENDOR_NUM_COLUMN[i].re.test(v))return VENDOR_NUM_COLUMN[i];
+  return null;
+}
+
+// Machines a part is sold "for". The number columns cover the brands the
+// shop files numbers under; these are the rest of what rolls in the door.
+var FITS_BRANDS=['Wright','Scag','Exmark','Toro','Hustler','Ferris','Snapper','Husqvarna',
+  'Kubota','Bobcat','Gravely','Ariens','Cub Cadet','John Deere','Kawasaki','Kohler',
+  'Briggs','Honda','Echo','RedMax','Shindaiwa','Stihl','Walker','Bad Boy','Dixie Chopper','Country Clipper'];
+// "ELECTRIC CLUTCH FOR WRIGHT" · "fits Scag" · "Wright 52in deck"
+function fitsBrandFromText(s){
+  var t=String(s||'');
+  var m=t.match(/\b(?:for|fits|fit|to\s+fit)\s+([A-Za-z][A-Za-z\- ]{2,20})/i);
+  var hunt=m?m[1]:t;
+  for(var i=0;i<FITS_BRANDS.length;i++){
+    if(new RegExp('(^|[^a-z])'+FITS_BRANDS[i].replace(/\s+/g,'\\s*')+'([^a-z]|$)','i').test(hunt))
+      return FITS_BRANDS[i];
+  }
+  return null;
+}
+
+// What a part IS. Two lines that share one of these words are at least
+// the same kind of thing; without one, an overlap is just English.
+var PART_TYPE_WORDS=['clutch','belt','blade','filter','carburetor','carb','pulley','spindle',
+  'cable','switch','coil','starter','recoil','pump','tire','tube','bearing','spring','gasket',
+  'seal','muffler','plug','bulb','primer','solenoid','battery','deck','wheel','shaft','gear',
+  'chain','bar','sprocket','piston','valve','hose','line','arm','bracket','rod','roller',
+  'shoe','paddle','skid','grommet','washer','bolt','nut','screw','pin','cap','knob','lever',
+  'housing','cover','guard','shield','tank','float','needle','jet','diaphragm','impeller',
+  'stator','flywheel','magneto','regulator','rectifier','alternator','trigger','handle',
+  'blower','nozzle','head','rope','oil','grease','wire','harness','module','ignitor','igniter'];
+function _typeWords(s){
+  var w=_descWords(s);
+  return w.filter(function(x){return PART_TYPE_WORDS.indexOf(x)>=0;});
+}
+
+// Rotary publishes what its numbers cross to at Stens, and 5,674 of those
+// pairs already ship in this file — they were only ever used by the parts
+// search. Both directions are worth having: a Rotary number can find a
+// part filed under Stens, and a Stens number can find one filed under
+// Rotary.
+var _STENS_TO_ROTARY=null;
+function _stensToRotary(){
+  if(_STENS_TO_ROTARY)return _STENS_TO_ROTARY;
+  _STENS_TO_ROTARY={};
+  try{
+    Object.keys(ROTARY_XREF).forEach(function(rot){
+      (ROTARY_XREF[rot]||[]).forEach(function(st){
+        var k=pnorm(st);
+        if(!_STENS_TO_ROTARY[k])_STENS_TO_ROTARY[k]=[];
+        _STENS_TO_ROTARY[k].push(rot);
+      });
+    });
+  }catch(e){}
+  return _STENS_TO_ROTARY;
+}
+
+// A number on a bill, run through the published cross-reference, against
+// what is actually on the shelf.
+function xrefInvMatch(partNum){
+  var raw=String(partNum||'').trim().toUpperCase().replace(/\s+/g,'');
+  if(!raw||typeof ROTARY_XREF==='undefined')return null;
+  var hit=null;
+  // Rotary number on the bill → the Stens numbers it crosses to
+  var stens=ROTARY_XREF[raw]||[];
+  if(stens.length){
+    var keys=stens.map(pnorm);
+    hit=(inv||[]).find(function(i){return i.stens_num&&keys.indexOf(pnorm(i.stens_num))>=0;});
+    if(hit)return {item:hit,how:'Rotary '+raw+' crosses to Stens '+stens[0],confidence:'certain'};
+  }
+  // Stens number on the bill → the Rotary numbers that cross to it
+  var rots=_stensToRotary()[pnorm(raw)]||[];
+  if(rots.length){
+    var rkeys=rots.map(pnorm);
+    hit=(inv||[]).find(function(i){return i.rotary_num&&rkeys.indexOf(pnorm(i.rotary_num))>=0;});
+    if(hit)return {item:hit,how:'Stens '+raw+' crosses to Rotary '+rots[0],confidence:'certain'};
+  }
+  return null;
+}
+
+// Everything the shop has ever written about a part, as one string to
+// look in — name, both number sets, cross-refs, fitment, notes.
+function _invHaystack(i){
+  var bits=[i.name,i.description,i.cross_refs,i.fits,i.brand,i.primary_brand,i.notes];
+  INV_NUM_FIELDS.forEach(function(f){if(i[f])bits.push(i[f]);});
+  return bits.filter(Boolean).join(' ').toLowerCase();
+}
+
+// When the number lands nowhere, the description usually still knows.
+//
+// "ELECTRIC CLUTCH FOR WRIGHT" says clutch, and says Wright. The shop
+// has "X0366 Xtreme PTO Clutch Wright Mfg 71410014" on the shelf under a
+// number no Rotary bill will ever print. Matching all-or-nothing on
+// every word missed it — "electric" isn't in the name, so the whole line
+// came back as no match and the next tap would have made a duplicate.
+//
+// These are suggestions, never an automatic tick: the part type has to
+// agree, the machine brand has to agree if the line names one, and the
+// closest few are put on the screen for a person to choose from.
+function findInvSuggestions(desc, partNum, limit){
+  var d=String(desc||'').trim();
+  if(!d)return [];
+  var types=_typeWords(d);
+  if(!types.length)return [];
+  var fits=fitsBrandFromText(d);
+  var words=_descWords(d);
+  // A line that says only "BELT" is not asking a question anyone can
+  // answer. It needs to say something past the bare type — a size, a
+  // machine, a second word — before guessing is any use.
+  if(words.length<2&&!fits)return [];
+  var pn=pnorm(partNum||'');
+  var out=[];
+  (inv||[]).forEach(function(i){
+    var hay=_invHaystack(i);
+    var iTypes=_typeWords(i.name+' '+(i.description||'')+' '+(i.category||''));
+    var shared=types.filter(function(t){return iTypes.indexOf(t)>=0;});
+    if(!shared.length)return;
+    // The line names a machine — the part has to say the same somewhere
+    if(fits&&hay.indexOf(fits.toLowerCase())<0)return;
+    var iw=_descWords(i.name+' '+(i.description||''));
+    var overlap=words.filter(function(w){return iw.indexOf(w)>=0;}).length;
+    var score=shared.length*3+overlap+(fits?2:0);
+    if(pn&&hay.replace(/[^a-z0-9]/g,'').indexOf(pn)>=0)score+=6;
+    if(score<5)return;   // a lone shared type word is not a suggestion
+    out.push({item:i,score:score,why:shared[0]+(fits?' · '+fits:'')});
+  });
+  out.sort(function(a,b){return b.score-a.score;});
+  return out.slice(0,limit||3);
+}
+
 function _billFields(i){
   var out=[];
   INV_NUM_FIELDS.forEach(function(f){ if(i[f])out.push({v:pnorm(i[f]),how:'number'}); });
@@ -8422,6 +8581,14 @@ function matchBillLine(l){
     }
   }
 
+  if(best&&best.confidence==='certain')return best;
+
+  // The published Rotary/Stens cross-reference, both ways. A part filed
+  // under one house's number is still the same part when the other
+  // house's number comes in on a bill.
+  var x=xrefInvMatch(l.part_number);
+  if(x)return x;
+
   if(best)return best;
 
   // No usable number. Fall back to the description, but only where it
@@ -8450,6 +8617,19 @@ function matchBillLine(l){
 
 // Attach a part the search missed. Matching by name against what the
 // datalist offered, so the value is always a real part.
+// Taking a suggestion — same as picking by name, with the id already
+// known. Applying the bill then writes the vendor's number onto the
+// part the shop chose, so the search is only needed once.
+function attachBillPart(idx,id){
+  var l=_billLines[idx];if(!l)return;
+  var item=(inv||[]).find(function(i){return i.id===id;});
+  if(!item){toast('That part is no longer in the list','er');return;}
+  l.match={item:item,how:'you picked it',confidence:'certain'};
+  if(l.cost>0)l.include=true;
+  toast('Attached to '+(item.name||'part')+' ✓','ok');
+  renderBillReview();
+}
+
 function pickBillPart(idx,name){
   var l=_billLines[idx];if(!l)return;
   var n=String(name||'').trim().toLowerCase();
@@ -8617,10 +8797,13 @@ function renderBillReview(){
     var edge=!item?'var(--red)':(m&&m.confidence==='likely')?'var(--amb)':l.target==='job'?'var(--amb)':'var(--grn)';
 
     h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-left:4px solid '+edge+';border-radius:var(--r);padding:11px 12px;margin-bottom:8px">';
-    h+='<div style="display:flex;align-items:flex-start;gap:10px">';
+    // Wraps on a phone: the description keeps a readable width and the
+    // three number boxes drop to their own line rather than squeezing it
+    // to one word per line.
+    h+='<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">';
     // tick
     h+='<div onclick="toggleBillLine('+l.idx+')" style="width:22px;height:22px;border-radius:6px;border:2px solid '+(l.include?'var(--grn)':'var(--bd2)')+';background:'+(l.include?'var(--grn)':'transparent')+';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:1px">'+(l.include?'<span style="color:#fff;font-size:13px;line-height:1">✓</span>':'')+'</div>';
-    h+='<div style="flex:1;min-width:0">';
+    h+='<div style="flex:1 1 170px;min-width:170px">';
     h+='<div style="font-size:13px;font-weight:700">'+esc(item?item.name:(l.desc||'Unknown part'))+'</div>';
     var meta=[];
     if(l.part_number)meta.push(esc(l.part_number));
@@ -8664,7 +8847,11 @@ function renderBillReview(){
     h+='<input type="number" min="0" step="1" value="'+l.qty+'" onchange="setBillLineQty('+l.idx+',this.value)" style="width:52px;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:4px 6px;font-size:12px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:right;outline:none" title="Quantity">';
     h+='<input type="number" min="0" step="0.01" value="'+l.cost.toFixed(2)+'" onchange="setBillLineCost('+l.idx+',this.value)" style="width:66px;background:var(--sf2);border:1.5px solid '+(l.cost>0?'var(--bd2)':'var(--red)')+';border-radius:var(--rs);padding:4px 6px;font-size:12px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:right;outline:none" title="Unit cost">';
     h+='<input type="number" min="0" step="0.01" value="'+(parseFloat(l.sell||0)).toFixed(2)+'" onchange="setBillSell('+l.idx+',this.value)" style="width:66px;background:var(--sf2);border:1.5px solid '+(parseFloat(l.sell||0)>0?'var(--grn)':'var(--red)')+';border-radius:var(--rs);padding:4px 6px;font-size:12px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:right;outline:none" title="Sell price">';
-    h+='</div></div>';
+    // Three divs are open here — the input row, the qty column, and the
+    // row that has held the whole line since the tick. Closing only two
+    // left everything below (markup, search, the Stock/Job switch) inside
+    // that row, squeezed into columns beside the description.
+    h+='</div></div></div>';
 
     // Markup buttons: the fast way to say what this should sell for
     var _curPct=billMarkupOf(l);
@@ -8678,6 +8865,28 @@ function renderBillReview(){
       h+='<input type="number" min="0" step="5" placeholder="%" value="'+((_curPct!==null&&BILL_MARKUPS.indexOf(_curPct)<0)?_curPct:'')+'" onchange="setBillMarkup('+l.idx+',this.value)" style="width:52px;background:var(--sf2);border:1.5px solid '+((_curPct!==null&&BILL_MARKUPS.indexOf(_curPct)<0)?'var(--grn)':'var(--bd2)')+';border-radius:20px;padding:3px 8px;font-size:11px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:center;outline:none">';
       h+='<button onclick="resetBillMarkup('+l.idx+')" style="background:transparent;color:var(--tx3);border:1.5px solid var(--bd2);border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;font-family:var(--fn);cursor:pointer" title="Back to the price matrix">Matrix</button>';
       h+='</div>';
+    }
+
+    // When the number found nothing, the description usually still knows
+    // what kind of part it is and what it fits. Putting the closest few
+    // on the screen turns "no match" into one tap — and the tap is what
+    // teaches the shop this vendor's number for that part.
+    if(!item||m.confidence==='likely'){
+      var sug=findInvSuggestions(l.desc,l.part_number,3).filter(function(c){
+        return !item||c.item.id!==item.id;
+      });
+      if(sug.length){
+        h+='<div style="margin-top:8px">';
+        h+='<div style="font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3);margin-bottom:4px">Already on the shelf?</div>';
+        sug.forEach(function(c){
+          var num=invPrimaryNum(c.item);
+          h+='<button onclick="attachBillPart('+l.idx+',\''+c.item.id+'\')" style="display:block;width:100%;text-align:left;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:7px 9px;margin-bottom:4px;font-family:var(--fn);cursor:pointer;color:var(--tx)">'+
+            '<div style="font-size:12px;font-weight:700">'+esc(c.item.name||'Part')+'</div>'+
+            '<div style="font-size:10.5px;color:var(--tx3)">'+(num?esc(num)+' · ':'')+'same '+esc(c.why)+' · '+parseFloat(c.item.qty_on_hand||0)+' on hand</div>'+
+            '</button>';
+        });
+        h+='</div>';
+      }
     }
 
     // Attaching the right part by hand beats creating a duplicate,
@@ -8747,10 +8956,13 @@ async function applyBill(){
           purchase_notes:'Bought from '+ref+(_billMeta.bill_date?' on '+_billMeta.bill_date:''),
           notes:null
         };
-        // A Wright number belongs in the Wright field, not the generic one
+        // A Rotary number belongs in the Rotary field, not the generic
+        // one — and not in the field of the machine it happens to fit.
         if(l.brandCol&&l.part_number){newRow[l.brandCol]=l.part_number;newRow.primary_brand=l.brand;}
         else if(l.part_number)newRow.part=l.part_number;
         if(l.brand&&!newRow.primary_brand)newRow.primary_brand=l.brand;
+        if(l.part_number)newRow.cross_refs=((l.brand?l.brand+' ':'')+l.part_number).trim();
+        if(l.fitsBrand)newRow.fits=l.fitsBrand;
         var created=await post('inventory',[newRow]);
         item=created&&created[0];
         if(item)inv.push(item);
@@ -8765,10 +8977,23 @@ async function applyBill(){
       var _newSell=parseFloat(l.sell||0)||0;
       if(_newSell>0&&(_curSell<=0||l.sellTouched))patchBody.sell_price=_newSell;
       if(_billMeta.vendor&&!item.preferred_vendor)patchBody.preferred_vendor=_billMeta.vendor;
-      // The bill names the manufacturer, so brand and its number field
-      // fill themselves in on parts that had neither.
-      if(l.brand&&!item.primary_brand)patchBody.primary_brand=l.brand;
+      // Learn the number. This is the whole point of confirming a line:
+      // a Rotary clutch that took a search to find this time is found by
+      // its number next time, because the number is written onto the part
+      // the shop said it was. Where the column is already taken by a
+      // different number, the readable cross-ref carries it instead —
+      // both are searched, and neither overwrites what was there.
+      if(l.brand&&!item.primary_brand&&!vendorNumColumn(l.brand))patchBody.primary_brand=l.brand;
       if(l.brandCol&&l.part_number&&!item[l.brandCol])patchBody[l.brandCol]=l.part_number;
+      if(l.part_number){
+        var _tag=((l.brand?l.brand+' ':'')+l.part_number).trim();
+        var _xr=item.cross_refs||'';
+        if(pnorm(_xr).indexOf(pnorm(l.part_number))<0&&pnorm(item[l.brandCol]||'')!==pnorm(l.part_number))
+          patchBody.cross_refs=(_xr?_xr+', '+_tag:_tag);
+      }
+      // What it fits is not what numbers it — "for Wright" belongs here.
+      if(l.fitsBrand&&(item.fits||'').toLowerCase().indexOf(l.fitsBrand.toLowerCase())<0)
+        patchBody.fits=((item.fits?item.fits+', ':'')+l.fitsBrand);
       // Where it came from, appended rather than replacing what's there
       var _pn='Bought from '+ref+(_billMeta.bill_date?' on '+_billMeta.bill_date:'');
       if(!(item.purchase_notes||'').includes(ref))
@@ -16980,6 +17205,10 @@ async function runPartsScan(file){
       _scanBtnIdle(btn);return;
     }
     parts.forEach(function(p){
+      // Keep what the bill actually said. The tidy name is for the shelf;
+      // "ELECTRIC CLUTCH FOR WRIGHT" is what says which clutch it is, and
+      // the suggestions need that.
+      p.rawName=p.name;
       if(p.partNum&&!p.name.toLowerCase().startsWith(p.partNum.toLowerCase()))
         p.name=_cleanPartName(p.partNum,p.name)||p.name;
     });
@@ -17036,6 +17265,7 @@ async function runPartsScan(file){
           '<input id="sp_co_'+pi+'" type="number" step="0.01" value="'+p.cost.toFixed(2)+'" oninput="spAutoSell('+pi+')" title="Cost each" style="width:72px;background:var(--sf);border:'+costBorder+';border-radius:6px;padding:6px;font-size:12px;font-family:var(--fn);color:var(--tx);flex-shrink:0" placeholder="$ea">'+
         '</div>'+
         (p.costCheck?'<div style="font-size:10px;font-weight:700;color:var(--amb);margin:0 0 8px 26px">&#9888; Cost each didn’t match the line total — check it against the bill</div>':'')+
+        (!invMatch?_spSuggestHtml(pi,p):'')+
         // Row 2: WO / Stock / Both toggle
         '<div style="display:flex;gap:6px;margin-bottom:8px">'+
           '<button data-pi="'+pi+'" data-dest="wo"    onclick="spSetDest(this)" id="sp_dest_wo_'+pi+'"   style="flex:1;padding:8px 4px;border-radius:var(--rs);font-size:12px;font-weight:800;font-family:var(--fn);cursor:pointer;background:rgba(58,127,196,.18);border:2px solid var(--blu);color:var(--blu)">&#128295; WO</button>'+
@@ -17102,7 +17332,7 @@ function _matchInv(partNum){
   if(!partNum||!partNum.trim())return null;
   var pn=partNum.toLowerCase().trim();
   var pnClean=pn.replace(/[-\s]/g,'');
-  return inv.find(function(x){
+  var direct=inv.find(function(x){
     var p1=(x.part||'').toLowerCase().trim();
     var p2=(x.stens_num||'').toLowerCase().trim();
     var p3=(x.rotary_num||'').toLowerCase().trim();
@@ -17124,7 +17354,13 @@ function _matchInv(partNum){
     // Number appears in cross_refs
     if(cr&&cr.includes(pn))return true;
     return false;
-  })||null;
+  });
+  // Nothing filed under that number — try what Rotary says it crosses to.
+  if(!direct){
+    var x=xrefInvMatch(partNum);
+    if(x)return x.item;
+  }
+  return direct||null;
 }
 
 // Sync WO/Stock split fields in scan modal
@@ -17244,6 +17480,34 @@ function spSearchInv(input, pi) {
       '</div>';
   }).join('');
   drop.style.display = 'block';
+}
+
+// The shelf usually already has the part, under another house's number.
+// Same suggestions the bill review offers, on the scan line itself.
+function _spSuggestHtml(pi,p){
+  var sug=findInvSuggestions(p.rawName||p.name,p.partNum,2);
+  if(!sug.length)return '';
+  var h='<div style="margin:0 0 8px 26px">';
+  h+='<div style="font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3);margin-bottom:3px">Already on the shelf?</div>';
+  sug.forEach(function(c){
+    var num=invPrimaryNum(c.item);
+    h+='<button data-pi="'+pi+'" data-iid="'+c.item.id+'" onclick="spPickSuggest(this)" style="display:block;width:100%;text-align:left;background:var(--sf);border:1.5px solid var(--bd2);border-radius:6px;padding:6px 8px;margin-bottom:3px;font-family:var(--fn);cursor:pointer;color:var(--tx)">'+
+      '<div style="font-size:11.5px;font-weight:700">'+esc(c.item.name||'Part')+'</div>'+
+      '<div style="font-size:10px;color:var(--tx3)">'+(num?esc(num)+' \u00b7 ':'')+'same '+esc(c.why)+' \u00b7 '+parseFloat(c.item.qty_on_hand||0)+' on hand</div>'+
+      '</button>';
+  });
+  return h+'</div>';
+}
+
+function spPickSuggest(el){
+  var pi=el.getAttribute('data-pi'), id=el.getAttribute('data-iid');
+  var it=(inv||[]).find(function(x){return x.id===id;});
+  if(!it)return;
+  var iid=document.getElementById('sp_iid_'+pi); if(iid)iid.value=id;
+  var nm=document.getElementById('sp_nm_'+pi); if(nm)nm.value=it.name||nm.value;
+  var nw=document.getElementById('sp_newinv_'+pi); if(nw)nw.checked=false;
+  el.parentNode.innerHTML='<div style="font-size:10.5px;font-weight:700;color:var(--grn)">\u2713 Linked to '+esc(it.name||'part')+'</div>';
+  toast('Linked to '+(it.name||'part')+' \u2713','ok');
 }
 
 function spPickInv(el) {
