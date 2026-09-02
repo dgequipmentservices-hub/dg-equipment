@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.47</title>
+<title>DG Equipment v27.48</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -925,7 +925,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-01 · V27.47</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-02 · V27.48</div>
   </div>
 </div>
 
@@ -2120,10 +2120,10 @@ function counts(){
     wos.forEach(function(w){
       var total=woTotal(w);
       var d=new Date(w.updated_at||w.created_at||_now);
-      if(d.getMonth()===_tm&&d.getFullYear()===_ty&&(w.status==='Invoiced'||w.invoice_status==='paid'||w.invoice_status==='invoiced')){
+      if(d.getMonth()===_tm&&d.getFullYear()===_ty&&isBilled(w)){
         _mRev+=total;
-        if(w.invoice_status==='paid')_collected+=total;
-        else _outstanding+=total;
+        _collected+=total-woBalance(w);
+        _outstanding+=woBalance(w);
       }
     });
     var _weekAgo=new Date(_now-7*86400000);
@@ -2208,8 +2208,8 @@ function renderSmartSearch(q){
   if(matchCusts.length){
     matchCusts.forEach(function(cu){
       var custWOs=(wos||[]).filter(function(w){return w.customer_id===cu.id;}).sort(function(a,b){return(b.invoice_number||0)-(a.invoice_number||0);});
-      var openC=custWOs.filter(function(w){return!['Invoiced','Backlog','Closed','Cancelled'].includes(cs(w.status))||w.invoice_status==='partial';});
-      var invC=custWOs.filter(function(w){return w.invoice_number;});
+      var openC=custWOs.filter(function(w){return !isBilled(w)&&!['Backlog','Closed','Cancelled'].includes(cs(w.status));});
+      var invC=custWOs.filter(isBilled);
       var openJobs=openC.length,totalJobs=custWOs.length;
       h+='<div class="grp-card" style="border-left:3px solid var(--blu)">';
       // Customer header
@@ -2225,8 +2225,8 @@ function renderSmartSearch(q){
           var e=eMap[w.equipment_id]||{};
           var mach=e.make?[e.make,e.model||''].filter(Boolean).join(' '):'Other';
           var total=woTotal(w);
-          var isPaid=w.invoice_status==='paid';
-          var isInv=(w.status==='Invoiced'||w.invoice_status==='invoiced')&&!isPaid;
+          var isPaid=isPaidOff(w);
+          var isInv=isBilled(w)&&!isPaid;
           var blCls=isPaid?'bl-grn':isInv?'bl-red':'bl-amb';
           h+='<div class="grp-row '+blCls+'" data-wid="'+w.id+'" onclick="openWO(this.dataset.wid)">';
           h+='<span class="grp-num">'+(w.invoice_number||'\u2014')+'</span>';
@@ -2272,7 +2272,7 @@ function renderSmartSearch(q){
     h+='<div class="grp-card">';
     extraInv.forEach(function(w){
       var cu=cMap[w.customer_id]||{};
-      var isPaid=w.invoice_status==='paid';
+      var isPaid=isPaidOff(w);
       var bal=woBalance(w);
       var total=woTotal(w);
       var blCls=isPaid?'bl-grn':bal>0?'bl-red':'bl-amb';
@@ -2305,7 +2305,7 @@ function renderStatusSummaryBlock(){
     return !((w.problem||'').startsWith('Parts sale')) && cs(w.status)!=='Backlog' && cs(w.status)!=='Cancelled';
   });
   var rows=all.map(function(w){
-    return {w:w, fin:_woFinStatus(w), qbo:_woQboStatus(w), open:(!w.invoice_number && w.status!=='Invoiced')};
+    return {w:w, fin:_woFinStatus(w), qbo:_woQboStatus(w), open:!isBilled(w)};
   });
   var openCount=rows.filter(function(r){return r.open;}).length;
   var unpaidRows=rows.filter(function(r){return r.fin&&(r.fin.cls==='red'||r.fin.cls==='amb');});
@@ -2388,7 +2388,7 @@ function renderDashboard(){
 
   // ── Push to QB ───────────────────────────────────────────────────
   var notPushed = (wos||[]).filter(function(w){
-    return w.invoice_number && !w.qbo_pushed && w.status==='Invoiced';
+    return isBilled(w) && !invoiceInQB(w) && !(w.problem||'').startsWith('Parts sale');
   }).sort(function(a,b){return (b.invoice_number||0)-(a.invoice_number||0);});
   if(notPushed.length){
     h += '<div class="sh2"><span class="sh2-lbl" style="display:flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--org)"><path d="M21 15V19a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>Push to QuickBooks</span><span class="sh2-cnt" style="background:rgba(217,122,43,.15);color:var(--org);padding:1px 7px;border-radius:9px;font-weight:700">'+notPushed.length+'</span></div>';
@@ -2406,9 +2406,7 @@ function renderDashboard(){
   }
 
   // ── Receive Payment ───────────────────────────────────────────────
-  var outstanding = (wos||[]).filter(function(w){
-    return w.invoice_number && w.invoice_status!=='paid' && (w.status==='Invoiced'||w.invoice_status==='invoiced'||w.invoice_status==='partial');
-  }).map(function(w){return {w:w,bal:woBalance(w)};}).filter(function(x){return x.bal>0.01;})
+  var outstanding = (wos||[]).filter(isBilled).map(function(w){return {w:w,bal:woBalance(w)};}).filter(function(x){return x.bal>0.01;})
     .sort(function(a,b){
       var da = a.w.scheduled_date||a.w.created_at||'';
       var db = b.w.scheduled_date||b.w.created_at||'';
@@ -2507,7 +2505,7 @@ function renderDashboard(){
   }
 
   // ── Jobs list link ────────────────────────────────────────────────
-  var openCount = (wos||[]).filter(function(w){return w.status!=='Closed'&&w.status!=='Cancelled'&&!(w.status==='Invoiced'&&w.invoice_status==='paid');}).length;
+  var openCount = (wos||[]).filter(function(w){return w.status!=='Closed'&&w.status!=='Cancelled'&&!isPaidOff(w);}).length;
   h += '<div style="padding:12px 0 4px"><button onclick="showWOList()" style="width:100%;background:none;border:1.5px solid var(--bd2);border-radius:var(--r);padding:11px;font-size:13px;font-weight:700;font-family:var(--fn);color:var(--tx2);cursor:pointer">All work orders ('+openCount+') →</button></div>';
 
   if(!notPushed.length && !outstanding.length && !recentUsed.length && !dueRems.length && !todayJobs.length && !openWOs.length){
@@ -2518,20 +2516,90 @@ function renderDashboard(){
   el.innerHTML = h;
 }
 
-// Display-only status: a WO with a real invoice number and an
-// invoiced/paid invoice_status is treated as "Invoiced" for filtering
-// and grouping, even if the raw status column is stale. Doesn't touch
-// the underlying data — purely protects the list view from drifting
-// out of sync with the actual billing state.
+// ──────────────────────────────────────
+// BILLING STATE — one answer, asked everywhere
+//
+// A job sits in exactly one of four places:
+//
+//   unbilled  — still a work order, nothing billed
+//   invoiced  — billed, no money in yet
+//   partial   — billed, some money in
+//   paid      — settled
+//
+// Every screen asks billState(). Nothing re-derives it from its own
+// mix of columns any more — that is what had the same job reading as
+// "unpaid" on one screen, "no inv" on the next and still open on a
+// third.
+//
+// invoice_status is the stored authority; payments break the tie.
+// invoice_number is NOT evidence of anything. Until v27.48 a database
+// trigger stamped a number on every work order the moment it was
+// created, so live jobs sitting at New carry one. Reading that number
+// as "this was invoiced" is exactly what put a brand-new empty job on
+// the Invoices screen as a bill owing money.
+// ──────────────────────────────────────
+function billState(w){
+  if(!w)return'unbilled';
+  var s=(w.invoice_status||'').toLowerCase();
+  var billed=(s==='invoiced'||s==='partial'||s==='paid'||cs(w.status)==='Invoiced');
+  if(!billed)return'unbilled';
+  // Marked paid by hand stays paid — the shop said so, and not every
+  // settled invoice has a payment row behind it.
+  if(s==='paid')return'paid';
+  var total=woTotal(w),paid=woPaid(w);
+  if(total>0.01&&paid>=total-0.01)return'paid';
+  if(paid>0.01)return'partial';
+  return'invoiced';
+}
+function isBilled(w){return billState(w)!=='unbilled';}
+function isPaidOff(w){return billState(w)==='paid';}
+// Closed: paid and put away. It stays on the customer's history and in
+// the books; it is off the job board and off the active invoice list.
+// Only a paid invoice can be closed.
+function isClosed(w){return cs((w||{}).status)==='Closed';}
+
+// Where the money says a billed job now stands.
+function moneyState(w){
+  var total=woTotal(w),paid=woPaid(w);
+  if(total>0.01&&paid>=total-0.01)return'paid';
+  if(paid>0.01)return'partial';
+  return'invoiced';
+}
+
+// The one writer. Everything that moves money goes through here, so a
+// job can never end up "paid" in one column and "invoiced" in the other
+// — which is how jobs ended up stuck on the board after being settled.
+async function applyBillState(w,state){
+  if(!w)return;
+  var upd={
+    invoice_status:state,
+    status:state==='unbilled'?'Done':(isClosed(w)?'Closed':'Invoiced')
+  };
+  if(upd.invoice_status===w.invoice_status&&upd.status===w.status)return;
+  await patch('work_orders',upd,'?id=eq.'+w.id);
+  Object.assign(w,upd);
+  var i=wos.findIndex(function(x){return x.id===w.id;});
+  if(i>=0)Object.assign(wos[i],upd);
+}
+// Ready to bill: the work is finished and nothing has been billed yet.
+function needsInvoice(w){return billState(w)==='unbilled'&&cs(w.status)==='Done';}
+// Still owed. A billed job with a zero balance is not money outstanding
+// even if nobody ever tapped Mark Paid.
+function amountOwed(w){return isBilled(w)?woBalance(w):0;}
+
+// Display-only status: a billed job is grouped under "Invoiced" even if
+// the raw status column never got flipped. Doesn't touch the data —
+// purely keeps the list view from drifting out of sync with billing.
 function csEff(w){
-  if(w.invoice_number&&(w.invoice_status==='invoiced'||w.invoice_status==='paid'||w.invoice_status==='partial'))return'Invoiced';
+  if(isClosed(w))return'Closed';
+  if(isBilled(w))return'Invoiced';
   return cs(w.status);
 }
 
 function renderList(){
   var q=(document.getElementById('lsrch').value||'').toLowerCase();
   var list=wos;
-  if(activeF==='all')list=list.filter(function(w){return csEff(w)!=='Backlog';});
+  if(activeF==='all')list=list.filter(function(w){return csEff(w)!=='Backlog'&&csEff(w)!=='Closed';});
   else list=list.filter(function(w){return csEff(w)===activeF;});
   if(q)list=list.filter(function(w){
     var c=cMap[w.customer_id]||{},e=eMap[w.equipment_id]||{};
@@ -2564,9 +2632,7 @@ function renderList(){
     var overdueCount=list.filter(function(w){
       return w.scheduled_date&&new Date(w.scheduled_date+'T12:00:00')<now2&&!['Done','Invoiced','Backlog'].includes(cs(w.status));
     }).length;
-    var needsInvCount=list.filter(function(w){
-      return cs(w.status)==='Done'&&w.invoice_status!=='paid'&&w.invoice_status!=='invoiced';
-    }).length;
+    var needsInvCount=list.filter(needsInvoice).length;
     var partsWaitCount=list.filter(function(w){
       return cs(w.status)==='Parts Ordered';
     }).length;
@@ -2644,11 +2710,12 @@ function woCard(w){
   var dt=fd(w.scheduled_date||w.created_at);
   var now0=new Date();now0.setHours(0,0,0,0);
   var isOverdue=w.scheduled_date&&new Date(w.scheduled_date+'T12:00:00')<now0&&!['Done','Invoiced','Backlog'].includes(s);
-  var isPaid=w.invoice_status==='paid';
-  var isInvoiced=(s==='Invoiced'||w.invoice_status==='invoiced')&&!isPaid;
-  var needsInv=s==='Done'&&!isPaid&&w.invoice_status!=='invoiced';
+  var _bs=billState(w);
+  var isPaid=_bs==='paid';
+  var isInvoiced=isBilled(w)&&!isPaid;
+  var needsInv=needsInvoice(w);
   var total=woTotal(w);
-  var inQBO=w.qbo_pushed||!!w.qbo_invoice_id;
+  var inQBO=invoiceInQB(w);
   var poNeeded=(partsOnOrder||[]).filter(function(p){return p.work_order_id===w.id&&p.status==='needed';}).length;
   var poOrdered=(partsOnOrder||[]).filter(function(p){return p.work_order_id===w.id&&p.status==='ordered';}).length;
 
@@ -2693,7 +2760,8 @@ function woCard(w){
   var meta=[];
   if(dt)meta.push(dt);
   if(phN)meta.push(phN+' photo'+(phN>1?'s':''));
-  if(w.invoice_number)meta.push('INV '+w.invoice_number);
+  // A number on a job nobody has billed says nothing — see billState.
+  if(w.invoice_number&&isBilled(w))meta.push('INV '+w.invoice_number);
   var h='<div class="'+rowCls+'" data-wid="'+w.id+'" onclick="openWO(this.dataset.wid)" style="display:block">';
   h+='<div style="display:flex;align-items:center;gap:8px">';
   h+='<div class="wo-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(custName);
@@ -3028,7 +3096,7 @@ function notifyFromCard(woId){
   var c=cMap[w.customer_id];
   var total=woTotal(w);
   var invNum=w.invoice_number?'INV-'+w.invoice_number:'';
-  var isPaid=w.invoice_status==='paid';
+  var isPaid=isPaidOff(w);
   notifyCustomer(woId,c,w,total,invNum,isPaid,w.qbo_payment_link||'');
 }
 function fd(d){if(!d)return'';const dt=new Date(d),now=new Date(),df=Math.round((dt-now)/86400000);if(df===0)return'Today';if(df===1)return'Tomorrow';if(df===-1)return'Yesterday';return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});}
@@ -3201,7 +3269,7 @@ async function openWO(id){
   // edit screen is reached from there via "Edit Work Order" instead.
   if(id&&!_forceWOEdit){
     var _existing=wos.find(function(w){return w.id===id;});
-    if(_existing&&_existing.invoice_number&&_pssBill(_existing)!=='unbilled'){
+    if(_existing&&isBilled(_existing)){
       var _curScr=document.querySelector('.scr.on');
       prevScr=_curScr?_curScr.id:'S_list';
       go('S_inv_view');
@@ -3353,7 +3421,7 @@ function setStatus(btn){
   setTimeout(autoSaveWO, 100);
   if(newSt==='Invoiced'&&woId){
     var _wo=wos.find(function(w){return w.id===woId;});
-    if(!(_wo&&(_wo.invoice_number||_wo.invoice_status==='paid'))){
+    if(!(_wo&&isBilled(_wo))){
       openM('<div class="mt">Use Create Invoice Instead</div>'+
         '<div class="ms">Tapping <strong>Invoiced</strong> directly skips generating a proper invoice number. Use the <strong>Create Invoice →</strong> button at the bottom of the WO to create a numbered invoice you can print and track.</div>'+
         '<div class="mb">'+
@@ -5923,8 +5991,8 @@ function openMachineHistory(custId, eqId){
     h+='<div style="text-align:center;padding:20px;color:var(--tx3);font-size:13px">No work orders for this machine yet</div>';
   } else {
     machWOs.forEach(function(w){
-      var isPaid=w.invoice_status==='paid';
-      var isInv=(w.status==='Invoiced'||w.invoice_status==='invoiced')&&!isPaid;
+      var isPaid=isPaidOff(w);
+      var isInv=isBilled(w)&&!isPaid;
       var total=woTotal(w);
       var dt=fd(w.scheduled_date||w.created_at);
       var blColor=isPaid?'var(--grn)':isInv?'var(--red)':'var(--bd2)';
@@ -6625,11 +6693,11 @@ async function loadCust(id){
     if(w.equipment_id){if(!eSpend[w.equipment_id])eSpend[w.equipment_id]={p:0,l:0,wos:0};eSpend[w.equipment_id].wos++;}});
   // ── NEW CLEAN CUSTOMER PROFILE ──────────────────────────────────
   var biz=['Contractor','Commercial'].includes(c.customer_type);
-  var openWOsC=cWOs.filter(function(w){return!['Done','Invoiced','Completed','Billed'].includes(w.status);});
-  var allInvWOs=cWOs.filter(function(w){return w.invoice_number||(w.status==='Invoiced')||w.invoice_status==='invoiced'||w.invoice_status==='paid';});
+  var openWOsC=cWOs.filter(function(w){return !isBilled(w)&&!['Done','Completed','Billed'].includes(w.status);});
+  var allInvWOs=cWOs.filter(isBilled);
   var _custBal=0;
-  allInvWOs.filter(function(w){return w.invoice_status!=='paid';}).forEach(function(w){_custBal+=woBalance(w);});
-  var _custCollected=allInvWOs.filter(function(w){return w.invoice_status==='paid';}).reduce(function(s,w){return s+woTotal(w);},0);
+  allInvWOs.forEach(function(w){_custBal+=woBalance(w);});
+  var _custCollected=allInvWOs.reduce(function(s,w){return s+woPaid(w);},0);
   var lastWO=cWOs[0];
   var lastJobStr=lastWO?new Date(lastWO.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'Never';
   var h='';
@@ -7701,16 +7769,17 @@ function renderInvoices(force){
   var _invsrch=(document.getElementById('invsrch')||{value:''}).value.toLowerCase().trim();
   var today=new Date();today.setHours(0,0,0,0);
 
-  function invTotal(w){return woTotal(w);}
-  function invBalance(w){return woBalance(w);}
-
   var invTabEl=document.getElementById('invTabActive')||{dataset:{tab:'all'}};
   var activeTab=(invTabEl&&invTabEl.dataset?invTabEl.dataset.tab:'all')||'all';
 
+  // Everything with a billing life: already billed, or finished work
+  // waiting to be billed. An invoice number on its own means nothing —
+  // see billState().
+  var closed=[];
   var all=wos.filter(function(w){
     if((w.problem||'').startsWith('Parts sale'))return false;
-    var ok=w.invoice_number||w.status==='Done'||w.status==='Invoiced'||w.invoice_status==='paid'||w.invoice_status==='invoiced';
-    if(!ok)return false;
+    if(!isBilled(w)&&!needsInvoice(w))return false;
+    if(isClosed(w)){closed.push(w);return false;}
     if(_invsrch){
       var cu=cMap[w.customer_id]||{};
       var fields=[cu.name||'',cu.phone||'',w.invoice_number?'inv-'+w.invoice_number:'',w.invoice_number?String(w.invoice_number):'',w.problem||'',w.status||''].join(' ').toLowerCase();
@@ -7720,22 +7789,33 @@ function renderInvoices(force){
   }).sort(function(a,b){return (b.invoice_number||0)-(a.invoice_number||0);});
 
   var sales=wos.filter(function(w){return(w.problem||'').startsWith('Parts sale');}).sort(function(a,b){return(b.invoice_number||0)-(a.invoice_number||0);});
-  var unpaid=all.filter(function(w){return w.invoice_status!=='paid'&&(w.invoice_number||(w.status==='Invoiced'||w.invoice_status==='invoiced'||w.invoice_status==='partial'));});
-  var paid=all.filter(function(w){return w.invoice_status==='paid';});
-  var needsInv=all.filter(function(w){return w.status==='Done'&&w.invoice_status!=='paid'&&w.invoice_status!=='invoiced'&&!w.invoice_number;});
-  var notPushed=all.filter(function(w){return!w.qbo_pushed&&!w.qbo_invoice_id&&w.invoice_number;});
-  var pushed=all.filter(function(w){return w.qbo_pushed||w.qbo_invoice_id;});
 
-  var totalOwed=unpaid.reduce(function(s,w){return s+invBalance(w);},0);
-  var totalPaid=paid.reduce(function(s,w){return s+invTotal(w);},0);
+  // Three buckets, no overlap and no gaps: money owed, money in,
+  // and work that hasn't been billed at all.
+  var unpaid=all.filter(function(w){return isBilled(w)&&woBalance(w)>0.01;});
+  var settled=all.filter(function(w){return isBilled(w)&&woBalance(w)<=0.01;});
+  var needsInv=all.filter(needsInvoice);
+  // QuickBooks doesn't care how we filed a job: a closed invoice that
+  // never made it over there is still a hole in the books, so this scans
+  // everything billed rather than just the active list.
+  var notPushed=(wos||[]).filter(function(w){
+    return isBilled(w)&&!invoiceInQB(w)&&!(w.problem||'').startsWith('Parts sale');
+  }).sort(function(a,b){return (a.invoice_number||0)-(b.invoice_number||0);});
+
+  closed.sort(function(a,b){return (b.invoice_number||0)-(a.invoice_number||0);});
+  var totalOwed=unpaid.reduce(function(s,w){return s+woBalance(w);},0);
+  var totalPaid=settled.reduce(function(s,w){return s+woTotal(w);},0);
+  var pendPmts=qboPendingPayments();
+  var pendPmtCount=pendPmts.reduce(function(s,g){return s+g.pmts.length;},0);
 
   // Tab bar
   var tabs=[
     {id:'all',label:'All',cnt:all.length,extra:''},
     {id:'awaiting',label:'Unpaid',cnt:unpaid.length,extra:unpaid.length?'red':''},
     {id:'unbilled',label:'Unbilled',cnt:needsInv.length,extra:needsInv.length?'amb':''},
-    {id:'notpushed',label:'QB Pending',cnt:notPushed.length+qboPendingPayments().length,extra:(notPushed.length||qboPendingPayments().length)?'amb':''},
-    {id:'sales',label:'Sales',cnt:sales.length,extra:''}
+    {id:'notpushed',label:'QuickBooks',cnt:notPushed.length+pendPmtCount,extra:(notPushed.length||pendPmtCount)?'amb':''},
+    {id:'sales',label:'Sales',cnt:sales.length,extra:''},
+    {id:'closed',label:'Closed',cnt:closed.length,extra:''}
   ];
   var tabHtml='<div style="display:flex;gap:5px;padding:10px 14px 0;flex-shrink:0;overflow-x:auto;scrollbar-width:none">';
   tabs.forEach(function(t){
@@ -7744,36 +7824,47 @@ function renderInvoices(force){
   });
   tabHtml+='</div>';
 
-  var displayList=activeTab==='awaiting'?unpaid:activeTab==='unbilled'?needsInv:activeTab==='notpushed'?notPushed:activeTab==='sales'?sales:activeTab==='pushed'?pushed:all;
+  var displayList=activeTab==='awaiting'?unpaid:activeTab==='unbilled'?needsInv:activeTab==='notpushed'?notPushed:activeTab==='sales'?sales:activeTab==='closed'?closed:all;
 
-  if(!displayList.length){
+  if(!displayList.length&&activeTab!=='notpushed'){
     el.innerHTML=tabHtml+'<div class="empty" style="margin-top:20px"><div class="et">No invoices</div></div>';
     return;
   }
 
-  function invRow(w,showBorder){
+  function invRow(w){
     var cu=cMap[w.customer_id]||{};
-    var isPaid=w.invoice_status==='paid';
-    var isUnpaid=(w.status==='Invoiced'||w.invoice_status==='invoiced')&&!isPaid;
-    var isOverdue=w.invoice_due_date&&new Date(w.invoice_due_date+'T12:00:00')<today&&!isPaid;
-    var inQBO=w.qbo_pushed||!!w.qbo_invoice_id;
-    var bal=invBalance(w);
-    var total=invTotal(w);
-    var paidSoFar=woPaid(w);
+    var st=billState(w);
+    var bal=woBalance(w);
+    var total=woTotal(w);
+    var isOverdue=st!=='paid'&&bal>0.01&&w.invoice_due_date&&new Date(w.invoice_due_date+'T12:00:00')<today;
     var e=eMap[w.equipment_id]||{};
     var mach=e.make?[e.make,e.model||''].filter(Boolean).join(' '):'Other';
     var dt=fd(w.scheduled_date||w.created_at);
-    var blCls=isPaid?'bl-grn':isOverdue?'bl-red':isUnpaid?'bl-red':'bl-amb';
+    // The sub line carries the one thing worth flagging: this invoice
+    // isn't in QuickBooks. It rides as a fixed chip so a long machine
+    // name truncates instead of wrapping the row onto two lines, and a
+    // row with nothing to flag stays clean.
+    var sub='<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">'+esc(mach)+' · '+dt+'</span>';
+    if(isBilled(w)&&!invoiceInQB(w))sub+='<span title="Not in QuickBooks" style="flex-shrink:0;font-size:9px;font-weight:800;color:var(--amb);border:1px solid var(--amb);border-radius:4px;padding:0 4px;line-height:13px">no QB</span>';
+    var blCls=st==='paid'?'bl-grn':st==='unbilled'?'bl-amb':(isOverdue||bal>0.01)?'bl-red':'bl-grn';
     var h='<div class="grp-row '+blCls+'" data-wid="'+w.id+'" onclick="openWO(this.dataset.wid)" style="gap:6px">';
-    h+='<span class="grp-num">'+(w.invoice_number||'\u2014')+'</span>';
-    h+='<div style="flex:1;min-width:0"><div class="grp-name">'+esc(cu.name||'Unknown')+'</div><div class="grp-sub">'+esc(mach)+' \u00b7 '+dt+'</div></div>';
+    h+='<span class="grp-num">'+(isBilled(w)&&w.invoice_number?w.invoice_number:'—')+'</span>';
+    h+='<div style="flex:1;min-width:0"><div class="grp-name">'+esc(cu.name||'Unknown')+'</div><div class="grp-sub" style="display:flex;align-items:center;gap:5px">'+sub+'</div></div>';
     h+='<div style="text-align:right;flex-shrink:0">';
-    if(isPaid){h+='<div class="grp-amt grn">$'+total.toFixed(0)+'</div><div class="grp-status grn">paid</div>';}
-    else if(isUnpaid&&bal>0){h+='<div class="grp-amt red">$'+bal.toFixed(0)+'</div><div class="grp-status '+(isOverdue?'red':'')+'\">'+(isOverdue?'overdue':'due')+'</div>';}
-    else{h+='<div class="grp-amt">$'+total.toFixed(0)+'</div><div class="grp-status" style="color:var(--tx3)">'+(inQBO?'QB\u2713':'no inv')+'</div>';}
+    if(st==='unbilled'){
+      h+='<div class="grp-amt">$'+total.toFixed(0)+'</div><div class="grp-status amb">not billed</div>';
+    }else if(bal<=0.01){
+      h+='<div class="grp-amt grn">$'+total.toFixed(0)+'</div><div class="grp-status grn">paid</div>';
+    }else{
+      h+='<div class="grp-amt red">$'+bal.toFixed(0)+'</div><div class="grp-status '+(isOverdue?'red':'')+'\">'+(isOverdue?'overdue':st==='partial'?'partial':'due')+'</div>';
+    }
     h+='</div>';
-    if(isUnpaid&&bal>0){
-      h+='<button data-wid="'+w.id+'" data-total="'+total+'" data-paid="'+paidSoFar+'" onclick="event.stopPropagation();recordPayment(this.dataset.wid,parseFloat(this.dataset.total),parseFloat(this.dataset.paid))" style="background:var(--grn);border:none;border-radius:var(--rs);padding:7px 10px;font-size:11px;font-weight:700;color:#fff;cursor:pointer;font-family:var(--fn);flex-shrink:0">Mark Paid</button>';
+    if(st==='unbilled'){
+      h+='<button data-wid="'+w.id+'" onclick="event.stopPropagation();openInvoice(this.dataset.wid,true)" style="background:var(--blu);border:none;border-radius:var(--rs);padding:7px 10px;font-size:11px;font-weight:700;color:#fff;cursor:pointer;font-family:var(--fn);flex-shrink:0">Bill it</button>';
+    }else if(bal<=0.01&&!isClosed(w)){
+      h+='<button data-wid="'+w.id+'" onclick="event.stopPropagation();closeInvoice(this.dataset.wid)" style="background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:7px 10px;font-size:11px;font-weight:700;color:var(--tx2);cursor:pointer;font-family:var(--fn);flex-shrink:0">Close</button>';
+    }else if(bal>0.01){
+      h+='<button data-wid="'+w.id+'" data-total="'+total+'" data-paid="'+woPaid(w)+'" onclick="event.stopPropagation();recordPayment(this.dataset.wid,parseFloat(this.dataset.total),parseFloat(this.dataset.paid))" style="background:var(--grn);border:none;border-radius:var(--rs);padding:7px 10px;font-size:11px;font-weight:700;color:#fff;cursor:pointer;font-family:var(--fn);flex-shrink:0">Mark Paid</button>';
     }
     h+='</div>';
     return h;
@@ -7782,7 +7873,6 @@ function renderInvoices(force){
   var h=tabHtml;
 
   if(activeTab==='all'){
-    // Grouped: Unpaid first, then Paid
     if(unpaid.length){
       h+='<div class="sh2" style="padding:10px 14px 5px"><span class="sh2-lbl">Unpaid</span><span class="sh2-cnt red">$'+totalOwed.toFixed(0)+' owed</span></div>';
       h+='<div class="grp-card" style="margin:0 14px 10px">';
@@ -7791,67 +7881,98 @@ function renderInvoices(force){
       h+='</div>';
     }
     if(needsInv.length){
-      h+='<div class="sh2" style="padding:10px 14px 5px"><span class="sh2-lbl" style="color:var(--amb)">Unbilled \u2014 needs invoice</span><span class="sh2-cnt amb">'+needsInv.length+'</span></div>';
+      h+='<div class="sh2" style="padding:10px 14px 5px"><span class="sh2-lbl" style="color:var(--amb)">Unbilled — needs invoice</span><span class="sh2-cnt amb">'+needsInv.length+'</span></div>';
       h+='<div class="grp-card" style="margin:0 14px 10px">';
       needsInv.forEach(function(w){h+=invRow(w);});
       h+='</div>';
     }
-    if(paid.length){
+    if(settled.length){
       h+='<div class="sh2" style="padding:10px 14px 5px"><span class="sh2-lbl">Paid</span><span class="sh2-cnt grn">$'+totalPaid.toFixed(0)+'</span></div>';
       h+='<div class="grp-card" style="margin:0 14px 10px">';
-      paid.slice(0,20).forEach(function(w){h+=invRow(w);});
-      if(paid.length>20)h+='<div class="more-link">+' +(paid.length-20)+' more</div>';
+      settled.slice(0,20).forEach(function(w){h+=invRow(w);});
+      if(settled.length>20)h+='<div class="more-link">+' +(settled.length-20)+' more</div>';
       h+='</div>';
     }
   } else if(activeTab==='notpushed'){
-    var pendPmts=qboPendingPayments();
-    var blocked=qboBlockedPayments();
-
-    h+='<div class="sh2" style="padding:10px 14px 5px"><span class="sh2-lbl" style="color:var(--amb)">Invoices not in QuickBooks</span><span class="sh2-cnt amb">'+notPushed.length+'</span></div>';
-    if(!notPushed.length){
-      h+='<div style="font-size:12.5px;color:var(--tx3);padding:2px 16px 10px">Every invoice is over there.</div>';
-    }else{
-      h+='<div style="padding:0 14px 8px"><button onclick="qboPushAllInvoices()" style="width:100%;background:#2CA01C;border:none;border-radius:var(--rs);padding:11px;font-size:13px;font-weight:700;color:#fff;font-family:var(--fn);cursor:pointer">Push all '+notPushed.length+' invoice'+(notPushed.length!==1?'s':'')+' to QuickBooks</button></div>';
-      h+='<div class="grp-card" style="margin:0 14px 10px">';
-      notPushed.forEach(function(w){h+=invRow(w);});
-      h+='</div>';
-    }
-
-    var pmtCount=pendPmts.reduce(function(s,g){return s+g.pmts.length;},0);
-    var pmtTotal=pendPmts.reduce(function(s,g){return s+g.total;},0);
-    h+='<div class="sh2" style="padding:10px 14px 5px"><span class="sh2-lbl" style="color:var(--amb)">Payments not in QuickBooks</span><span class="sh2-cnt amb">'+pmtCount+'</span></div>';
-    if(!pmtCount){
-      h+='<div style="font-size:12.5px;color:var(--tx3);padding:2px 16px 10px">Every payment is over there.</div>';
-    }else{
-      h+='<div style="font-size:12px;color:var(--tx3);padding:0 16px 8px">$'+pmtTotal.toFixed(2)+' collected but not showing in your books.</div>';
-      h+='<div style="padding:0 14px 8px"><button onclick="qboPushAllPayments()" style="width:100%;background:#2CA01C;border:none;border-radius:var(--rs);padding:11px;font-size:13px;font-weight:700;color:#fff;font-family:var(--fn);cursor:pointer">Push all '+pmtCount+' payment'+(pmtCount!==1?'s':'')+' to QuickBooks</button></div>';
-      h+='<div class="grp-card" style="margin:0 14px 10px">';
-      pendPmts.slice(0,40).forEach(function(g){
-        var cu=cMap[g.w.customer_id]||{};
-        h+='<div class="grp-row" data-wid="'+g.w.id+'" onclick="openWO(this.dataset.wid)" style="gap:6px">';
-        h+='<span class="grp-num">'+(g.w.invoice_number||'\u2014')+'</span>';
-        h+='<div style="flex:1;min-width:0"><div class="grp-name">'+esc(cu.name||'Unknown')+'</div><div class="grp-sub">'+g.pmts.length+' payment'+(g.pmts.length!==1?'s':'')+'</div></div>';
-        h+='<div style="text-align:right;flex-shrink:0"><div class="grp-amt">$'+g.total.toFixed(0)+'</div><div class="grp-status amb">to push</div></div>';
-        h+='</div>';
-      });
-      if(pendPmts.length>40)h+='<div class="more-link">+'+(pendPmts.length-40)+' more</div>';
-      h+='</div>';
-    }
-
-    if(blocked){
-      h+='<div style="margin:0 14px 10px;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:11px 13px">';
-      h+='<div style="font-size:12.5px;font-weight:700;margin-bottom:3px">'+blocked+' payment'+(blocked!==1?'s':'')+' waiting on their invoice</div>';
-      h+='<div style="font-size:12px;color:var(--tx3)">These sit on jobs whose invoice isn\'t in QuickBooks yet. Push the invoices above first — the payment goes across with it.</div>';
-      h+='</div>';
-    }
+    h+=qboWorklistHtml(notPushed,pendPmts,pendPmtCount);
   } else {
+    if(activeTab==='closed'){
+      h+='<div style="font-size:12px;color:var(--tx3);padding:10px 16px 4px">Paid and filed. Off the job board and off the active list — still on the customer and in the books. Open one to reopen it.</div>';
+    }
     h+='<div class="grp-card" style="margin:10px 14px 0">';
     displayList.forEach(function(w){h+=invRow(w);});
     h+='</div>';
   }
 
   el.innerHTML=h;
+  // First look at the QuickBooks tab in a session: ask QuickBooks what
+  // it actually has before claiming anything is missing.
+  if(activeTab==='notpushed'&&!_qboInvoices&&!_qboCheckRunning&&!_qboCheckTried)qboSyncCheck(true);
 }
+
+// The QuickBooks tab body. Split out of renderInvoices so the sync
+// check can redraw it on its own.
+function qboWorklistHtml(notPushed,pendPmts,pmtCount){
+  var h='';
+  var checked=!!_qboInvoices;
+
+  h+='<div style="padding:10px 14px 8px">';
+  h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:11px 13px">';
+  h+='<div style="font-size:12.5px;color:var(--tx3);line-height:1.45">'+
+     (checked
+      ? 'Checked against QuickBooks — '+_qboInvoices.length+' invoice'+(_qboInvoices.length!==1?'s':'')+' read back. What’s listed below is what QuickBooks does <strong>not</strong> have.'
+      : 'Not checked against QuickBooks yet. This list is only what this app remembers pushing — anything entered straight into QuickBooks still shows as missing.')+
+     '</div>';
+  h+='<button onclick="qboSyncCheck()" '+(_qboCheckRunning?'disabled ':'')+'style="width:100%;margin-top:9px;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:9px;font-size:12.5px;font-weight:700;color:var(--tx2);font-family:var(--fn);cursor:pointer">'+(_qboCheckRunning?'Checking…':'Check QuickBooks')+'</button>';
+  h+='</div></div>';
+
+  h+='<div class="sh2" style="padding:4px 14px 5px"><span class="sh2-lbl" style="color:'+(notPushed.length?'var(--amb)':'var(--tx3)')+'">Invoices not in QuickBooks</span><span class="sh2-cnt '+(notPushed.length?'amb':'')+'">'+notPushed.length+'</span></div>';
+  if(!notPushed.length){
+    h+='<div style="font-size:12.5px;color:var(--tx3);padding:2px 16px 10px">Every invoice is over there.</div>';
+  }else{
+    h+='<div style="padding:0 14px 8px"><button onclick="qboPushAllInvoices()" style="width:100%;background:#2CA01C;border:none;border-radius:var(--rs);padding:11px;font-size:13px;font-weight:700;color:#fff;font-family:var(--fn);cursor:pointer">Push all '+notPushed.length+' invoice'+(notPushed.length!==1?'s':'')+' to QuickBooks</button></div>';
+    h+='<div class="grp-card" style="margin:0 14px 10px">';
+    notPushed.forEach(function(w){
+      var cu=cMap[w.customer_id]||{};
+      h+='<div class="grp-row bl-amb" data-wid="'+w.id+'" onclick="openWO(this.dataset.wid)" style="gap:6px">';
+      h+='<span class="grp-num">'+(w.invoice_number||'—')+'</span>';
+      h+='<div style="flex:1;min-width:0"><div class="grp-name">'+esc(cu.name||'Unknown')+'</div><div class="grp-sub">'+fd(w.scheduled_date||w.created_at)+'</div></div>';
+      h+='<div style="text-align:right;flex-shrink:0"><div class="grp-amt">$'+woTotal(w).toFixed(0)+'</div><div class="grp-status amb">to push</div></div>';
+      h+='</div>';
+    });
+    h+='</div>';
+  }
+
+  h+='<div class="sh2" style="padding:10px 14px 5px"><span class="sh2-lbl" style="color:'+(pmtCount?'var(--amb)':'var(--tx3)')+'">Payments not in QuickBooks</span><span class="sh2-cnt '+(pmtCount?'amb':'')+'">'+pmtCount+'</span></div>';
+  if(!pmtCount){
+    h+='<div style="font-size:12.5px;color:var(--tx3);padding:2px 16px 10px">'+(checked?'Every payment is accounted for over there.':'Nothing this app knows it still owes QuickBooks.')+'</div>';
+  }else{
+    var pmtTotal=pendPmts.reduce(function(s,g){return s+g.total;},0);
+    h+='<div style="font-size:12px;color:var(--tx3);padding:0 16px 8px">$'+pmtTotal.toFixed(2)+' collected that QuickBooks isn’t showing against these invoices.</div>';
+    h+='<div style="padding:0 14px 8px"><button onclick="qboPushAllPayments()" style="width:100%;background:#2CA01C;border:none;border-radius:var(--rs);padding:11px;font-size:13px;font-weight:700;color:#fff;font-family:var(--fn);cursor:pointer">Push all '+pmtCount+' payment'+(pmtCount!==1?'s':'')+' to QuickBooks</button></div>';
+    h+='<div class="grp-card" style="margin:0 14px 10px">';
+    pendPmts.slice(0,40).forEach(function(g){
+      var cu=cMap[g.w.customer_id]||{};
+      h+='<div class="grp-row bl-amb" data-wid="'+g.w.id+'" onclick="openWO(this.dataset.wid)" style="gap:6px">';
+      h+='<span class="grp-num">'+(g.w.invoice_number||'—')+'</span>';
+      h+='<div style="flex:1;min-width:0"><div class="grp-name">'+esc(cu.name||'Unknown')+'</div><div class="grp-sub">'+g.pmts.length+' payment'+(g.pmts.length!==1?'s':'')+'</div></div>';
+      h+='<div style="text-align:right;flex-shrink:0"><div class="grp-amt">$'+g.total.toFixed(0)+'</div><div class="grp-status amb">to push</div></div>';
+      h+='</div>';
+    });
+    if(pendPmts.length>40)h+='<div class="more-link">+'+(pendPmts.length-40)+' more</div>';
+    h+='</div>';
+  }
+
+  var blocked=qboBlockedPayments();
+  if(blocked){
+    h+='<div style="margin:0 14px 10px;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:11px 13px">';
+    h+='<div style="font-size:12.5px;font-weight:700;margin-bottom:3px">'+blocked+' payment'+(blocked!==1?'s':'')+' waiting on their invoice</div>';
+    h+='<div style="font-size:12px;color:var(--tx3)">These sit on jobs whose invoice isn\'t in QuickBooks yet. Push the invoices above first — the payment goes across with it.</div>';
+    h+='</div>';
+  }
+  return h;
+}
+
 
 function setInvTab(btn){
   var tab=btn.dataset.tab;
@@ -7884,12 +8005,8 @@ var _statusTab='all';
 // sitting at New and Looked At that already carry one — so keying off
 // the number reads open jobs as invoices and loses them.
 function _pssBill(w){
-  var s=(w.invoice_status||'').toLowerCase();
-  if(s==='paid')return'paid';
-  if(s==='invoiced'||s==='partial')return'invoiced';
-  if(s==='unbilled')return'unbilled';
-  // No billing state recorded — fall back to the job status column.
-  return cs(w.status)==='Invoiced'?'invoiced':'unbilled';
+  var b=billState(w);
+  return b==='paid'?'paid':b==='unbilled'?'unbilled':'invoiced';
 }
 
 function _woFinStatus(w){
@@ -7904,11 +8021,9 @@ function _woFinStatus(w){
 }
 
 function _woQboStatus(w){
-  var inQBO=!!(w.qbo_pushed||w.qbo_invoice_id);
-  if(_pssBill(w)==='unbilled'||!w.invoice_number) return null; // nothing to push yet
-  if(!inQBO) return {label:'Not in QB',cls:'amb'};
-  var unsynced=(payments||[]).filter(function(p){return p.work_order_id===w.id && !p.qbo_payment_id;});
-  if(unsynced.length) return {label:'Pmt not synced',cls:'red'};
+  if(!isBilled(w)) return null; // nothing to push yet
+  if(!invoiceInQB(w)) return {label:'Not in QB',cls:'amb'};
+  if(qboMissingAmount(w)>0.01) return {label:'Pmt not synced',cls:'red'};
   return {label:'In QB',cls:'grn'};
 }
 
@@ -9870,6 +9985,7 @@ async function loadQboView(force){
       return;
     }
     _qboInvoices=data.invoices||[];
+    _qboByDoc=null;
     renderQboView();
   }catch(e){
     if(el)el.innerHTML='<div class="empty" style="margin-top:30px"><div class="et">Couldn\'t load QuickBooks</div><div class="es">'+esc(e.message)+'</div></div>';
@@ -10202,7 +10318,7 @@ async function loadReconcile(){
       try{
         var qres=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'list_invoices',max_results:200})});
         var qdata=await qres.json();
-        if(qdata.invoices)_qboInvoices=qdata.invoices;
+        if(qdata.invoices){_qboInvoices=qdata.invoices;_qboByDoc=null;}
       }catch(qe){/* QBO check is best-effort — payments still show without it */}
     }
     renderReconcile();
@@ -10343,7 +10459,7 @@ function renderStmtList(){
   var custsWithBalance=[];
   custs.forEach(function(c){
     var unpaid=wos.filter(function(w){
-      return w.customer_id===c.id&&w.invoice_status!=='paid'&&(w.status==='Done'||w.status==='Invoiced');
+      return w.customer_id===c.id&&(isBilled(w)||needsInvoice(w))&&!isPaidOff(w);
     });
     var balance=0;
     unpaid.forEach(function(w){
@@ -10404,10 +10520,10 @@ function renderStmtForCust(custId){
 
   custWos.forEach(function(w){
     var total=woTotal(w);
-    var paid=w.invoice_status==='paid';
+    var paid=isPaidOff(w);
     var invNum=w.invoice_number?'INV-'+w.invoice_number:'';
     var dt=w.created_at?new Date(w.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
-    if(paid)totalPaid+=total;else if(w.status==='Done'||w.status==='Invoiced')totalDue+=total;
+    if(paid)totalPaid+=total;else if(isBilled(w)||needsInvoice(w))totalDue+=total;
 
     h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:11px 13px;margin-bottom:6px;display:flex;align-items:center;gap:10px;cursor:pointer" data-wid="'+w.id+'" onclick="openWO(this.dataset.wid)">';
     h+='<div style="flex:1"><div style="font-size:13px;font-weight:600">'+(w.problem||'Service')+'</div>';
@@ -10835,12 +10951,12 @@ function renderStmt(){
   }
   // Calculate outstanding balance for this customer
   var _custBalance=0;
-  custWos.filter(function(w){return w.invoice_status!=='paid'&&(cs(w.status)==='Invoiced'||w.invoice_number);}).forEach(function(w){
+  custWos.filter(function(w){return isBilled(w)&&!isPaidOff(w);}).forEach(function(w){
     var sub=0;try{var _md=JSON.parse(w.machines_data||'{}');Object.values(_md).forEach(function(d){(d.parts||[]).forEach(function(p){sub+=p.qty*p.price;});(d.labor||[]).forEach(function(l){sub+=laborAmt(l);});});}catch(e){}
     _custBalance+=sub*(_stmtCust&&_stmtCust.tax_exempt?1:1.08625);
   });
-  var unpaid=custWos.filter(function(w){return w.invoice_status!=='paid'&&(cs(w.status)==='Done'||cs(w.status)==='Invoiced'||w.invoice_number);});
-  var paid=custWos.filter(function(w){return w.invoice_status==='paid';}).slice(0,5);
+  var unpaid=custWos.filter(function(w){return (isBilled(w)||needsInvoice(w))&&!isPaidOff(w);});
+  var paid=custWos.filter(isPaidOff).slice(0,5);
   var totalDue=0;
   var h='';
   // Header
@@ -11017,7 +11133,7 @@ async function openStmt(custId, fromDate, toDate){
     // Build ledger entries
     var ledger=[];
     orders.forEach(function(w){
-      if(!w.invoice_number&&w.invoice_status!=='paid'&&cs(w.status)==='New')return;
+      if(!isBilled(w)&&cs(w.status)==='New')return;
       var total=woTotal(w);
       if(total===0)return;
       var invNum=w.invoice_number?'INV-'+w.invoice_number:'WO-'+w.id.slice(0,6).toUpperCase();
@@ -11042,7 +11158,7 @@ async function openStmt(custId, fromDate, toDate){
       var ccOn=w.cc_fee||false;
       var tax=exempt?0:parseFloat((woSubtotal(w)*0.08625).toFixed(2));
       ledger.push({type:'invoice',date:dt,sortKey:dt.getTime(),woId:w.id,invNum:invNum,
-        desc:w.problem||'Service',eqNames:eqNames,total:total,paid:w.invoice_status==='paid',
+        desc:w.problem||'Service',eqNames:eqNames,total:total,paid:isPaidOff(w),
         cc:ccOn,tax:tax,invNote:w.internal_notes||'',paidDate:_paidDate,amountPaid:_amtPaid});
       _woPmts.forEach(function(p){
         var _pdDisplay=p.payment_date?new Date(p.payment_date+'T12:00:00'):(p.created_at?new Date(p.created_at):new Date());
@@ -13294,7 +13410,7 @@ function renderSchedList(){
         h+='</div><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;border:1.5px solid '+sc_+';color:'+sc_+';flex-shrink:0">'+(w.status||'New')+'</span></div>';
       });
     });
-    var unsched=(wos||[]).filter(function(w){return !w.scheduled_date&&w.status!=='Closed'&&w.status!=='Cancelled'&&!(w.status==='Invoiced'&&w.invoice_status==='paid');});
+    var unsched=(wos||[]).filter(function(w){return !w.scheduled_date&&w.status!=='Closed'&&w.status!=='Cancelled'&&!isPaidOff(w);});
     if(unsched.length){
       h+='<div style="padding:12px 14px 6px;border-top:1px solid var(--bd)"><span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--tx3)">Unscheduled ('+unsched.length+')</span></div>';
       unsched.forEach(function(w){
@@ -13393,7 +13509,7 @@ async function schedClearDate(woId){
 
 function openAddSchedBlock(dayStr,hr){
   var woOpts='<option value="">-- Free label only --</option>';
-  (wos||[]).filter(function(w){return w.status!=='Closed'&&w.status!=='Cancelled'&&!(w.status==='Invoiced'&&w.invoice_status==='paid');})
+  (wos||[]).filter(function(w){return w.status!=='Closed'&&w.status!=='Cancelled'&&!isPaidOff(w);})
     .sort(function(a,b){return((cMap[a.customer_id]||{}).name||'').localeCompare((cMap[b.customer_id]||{}).name||'');})
     .forEach(function(w){
       var c=(cMap[w.customer_id]||{}).name||'Unknown';
@@ -13732,7 +13848,7 @@ function buildDash(){
     var isDone=s==='done'||s==='completed'||s==='invoiced'||s==='billed';
     var isOpen=!isDone;
     if(isOpen)openCount++;
-    if(isDone&&w.invoice_status!=='paid')doneUnbilled++;
+    if(needsInvoice(w))doneUnbilled++;
 
     totalRev+=rev;
 
@@ -14064,13 +14180,20 @@ async function openInvoice(id, create) {
     // Sync fresh WO data into memory so WO screen shows correct state
     var _wi=wos.findIndex(function(x){return x.id===id;});
     if(_wi>=0)wos[_wi]=Object.assign(wos[_wi],{status:w.status,invoice_number:w.invoice_number,invoice_status:w.invoice_status,qbo_pushed:w.qbo_pushed,qbo_invoice_id:w.qbo_invoice_id,invoiced_at:w.invoiced_at});
-    // No invoice exists yet for this WO. Only an explicit "Create
-    // Invoice" tap (create===true) is allowed to make one — opening,
-    // viewing, refreshing, or any internal re-call must never silently
-    // convert a job into an invoice on its own.
-    if(!w.invoice_number){
+    // This job hasn't been billed yet. Only an explicit "Create Invoice"
+    // tap (create===true) may bill it — opening, viewing, refreshing, or
+    // any internal re-call must never silently convert a job into an
+    // invoice on its own.
+    //
+    // The test here used to be `!w.invoice_number`, and it stopped working
+    // the day the database began stamping a number onto every work order
+    // at creation: a finished job already had one, so this whole branch
+    // was skipped and Create Invoice never wrote a billing state. The
+    // invoice printed perfectly and then read as "no inv" on every screen
+    // that asked. billState() is the test now, and a number means nothing.
+    if(!isBilled(w)){
       if(!create){
-        toast('No invoice yet — opening the work order','er');
+        toast('Not billed yet — opening the work order','er');
         // Clear the spinner: this screen stays in the DOM behind the
         // work order, and a stale "Building invoice…" would greet
         // whoever navigates back to it.
@@ -14086,54 +14209,44 @@ async function openInvoice(id, create) {
         goBack();
         return;
       }
-      if(w.status!=='Invoiced'){
-        patch('work_orders',{status:'Invoiced',invoice_status:'invoiced'},'?id=eq.'+id).catch(function(){});
-        w.status='Invoiced';w.invoice_status='invoiced';
-        if(_wi>=0){wos[_wi].status='Invoiced';wos[_wi].invoice_status='invoiced';}
+      // One write, one state: billed, and dated from this moment. The
+      // database stamps the invoice number on the very same write, so the
+      // row that comes back already carries it.
+      var _bill={status:'Invoiced',invoice_status:'invoiced'};
+      if(!w.invoiced_at)_bill.invoiced_at=new Date().toISOString();
+      try{
+        var _billed=await patch('work_orders',_bill,'?id=eq.'+id);
+        Object.assign(w,_bill,(_billed&&_billed[0])||{});
+      }catch(e){
+        toast('Could not create the invoice: '+e.message,'er');
+        goBack();
+        return;
       }
+      if(_wi>=0)Object.assign(wos[_wi],{status:w.status,invoice_status:w.invoice_status,invoice_number:w.invoice_number,invoiced_at:w.invoiced_at});
     }
     const c = cMap[w.customer_id] || {};
     const biz = ['Contractor','Commercial'].includes(c.customer_type);
-    // Auto-assign invoice number once there's real work logged — the
-    // status promotion above already moved it to "Invoiced" by this
-    // point, so a plain status check below correctly covers it.
+    // The invoice number comes from the database, off one sequence, at the
+    // moment the job becomes billed. The client used to hand out its own
+    // with a max()+1 loop and a retry on the unique constraint — two
+    // sources for one number, and they had already drifted apart: the
+    // sequence sat at 1408 while 1409 was live, which is a duplicate-key
+    // failure waiting for the next work order. There is one source now.
     let assignedInvNum = w.invoice_number;
-    var _canAssignInv = ['done','invoiced','completed','billed'].includes((w.status||'').toLowerCase());
-    if (!assignedInvNum && _canAssignInv) {
-      // Atomic assignment: loop until we get a unique number (DB has unique constraint)
-      var attempts = 0;
-      while(!assignedInvNum && attempts < 10) {
-        attempts++;
-        try {
-          var maxRes = await get('work_orders','?select=invoice_number&order=invoice_number.desc&limit=1');
-          var dbMax = (maxRes && maxRes[0] && parseInt(maxRes[0].invoice_number)) || 1321;
-          var memMax = Math.max.apply(null, wos.map(function(x){return parseInt(x.invoice_number)||0;}).concat([dbMax]));
-          var candidate = memMax + 1;
-          // Try to patch with this number — DB unique constraint will reject if taken
-          var patchRes = await fetch(SU+'/rest/v1/work_orders?id=eq.'+id, {
-            method:'PATCH',
-            headers:{'Content-Type':'application/json','apikey':SK,'Authorization':'Bearer '+(_sessionToken||SK),'Prefer':'return=representation'},
-            body:JSON.stringify({invoice_number: candidate, invoiced_at: new Date().toISOString()})
-          });
-          if(patchRes.ok){
-            var patchData = await patchRes.json();
-            if(patchData && patchData[0] && patchData[0].invoice_number){
-              assignedInvNum = patchData[0].invoice_number;
-              w.invoice_number = assignedInvNum;
-              w.invoiced_at = patchData[0].invoiced_at;
-              var wi = wos.findIndex(function(x){return x.id===id;});
-              if(wi>=0){ wos[wi].invoice_number = assignedInvNum; wos[wi].invoiced_at = patchData[0].invoiced_at; }
-            }
-          }
-          // If rejected (409 conflict on unique), loop will retry with fresh max
-        } catch(e) { break; }
-      }
-      if(!assignedInvNum) {
-        toast('Could not assign invoice number — try again','er');
-        return;
-      }
+    if (!assignedInvNum) {
+      // Saved offline, or a row from before the database numbered them.
+      try {
+        var _re = await get('work_orders','?select=invoice_number,invoiced_at&id=eq.'+id);
+        if (_re && _re[0] && _re[0].invoice_number) {
+          assignedInvNum = _re[0].invoice_number;
+          w.invoice_number = assignedInvNum;
+          w.invoiced_at = _re[0].invoiced_at;
+          var wi = wos.findIndex(function(x){return x.id===id;});
+          if(wi>=0){ wos[wi].invoice_number = assignedInvNum; wos[wi].invoiced_at = _re[0].invoiced_at; }
+        }
+      } catch(e) {}
     }
-    const invNum = 'INV-' + assignedInvNum;
+    const invNum = assignedInvNum ? ('INV-' + assignedInvNum) : ('INV-' + (w.id||'').slice(0,8).toUpperCase());
     window._printInvNum = invNum;
     window._printCustName = c ? c.name : '';
     const today = getInvDateFmt(w);
@@ -14219,7 +14332,8 @@ async function openInvoice(id, create) {
     // payments
     const totalPaid = pmts.reduce((s,p) => s + parseFloat(p.amount), 0);
     const balance = total - totalPaid;
-    const isPaid = balance <= 0.01;
+    // Paid means nothing is owed, or the shop said so outright.
+    const isPaid = balance <= 0.01 || (w.invoice_status||'') === 'paid';
     const isPartial = !isPaid && totalPaid > 0.01;
 
     let pmtHtml = '';
@@ -14355,15 +14469,26 @@ async function openInvoice(id, create) {
 
     const ab = document.createElement('button');
     ab.style.cssText = 'flex:2;border:none;border-radius:var(--rs);padding:13px;font-size:14px;font-weight:700;font-family:var(--fn);cursor:pointer';
+    const _isClosed = isClosed(w);
     if (!isPaid) {
       ab.style.background = 'var(--grn)'; ab.style.color = '#fff';
       ab.textContent = '💳 Record This Invoice';
       const _id=id, _total=total, _paid=totalPaid;
       ab.onclick = function(){ recordPayment(_id, _total, _paid); };
+    } else if (_isClosed) {
+      // Filed away. The only thing left to offer is putting it back.
+      ab.style.background = 'var(--sf2)'; ab.style.color = 'var(--tx2)';
+      ab.style.border = '1.5px solid var(--bd2)';
+      ab.textContent = '\u21ba Reopen Invoice';
+      const _roId=id;
+      ab.onclick = function(){ reopenInvoice(_roId); };
     } else {
-      ab.style.background = 'var(--sf2)'; ab.style.color = 'var(--grn)';
-      ab.style.border = '1.5px solid var(--grn)'; ab.disabled = true;
-      ab.textContent = '\u2713 Paid in Full';
+      // Paid and still open. Closing is the last step — it comes off the
+      // job board and the active invoice list and nothing else changes.
+      ab.style.background = 'var(--grn)'; ab.style.color = '#fff';
+      ab.textContent = '\u2713 Paid \u2014 Close Invoice';
+      const _clId=id;
+      ab.onclick = function(){ closeInvoice(_clId); };
     }
     row1.appendChild(ab);
 
@@ -14609,8 +14734,7 @@ function openReceivePayment(preselectedCustId){
   var unpaid=wos.filter(function(w){
     if((w.problem||'').startsWith('Parts sale'))return false;
     if(preselectedCustId&&w.customer_id!==preselectedCustId)return false;
-    var bal=parseFloat(woBalance(w).toFixed(2));
-    return bal>0.01&&(w.invoice_number||(w.status==='Invoiced'||w.invoice_status==='invoiced'||w.invoice_status==='partial'));
+    return isBilled(w)&&woBalance(w)>0.01;
   }).sort(function(a,b){
     var ca=(cMap[a.customer_id]||{}).name||'';
     var cb=(cMap[b.customer_id]||{}).name||'';
@@ -14760,17 +14884,7 @@ async function saveReceivePayment(){
       if(newPmt&&newPmt[0])payments.push(newPmt[0]);
       // Check if fully paid
       var wo=wos.find(function(w){return w.id===x.id;});
-      if(wo){
-        var totalPaid=payments.filter(function(p){return p.work_order_id===x.id;}).reduce(function(s,p){return s+parseFloat(p.amount||0);},0);
-        var bal=woBalance(wo);
-        if(bal<0.01){
-          await patch('work_orders',{status:'Invoiced',invoice_status:'paid'},'?id=eq.'+x.id);
-          wo.status='Invoiced';wo.invoice_status='paid';
-        } else if(totalPaid>0.01){
-          await patch('work_orders',{invoice_status:'partial'},'?id=eq.'+x.id);
-          wo.invoice_status='partial';
-        }
-      }
+      if(wo)await applyBillState(wo,moneyState(wo));
     }
     closeM();
     toast('Payment'+((_rpSelectedWOs.length>1)?'s':'')+' saved ✓','ok');
@@ -14812,16 +14926,8 @@ async function savePayment() {
       payment_date: (document.getElementById('pmt_date')||{value:''}).value || new Date().toISOString().split('T')[0]
     });
     if(newPmt&&newPmt[0])payments.push(newPmt[0]);
-    const newPaid = alreadyPaid + amt;
-    if (newPaid >= total - 0.01) {
-      await patch('work_orders', {status:'Invoiced', invoice_status:'paid'}, '?id=eq.'+woId);
-      const w = wos.find(x=>x.id===woId);
-      if (w) { w.status='Invoiced'; w.invoice_status='paid'; }
-    } else if(newPaid > 0.01) {
-      await patch('work_orders', {invoice_status:'partial'}, '?id=eq.'+woId);
-      const wp = wos.find(x=>x.id===woId);
-      if(wp) wp.invoice_status='partial';
-    }
+    const w = wos.find(x=>x.id===woId);
+    if (w) await applyBillState(w, moneyState(w));
     closeM(); toast('Payment recorded ✓', 'ok');
     // Update inv bar label if WO screen is visible
     var _barW=wos.find(function(x){return x.id===woId;});
@@ -14847,39 +14953,20 @@ async function reconcilePaymentStatus(woId){
   payments=payments.filter(function(p){return p.work_order_id!==woId;}).concat(pmts||[]);
   var totalPaid=(pmts||[]).reduce(function(s,p){return s+parseFloat(p.amount||0);},0);
 
-  var newStatus;
-  if(totalPaid<=0.005){
-    // No payments - back to invoiced (if invoice exists) or done
-    newStatus={invoice_status:w.invoice_number?'invoiced':'unbilled',status:w.invoice_number?'Invoiced':'Done'};
-  } else if(totalPaid>=total-0.01){
-    // Fully paid
-    newStatus={invoice_status:'paid',status:'Invoiced'};
-  } else {
-    // Partially paid - invoiced awaiting remainder
-    newStatus={invoice_status:'invoiced',status:'Invoiced'};
-  }
-
-  // Only patch if something actually changed
-  if(newStatus.invoice_status!==w.invoice_status||newStatus.status!==w.status){
-    await patch('work_orders',newStatus,'?id=eq.'+woId);
-    Object.assign(w,newStatus);
-    // Update wos array entry too
-    var _rIdx=wos.findIndex(function(x){return x.id===woId;});
-    if(_rIdx>=0)Object.assign(wos[_rIdx],newStatus);
-    counts(); // refresh revenue ticker and badges
-  }
+  // Never bill a job that was never billed — reconciling money is not
+  // the same as deciding a job is ready to invoice.
+  if(!isBilled(w))return;
+  var before=w.invoice_status;
+  await applyBillState(w,moneyState(w));
+  if(before!==w.invoice_status)counts(); // refresh revenue ticker and badges
 }
 
 async function reconcileAllPayments(){
   try{
     // Only check WOs that have an invoice number and aren't already marked paid
-    var candidates=wos.filter(function(w){
-      return w.invoice_number&&w.invoice_status!=='unbilled'&&w.invoice_status!=='paid';
-    });
+    var candidates=wos.filter(function(w){return isBilled(w)&&w.invoice_status!=='paid';});
     // Also check any marked paid that might have payments removed
-    var paidCandidates=wos.filter(function(w){
-      return w.invoice_number&&w.invoice_status==='paid';
-    });
+    var paidCandidates=wos.filter(function(w){return isBilled(w)&&w.invoice_status==='paid';});
     if(!candidates.length&&!paidCandidates.length)return;
 
     // Only fetch payments for the specific WO IDs we care about — not all payments
@@ -14896,15 +14983,13 @@ async function reconcileAllPayments(){
     var fixed=0;
     for(var i=0;i<allCandidates.length;i++){
       var w=allCandidates[i];
-      var total=woTotal(w);
-      var paid=pmtMap[w.id]||0;
-      if(paid>=total-0.01&&total>0&&w.invoice_status!=='paid'){
-        await patch('work_orders',{invoice_status:'paid',status:'Invoiced'},'?id=eq.'+w.id);
-        w.invoice_status='paid';w.status='Invoiced';fixed++;
-      } else if(paid>0.005&&paid<total-0.01&&w.invoice_status==='paid'){
-        await patch('work_orders',{invoice_status:'invoiced',status:'Invoiced'},'?id=eq.'+w.id);
-        w.invoice_status='invoiced';w.status='Invoiced';fixed++;
-      }
+      var want=moneyState(w);
+      // Marked paid by hand with no payment rows behind it stays paid —
+      // that is a decision, not drift.
+      if(w.invoice_status==='paid'&&(pmtMap[w.id]||0)<=0.005)continue;
+      if(want===w.invoice_status&&(w.status==='Invoiced'||isClosed(w)))continue;
+      await applyBillState(w,want);
+      fixed++;
     }
     if(fixed>0){console.log('Reconciled '+fixed+' invoice(s)');refreshList();}
   }catch(e){console.warn('reconcileAllPayments failed',e);}
@@ -14912,12 +14997,45 @@ async function reconcileAllPayments(){
 
 async function markPaid(id) {
   try {
-    await patch('work_orders', {status: 'Invoiced', invoice_status: 'paid'}, '?id=eq.' + id);
     const w = wos.find(x => x.id === id);
-    if (w) { w.status = 'Invoiced'; w.invoice_status = 'paid'; }
+    if (w) await applyBillState(w, 'paid');
     toast('Marked as paid ✓', 'ok');
     openInvoice(id);
   } catch(e) { toast('Failed: ' + e.message, 'er'); }
+}
+
+// ── Close it out ──
+// A paid invoice that's been filed. Closing takes it off the job board
+// and off the active invoice list; it stays on the customer's history,
+// in the reports, and in QuickBooks. Reopening is one tap.
+async function closeInvoice(id){
+  var w=wos.find(function(x){return x.id===id;});
+  if(!w)return;
+  if(!isPaidOff(w)){toast('Only a paid invoice can be closed','er');return;}
+  if(!confirm('Close INV-'+(w.invoice_number||'')+'?\n\nIt comes off the job board and the active invoice list. Nothing is deleted — it stays on the customer and in the books.'))return;
+  try{
+    await patch('work_orders',{status:'Closed'},'?id=eq.'+id);
+    w.status='Closed';
+    var i=wos.findIndex(function(x){return x.id===id;});
+    if(i>=0)wos[i].status='Closed';
+    toast('Invoice closed ✓','ok');
+    counts();
+    backFromInvView();
+  }catch(e){toast('Failed: '+e.message,'er');}
+}
+
+async function reopenInvoice(id){
+  var w=wos.find(function(x){return x.id===id;});
+  if(!w)return;
+  try{
+    await patch('work_orders',{status:'Invoiced'},'?id=eq.'+id);
+    w.status='Invoiced';
+    var i=wos.findIndex(function(x){return x.id===id;});
+    if(i>=0)wos[i].status='Invoiced';
+    toast('Invoice reopened ✓','ok');
+    counts();
+    openInvoice(id);
+  }catch(e){toast('Failed: '+e.message,'er');}
 }
 
 // ─────────────────────────────────────────
@@ -15796,32 +15914,133 @@ function qboLineItemsLookSafe(lineItems){
 // is asked for and reported on.
 // ─────────────────────────────────────────
 var _qboBulkRunning=false;
+var _qboCheckRunning=false;
+var _qboCheckTried=false;
+var _qboByDoc=null;
 
-// Jobs whose invoice is already in QuickBooks but whose payments aren't.
+// ── Ask QuickBooks, don't guess ──
+//
+// qbo_invoice_id and qbo_payment_id only ever get stamped by a push
+// made from inside this app. Everything Danny enters straight into
+// QuickBooks — which is most of it — leaves them null, so the worklist
+// was nagging about 80-odd invoices and payments that had been over
+// there all along.
+//
+// When a live snapshot is loaded (list_invoices — a read, it writes
+// nothing to the books), QuickBooks is the authority and the local
+// flags are only the fallback.
+function qboSnapshot(){
+  if(!_qboInvoices)return null;
+  if(!_qboByDoc){
+    _qboByDoc={};
+    _qboInvoices.forEach(function(inv){
+      var d=String(inv.DocNumber||'').trim();
+      if(d&&!_qboByDoc[d])_qboByDoc[d]=inv;
+    });
+  }
+  return _qboByDoc;
+}
+
+// The QuickBooks invoice matching this job, matched on invoice number.
+function qboFor(w){
+  var m=qboSnapshot();
+  if(!m||!w||!w.invoice_number)return null;
+  return m[String(w.invoice_number)]||null;
+}
+
+// Is this invoice in QuickBooks? A voided one over there counts as not
+// there — it needs re-sending, and that is what the worklist is for.
+function invoiceInQB(w){
+  if(!w||!isBilled(w))return true;   // nothing to send yet
+  var q=qboFor(w);
+  if(q)return q.Active!==false;
+  // Snapshot loaded and this number isn't in it — it really is missing,
+  // whatever a stale local flag says.
+  if(qboSnapshot()&&w.invoice_number)return false;
+  return !!(w.qbo_pushed||w.qbo_invoice_id);
+}
+
+// Dollars QuickBooks is still missing on this job. QuickBooks' own
+// balance against ours: if it says nothing is owed and we say nothing
+// is owed, the money is over there whether or not we pushed it.
+function qboMissingAmount(w){
+  var due=(payments||[]).filter(function(p){return p.work_order_id===w.id&&!p.qbo_payment_id;});
+  if(!due.length)return 0;
+  var q=qboFor(w);
+  if(q){
+    var gap=parseFloat(q.Balance||0)-woBalance(w);
+    return gap>0.01?parseFloat(gap.toFixed(2)):0;
+  }
+  return parseFloat(due.reduce(function(s,p){return s+parseFloat(p.amount||0);},0).toFixed(2));
+}
+
+// Jobs whose invoice is in QuickBooks but whose money isn't.
 // An invoice that isn't over there yet is an invoice problem, not a
 // payment one — pushing the invoice carries its payments with it.
 function qboPendingPayments(){
   var out=[];
   (wos||[]).forEach(function(w){
-    if(!w.qbo_invoice_id)return;
+    if(!isBilled(w)||!invoiceInQB(w))return;
+    var missing=qboMissingAmount(w);
+    if(missing<=0.01)return;
     var due=(payments||[]).filter(function(p){return p.work_order_id===w.id&&!p.qbo_payment_id;});
-    if(!due.length)return;
-    out.push({w:w,pmts:due,total:due.reduce(function(s,p){return s+parseFloat(p.amount||0);},0)});
+    out.push({w:w,pmts:due,total:missing});
   });
   return out.sort(function(a,b){
     return new Date(a.w.invoiced_at||a.w.created_at||0)-new Date(b.w.invoiced_at||b.w.created_at||0);
   });
 }
 
-// Payments on jobs whose invoice hasn't been pushed — they can't go on
+// Payments on jobs whose invoice isn't over there — they can't go on
 // their own, so they're counted separately rather than looking stuck.
 function qboBlockedPayments(){
   var n=0;
   (wos||[]).forEach(function(w){
-    if(w.qbo_invoice_id)return;
+    if(!isBilled(w)||invoiceInQB(w))return;
     n+=(payments||[]).filter(function(p){return p.work_order_id===w.id&&!p.qbo_payment_id;}).length;
   });
   return n;
+}
+
+// Read QuickBooks and believe it. Writes nothing to the books — the
+// only writes are local: stamping qbo_invoice_id on our own rows for
+// invoices QuickBooks turns out to already have, so the answer sticks
+// after a reload instead of being re-asked every session.
+async function qboSyncCheck(silent){
+  if(_qboCheckRunning)return;
+  _qboCheckRunning=true;
+  _qboCheckTried=true;   // a failed read doesn't re-fire on every redraw
+  if(!silent)renderInvoices();
+  try{
+    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'list_invoices',max_results:200})});
+    var data=await res.json();
+    if(data.qbo_disconnected){_qboCheckRunning=false;toast('QuickBooks disconnected — reconnect in Settings','er');renderInvoices();return;}
+    if(data.error||!data.invoices){_qboCheckRunning=false;toast('Couldn\'t read QuickBooks: '+(data.error||'no answer'),'er');renderInvoices();return;}
+    _qboInvoices=data.invoices;
+    _qboByDoc=null;
+    // Catch our own records up to what QuickBooks already has.
+    var stamped=0;
+    var toStamp=(wos||[]).filter(function(w){
+      if(w.qbo_invoice_id)return false;
+      var q=qboFor(w);
+      return !!(q&&q.Active!==false);
+    });
+    for(var i=0;i<toStamp.length;i++){
+      var w=toStamp[i],q=qboFor(w);
+      try{
+        await patch('work_orders',{qbo_invoice_id:String(q.Id),qbo_pushed:true},'?id=eq.'+w.id);
+        w.qbo_invoice_id=String(q.Id);w.qbo_pushed=true;stamped++;
+      }catch(e){/* the snapshot still answers for this session */}
+    }
+    _qboCheckRunning=false;
+    renderInvoices();
+    counts();
+    toast(stamped?stamped+' invoice'+(stamped!==1?'s':'')+' were already in QuickBooks ✓':'Checked QuickBooks ✓','ok');
+  }catch(e){
+    _qboCheckRunning=false;
+    renderInvoices();
+    toast('Couldn\'t read QuickBooks: '+e.message,'er');
+  }
 }
 
 function _qboProgress(done,total,label,extra){
@@ -15864,7 +16083,7 @@ async function _qboBulkRun(items,label,fn){
 
 async function qboPushAllInvoices(){
   var list=(wos||[]).filter(function(w){
-    return w.invoice_number&&!w.qbo_pushed&&!w.qbo_invoice_id&&!(w.problem||'').startsWith('Parts sale');
+    return isBilled(w)&&!invoiceInQB(w)&&!(w.problem||'').startsWith('Parts sale');
   }).sort(function(a,b){return (a.invoice_number||0)-(b.invoice_number||0);})
     .map(function(w){return {w:w,label:'INV-'+w.invoice_number};});
   await _qboBulkRun(list,'invoices',async function(it){
