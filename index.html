@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.48</title>
+<title>DG Equipment v27.49</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -925,7 +925,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-02 · V27.48</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-03 · V27.49</div>
   </div>
 </div>
 
@@ -7764,6 +7764,12 @@ function toast(msg,type=''){const t=document.getElementById('toast');t.textConte
 // ─────────────────────────────────────────
 // INVOICES LIST
 // ─────────────────────────────────────────
+// Which capped sections on the Invoices list are expanded. The list
+// shows the first 10 unpaid and 20 paid so the common case stays short;
+// the "+N more" line under each is a toggle, not a dead label.
+var _invMore={unpaid:false,settled:false};
+function invToggleMore(k){_invMore[k]=!_invMore[k];renderInvoices();}
+
 function renderInvoices(force){
   var el=document.getElementById('invoicesBody');if(!el)return;
   var _invsrch=(document.getElementById('invsrch')||{value:''}).value.toLowerCase().trim();
@@ -7870,14 +7876,19 @@ function renderInvoices(force){
     return h;
   }
 
+  function moreLink(key,hidden){
+    var lbl=_invMore[key]?'Show less':'+'+hidden+' more — show all';
+    return '<div class="more-link" data-k="'+key+'" onclick="invToggleMore(this.dataset.k)" style="cursor:pointer;color:var(--blu);font-weight:700">'+lbl+'</div>';
+  }
+
   var h=tabHtml;
 
   if(activeTab==='all'){
     if(unpaid.length){
       h+='<div class="sh2" style="padding:10px 14px 5px"><span class="sh2-lbl">Unpaid</span><span class="sh2-cnt red">$'+totalOwed.toFixed(0)+' owed</span></div>';
       h+='<div class="grp-card" style="margin:0 14px 10px">';
-      unpaid.slice(0,10).forEach(function(w){h+=invRow(w);});
-      if(unpaid.length>10)h+='<div class="more-link">+' +(unpaid.length-10)+' more</div>';
+      (_invMore.unpaid?unpaid:unpaid.slice(0,10)).forEach(function(w){h+=invRow(w);});
+      if(unpaid.length>10)h+=moreLink('unpaid',unpaid.length-10);
       h+='</div>';
     }
     if(needsInv.length){
@@ -7889,8 +7900,8 @@ function renderInvoices(force){
     if(settled.length){
       h+='<div class="sh2" style="padding:10px 14px 5px"><span class="sh2-lbl">Paid</span><span class="sh2-cnt grn">$'+totalPaid.toFixed(0)+'</span></div>';
       h+='<div class="grp-card" style="margin:0 14px 10px">';
-      settled.slice(0,20).forEach(function(w){h+=invRow(w);});
-      if(settled.length>20)h+='<div class="more-link">+' +(settled.length-20)+' more</div>';
+      (_invMore.settled?settled:settled.slice(0,20)).forEach(function(w){h+=invRow(w);});
+      if(settled.length>20)h+=moreLink('settled',settled.length-20);
       h+='</div>';
     }
   } else if(activeTab==='notpushed'){
