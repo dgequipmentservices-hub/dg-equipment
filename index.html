@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.49</title>
+<title>DG Equipment v27.50</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -745,6 +745,28 @@ body.tech-mode .owner-only{display:none!important}
 .grp-status{font-size:9px;white-space:nowrap;text-align:right;margin-top:1px}
 .more-link{font-size:10px;color:var(--tx3);text-align:right;padding:5px 12px;display:block}
 
+/* ── INVOICE FILTERS + BATCH SELECT ── */
+.inv-fbar{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:7px 0 0}
+.inv-fbar::-webkit-scrollbar{display:none}
+.inv-fsel{flex:0 0 auto;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--rs);
+  padding:7px 9px;font-size:12px;font-weight:600;color:var(--tx);font-family:var(--fn);outline:none;cursor:pointer}
+.inv-fsel.on{border-color:var(--blu);color:var(--blu)}
+.inv-fbtn{flex:0 0 auto;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--rs);
+  padding:7px 10px;font-size:12px;font-weight:700;color:var(--tx2);font-family:var(--fn);cursor:pointer;white-space:nowrap}
+.inv-cb{flex-shrink:0;width:18px;height:18px;border:1.5px solid var(--bd2);border-radius:5px;background:var(--sf2);
+  display:flex;align-items:center;justify-content:center;cursor:pointer}
+.inv-cb::after{content:'';width:9px;height:9px;border-radius:2px;background:transparent}
+.inv-cb.on{border-color:var(--blu);background:var(--blu)}
+.inv-cb.on::after{background:#fff}
+.grp-row.inv-picked{background:rgba(59,130,246,.09)}
+.inv-selbar{flex-shrink:0;background:var(--sf);border-top:2px solid var(--blu);z-index:150;
+  display:flex;flex-direction:column;gap:8px;
+  padding:10px 14px calc(72px + env(safe-area-inset-bottom))}
+.inv-sbtn{border:none;border-radius:var(--rs);padding:11px 12px;font-size:13px;font-weight:700;
+  font-family:var(--fn);cursor:pointer}
+.inv-sbtn:disabled{opacity:.4;cursor:default}
+@media(min-width:1024px){.inv-selbar{padding-bottom:calc(10px + env(safe-area-inset-bottom))}}
+
 /* ── CUSTOMER PROFILE STATS ── */
 .cust-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-bottom:12px}
 .cust-stat{background:var(--sf);border:1px solid var(--bd);border-radius:var(--rs);padding:9px;text-align:center;box-shadow:var(--shadow)}
@@ -925,7 +947,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-03 · V27.49</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-04 · V27.50</div>
   </div>
 </div>
 
@@ -1240,8 +1262,54 @@ Check spark plug" rows="5" style="margin-bottom:8px;resize:none;line-height:1.7;
   </div>
   <div style="padding:8px 14px 0;flex-shrink:0">
     <div class="sw"><input class="sinp" id="invsrch" placeholder="Customer, INV#, machine..." oninput="renderInvoices()"><span class="sico">&#8981;</span></div>
+    <!-- Filters. Four dropdowns that stack with the search box and with
+         each other, so "Hopkins, unpaid, not in QuickBooks, this year"
+         is four taps. They narrow every tab and every count. -->
+    <div class="inv-fbar">
+      <select class="inv-fsel" id="invFdate" onchange="invDateFilterChanged()">
+        <option value="all">Any date</option>
+        <option value="30">Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="mtd">This month</option>
+        <option value="ytd">This year</option>
+        <option value="custom">Custom range…</option>
+      </select>
+      <select class="inv-fsel" id="invFcust" onchange="renderInvoices()"><option value="">Any customer</option></select>
+      <select class="inv-fsel" id="invFstatus" onchange="renderInvoices()">
+        <option value="any">Any status</option>
+        <option value="unpaid">Unpaid</option>
+        <option value="overdue">Overdue</option>
+        <option value="partial">Partial</option>
+        <option value="paid">Paid</option>
+        <option value="unbilled">Unbilled</option>
+      </select>
+      <select class="inv-fsel" id="invFqb" onchange="renderInvoices()">
+        <option value="any">QuickBooks: any</option>
+        <option value="out">Not in QuickBooks</option>
+        <option value="in">In QuickBooks</option>
+      </select>
+      <button class="inv-fbtn" id="invSelAllBtn" onclick="invSelectAllShown()">Select all</button>
+      <button class="inv-fbtn" id="invClearFBtn" onclick="clearInvFilters()" style="display:none;color:var(--red);border-color:var(--red)">Clear filters</button>
+    </div>
+    <div class="inv-fbar" id="invFrange" style="display:none">
+      <input class="inv-fsel" type="date" id="invFfrom" onchange="renderInvoices()">
+      <span style="font-size:12px;color:var(--tx3);align-self:center">to</span>
+      <input class="inv-fsel" type="date" id="invFto" onchange="renderInvoices()">
+    </div>
   </div>
   <div style="flex:1;overflow-y:auto;padding:6px 14px 80px" id="invoicesBody"></div>
+  <!-- Batch bar. Hidden until something is checked; the buttons only
+       count the rows the action can actually touch. -->
+  <div class="inv-selbar" id="invSelBar" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="flex:1;min-width:0;font-size:13px;font-weight:700" id="invSelCount">0 selected</div>
+      <button class="inv-sbtn" onclick="invClearSel()" style="background:var(--sf2);border:1.5px solid var(--bd2);color:var(--tx2)">Clear</button>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="inv-sbtn" id="invSelQbBtn" onclick="invBulkPushQB()" style="flex:1;background:#2CA01C;color:#fff">Send to QuickBooks</button>
+      <button class="inv-sbtn" id="invSelCloseBtn" onclick="invBulkClose()" style="flex:1;background:var(--sf2);border:1.5px solid var(--bd2);color:var(--tx2)">Close</button>
+    </div>
+  </div>
 </div>
 
 <!-- ═══════════ SCREEN: JOB STATUS OVERVIEW ═══════════ -->
@@ -7764,19 +7832,245 @@ function toast(msg,type=''){const t=document.getElementById('toast');t.textConte
 // ─────────────────────────────────────────
 // INVOICES LIST
 // ─────────────────────────────────────────
+// ─────────────────────────────────────────
+// INVOICES — filters and batch select
+// ─────────────────────────────────────────
+// The date an invoice belongs to: the day it was billed, falling back to
+// the job's own date for work that hasn't been billed yet.
+function invDateOf(w){return (w&&(w.invoiced_at||w.scheduled_date||w.created_at))||'';}
+
+function invDateWindow(mode,from,to){
+  var now=new Date(),f=null,t=null;
+  if(mode==='30'||mode==='90'){f=new Date();f.setDate(f.getDate()-parseInt(mode,10));}
+  else if(mode==='mtd'){f=new Date(now.getFullYear(),now.getMonth(),1);}
+  else if(mode==='ytd'){f=new Date(now.getFullYear(),0,1);}
+  else if(mode==='custom'){
+    if(from)f=new Date(from+'T00:00:00');
+    if(to){t=new Date(to+'T00:00:00');t.setHours(23,59,59,999);}
+  }
+  if(f)f.setHours(0,0,0,0);
+  return {f:f,t:t};
+}
+
+function invInWindow(w,win){
+  if(!win.f&&!win.t)return true;
+  var d=String(invDateOf(w));
+  if(!d)return false;
+  var dt=new Date(d.length<=10?d+'T12:00:00':d);
+  if(isNaN(dt.getTime()))return false;
+  if(win.f&&dt<win.f)return false;
+  if(win.t&&dt>win.t)return false;
+  return true;
+}
+
+// Same reading of a row the list itself uses — the balance decides,
+// not the invoice_status column.
+function invStatusMatch(w,mode,today){
+  if(mode==='any')return true;
+  var st=billState(w),bal=woBalance(w);
+  if(mode==='unbilled')return st==='unbilled';
+  if(st==='unbilled')return false;
+  if(mode==='paid')return bal<=0.01;
+  if(mode==='partial')return bal>0.01&&woPaid(w)>0.01;
+  if(mode==='unpaid')return bal>0.01;
+  if(mode==='overdue')return bal>0.01&&!!w.invoice_due_date&&new Date(w.invoice_due_date+'T12:00:00')<today;
+  return true;
+}
+
+function invDateFilterChanged(){
+  var sel=document.getElementById('invFdate'),box=document.getElementById('invFrange');
+  if(box)box.style.display=(sel&&sel.value==='custom')?'flex':'none';
+  renderInvoices();
+}
+
+function clearInvFilters(){
+  ['invFdate','invFcust','invFstatus','invFqb'].forEach(function(id){
+    var e=document.getElementById(id);if(e)e.value=e.options[0].value;
+  });
+  ['invFfrom','invFto','invsrch'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+  var box=document.getElementById('invFrange');if(box)box.style.display='none';
+  renderInvoices();
+}
+
+// Batch selection. Ids only — the work orders are re-read from wos when
+// an action runs, so a stale render can never act on stale money.
+var _invSel={};
+var _invShown=[];              // ids drawn this pass, for Select all
+var _invCustSig='';
+
+function invSelWos(){
+  return Object.keys(_invSel).map(function(id){
+    return (wos||[]).find(function(w){return w.id===id;});
+  }).filter(Boolean);
+}
+
+function invToggleSel(id,el){
+  if(_invSel[id])delete _invSel[id];else _invSel[id]=true;
+  var on=!!_invSel[id];
+  if(el){
+    el.classList.toggle('on',on);
+    var row=el.parentNode;
+    if(row&&row.classList&&row.classList.contains('grp-row'))row.classList.toggle('inv-picked',on);
+  }
+  invSelBarUpdate();
+}
+
+function invClearSel(){_invSel={};renderInvoices();}
+
+function invSelectAllShown(){
+  var allOn=_invShown.length&&_invShown.every(function(id){return _invSel[id];});
+  if(allOn)_invSel={};
+  else _invShown.forEach(function(id){_invSel[id]=true;});
+  renderInvoices();
+}
+
+// The bar only offers what the checked rows can actually take: an
+// invoice already in QuickBooks isn't pushed twice, and only a paid
+// invoice closes.
+function invSelBarUpdate(){
+  var bar=document.getElementById('invSelBar');if(!bar)return;
+  var sel=invSelWos();
+  if(!sel.length){bar.style.display='none';return;}
+  bar.style.display='flex';
+  var amt=sel.reduce(function(s,w){return s+woTotal(w);},0);
+  var lbl=document.getElementById('invSelCount');
+  if(lbl)lbl.textContent=sel.length+' selected · $'+amt.toFixed(0);
+  var nQb=sel.filter(function(w){return isBilled(w)&&!invoiceInQB(w);}).length;
+  var nCl=sel.filter(function(w){return isPaidOff(w)&&!isClosed(w);}).length;
+  var qb=document.getElementById('invSelQbBtn'),cl=document.getElementById('invSelCloseBtn');
+  if(qb){qb.textContent=nQb?'Send '+nQb+' to QuickBooks':'All in QuickBooks';qb.disabled=!nQb;}
+  if(cl){cl.textContent=nCl?'Close '+nCl:'Close';cl.disabled=!nCl;}
+}
+
+async function invBulkPushQB(){
+  var list=invSelWos().filter(function(w){return isBilled(w)&&!invoiceInQB(w);})
+    .sort(function(a,b){return (a.invoice_number||0)-(b.invoice_number||0);})
+    .map(function(w){return {w:w,label:'INV-'+w.invoice_number};});
+  if(!list.length){toast('Nothing checked that still needs pushing ✓','ok');return;}
+  await _qboBulkRun(list,'invoices',async function(it){
+    await pushToQBO(it.w.id);
+    var fresh=(wos||[]).find(function(x){return x.id===it.w.id;})||{};
+    var landed=!!(fresh.qbo_invoice_id||fresh.qbo_pushed);
+    if(landed)delete _invSel[it.w.id];   // what landed drops off the selection
+    return {ok:landed};
+  });
+  invSelBarUpdate();
+}
+
+async function invBulkClose(){
+  var sel=invSelWos();
+  var list=sel.filter(function(w){return isPaidOff(w)&&!isClosed(w);});
+  var skipped=sel.length-list.length;
+  if(!list.length){toast('Nothing checked that can be closed — only a paid invoice closes','er');return;}
+  if(!confirm('Close '+list.length+' invoice'+(list.length!==1?'s':'')+'?'+
+      (skipped?'\n\n'+skipped+' skipped — only a paid invoice can be closed.':'')+
+      '\n\nThey come off the job board and the active invoice list. Nothing is deleted — they stay on the customer and in the books.'))return;
+  openM('<div class="mt">Closing invoices</div><div class="ms" id="invBulkProg">Starting…</div>'+
+        '<div style="display:flex;justify-content:center;padding:16px 0"><div class="spin"></div></div>');
+  var ok=0,failed=0,lastErr='';
+  for(var i=0;i<list.length;i++){
+    var w=list[i];
+    var pe=document.getElementById('invBulkProg');
+    if(pe)pe.textContent='Closing '+(i+1)+' of '+list.length+' — INV-'+(w.invoice_number||'');
+    try{
+      await patch('work_orders',{status:'Closed'},'?id=eq.'+w.id);
+      w.status='Closed';
+      var j=(wos||[]).findIndex(function(x){return x.id===w.id;});
+      if(j>=0)wos[j].status='Closed';
+      delete _invSel[w.id];
+      ok++;
+    }catch(e){failed++;lastErr=e.message||String(e);}
+  }
+  closeM();
+  toast(ok+' closed'+(failed?', '+failed+' failed — '+lastErr:'')+' ✓',failed?'er':'ok');
+  counts();renderInvoices();
+}
+
 // Which capped sections on the Invoices list are expanded. The list
 // shows the first 10 unpaid and 20 paid so the common case stays short;
 // the "+N more" line under each is a toggle, not a dead label.
 var _invMore={unpaid:false,settled:false};
 function invToggleMore(k){_invMore[k]=!_invMore[k];renderInvoices();}
 
+// Filter-bar chrome: the customer list, which filters read as live,
+// and the state of the Select all / Clear buttons.
+function invChromeUpdate(fOn){
+  // Customer dropdown, built from whoever actually has invoices. Rebuilt
+  // only when that set changes, so the open selection survives a redraw.
+  var custSel=document.getElementById('invFcust');
+  if(custSel){
+    var seen={},opts=[];
+    (wos||[]).forEach(function(w){
+      if(!isBilled(w)&&!needsInvoice(w))return;
+      if(!w.customer_id||seen[w.customer_id])return;
+      seen[w.customer_id]=1;
+      var c=cMap[w.customer_id];if(!c)return;
+      opts.push({id:w.customer_id,name:c.name||'Unknown'});
+    });
+    opts.sort(function(a,b){return a.name.localeCompare(b.name);});
+    var sig=opts.map(function(o){return o.id;}).join(',');
+    if(sig!==_invCustSig){
+      _invCustSig=sig;
+      var keep=custSel.value;
+      custSel.innerHTML='<option value="">Any customer</option>'+opts.map(function(o){
+        return '<option value="'+o.id+'">'+esc(o.name)+'</option>';
+      }).join('');
+      custSel.value=keep;
+      if(custSel.value!==keep)custSel.value='';   // that customer dropped off the list
+    }
+  }
+
+  // Live filters read blue, and Clear only shows when there's something
+  // to clear.
+  [['invFdate','all'],['invFcust',''],['invFstatus','any'],['invFqb','any']].forEach(function(pair){
+    var e=document.getElementById(pair[0]);
+    if(e)e.classList.toggle('on',e.value!==pair[1]);
+  });
+  var clr=document.getElementById('invClearFBtn');
+  if(clr)clr.style.display=fOn?'':'none';
+  var selAll=document.getElementById('invSelAllBtn');
+  if(selAll){
+    var allOn=_invShown.length&&_invShown.every(function(id){return _invSel[id];});
+    selAll.textContent=allOn?'Select none':'Select all'+(_invShown.length?' ('+_invShown.length+')':'');
+    selAll.disabled=!_invShown.length;
+  }
+  invSelBarUpdate();
+}
+
 function renderInvoices(force){
   var el=document.getElementById('invoicesBody');if(!el)return;
+  _invShown=[];
   var _invsrch=(document.getElementById('invsrch')||{value:''}).value.toLowerCase().trim();
   var today=new Date();today.setHours(0,0,0,0);
 
   var invTabEl=document.getElementById('invTabActive')||{dataset:{tab:'all'}};
   var activeTab=(invTabEl&&invTabEl.dataset?invTabEl.dataset.tab:'all')||'all';
+
+  // Filter bar. Everything here narrows every tab and every count, so
+  // what the tabs say and what the list shows never disagree.
+  var _fDate=(document.getElementById('invFdate')||{value:'all'}).value;
+  var _fFrom=(document.getElementById('invFfrom')||{value:''}).value;
+  var _fTo=(document.getElementById('invFto')||{value:''}).value;
+  var _fCust=(document.getElementById('invFcust')||{value:''}).value;
+  var _fStat=(document.getElementById('invFstatus')||{value:'any'}).value;
+  var _fQb=(document.getElementById('invFqb')||{value:'any'}).value;
+  var _fWin=invDateWindow(_fDate,_fFrom,_fTo);
+  var _fOn=!!(_invsrch||_fCust||_fDate!=='all'||_fStat!=='any'||_fQb!=='any');
+
+  function invPass(w){
+    if(_fCust&&w.customer_id!==_fCust)return false;
+    if(!invStatusMatch(w,_fStat,today))return false;
+    if(_fQb==='in'&&!invoiceInQB(w))return false;
+    if(_fQb==='out'&&invoiceInQB(w))return false;
+    if(!invInWindow(w,_fWin))return false;
+    if(_invsrch){
+      var cu=cMap[w.customer_id]||{},eq=eMap[w.equipment_id]||{};
+      var fields=[cu.name||'',cu.phone||'',w.invoice_number?'inv-'+w.invoice_number:'',w.invoice_number?String(w.invoice_number):'',
+                  eq.make||'',eq.model||'',eq.serial||'',w.problem||'',w.status||''].join(' ').toLowerCase();
+      if(!_invsrch.split(' ').filter(Boolean).every(function(t){return fields.includes(t);}))return false;
+    }
+    return true;
+  }
 
   // Everything with a billing life: already billed, or finished work
   // waiting to be billed. An invoice number on its own means nothing —
@@ -7785,16 +8079,12 @@ function renderInvoices(force){
   var all=wos.filter(function(w){
     if((w.problem||'').startsWith('Parts sale'))return false;
     if(!isBilled(w)&&!needsInvoice(w))return false;
+    if(!invPass(w))return false;
     if(isClosed(w)){closed.push(w);return false;}
-    if(_invsrch){
-      var cu=cMap[w.customer_id]||{};
-      var fields=[cu.name||'',cu.phone||'',w.invoice_number?'inv-'+w.invoice_number:'',w.invoice_number?String(w.invoice_number):'',w.problem||'',w.status||''].join(' ').toLowerCase();
-      if(!_invsrch.split(' ').filter(Boolean).every(function(t){return fields.includes(t);}))return false;
-    }
     return true;
   }).sort(function(a,b){return (b.invoice_number||0)-(a.invoice_number||0);});
 
-  var sales=wos.filter(function(w){return(w.problem||'').startsWith('Parts sale');}).sort(function(a,b){return(b.invoice_number||0)-(a.invoice_number||0);});
+  var sales=wos.filter(function(w){return(w.problem||'').startsWith('Parts sale')&&invPass(w);}).sort(function(a,b){return(b.invoice_number||0)-(a.invoice_number||0);});
 
   // Three buckets, no overlap and no gaps: money owed, money in,
   // and work that hasn't been billed at all.
@@ -7803,7 +8093,9 @@ function renderInvoices(force){
   var needsInv=all.filter(needsInvoice);
   // QuickBooks doesn't care how we filed a job: a closed invoice that
   // never made it over there is still a hole in the books, so this scans
-  // everything billed rather than just the active list.
+  // everything billed rather than just the active list. The filter bar
+  // deliberately doesn't touch it — this is the reconciliation list, and
+  // a hidden hole is still a hole.
   var notPushed=(wos||[]).filter(function(w){
     return isBilled(w)&&!invoiceInQB(w)&&!(w.problem||'').startsWith('Parts sale');
   }).sort(function(a,b){return (a.invoice_number||0)-(b.invoice_number||0);});
@@ -7833,7 +8125,10 @@ function renderInvoices(force){
   var displayList=activeTab==='awaiting'?unpaid:activeTab==='unbilled'?needsInv:activeTab==='notpushed'?notPushed:activeTab==='sales'?sales:activeTab==='closed'?closed:all;
 
   if(!displayList.length&&activeTab!=='notpushed'){
-    el.innerHTML=tabHtml+'<div class="empty" style="margin-top:20px"><div class="et">No invoices</div></div>';
+    el.innerHTML=tabHtml+'<div class="empty" style="margin-top:20px"><div class="et">'+
+      (_fOn?'Nothing matches those filters':'No invoices')+'</div>'+
+      (_fOn?'<div class="es">Tap Clear filters to see everything again.</div>':'')+'</div>';
+    invChromeUpdate(_fOn);
     return;
   }
 
@@ -7853,7 +8148,10 @@ function renderInvoices(force){
     var sub='<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">'+esc(mach)+' · '+dt+'</span>';
     if(isBilled(w)&&!invoiceInQB(w))sub+='<span title="Not in QuickBooks" style="flex-shrink:0;font-size:9px;font-weight:800;color:var(--amb);border:1px solid var(--amb);border-radius:4px;padding:0 4px;line-height:13px">no QB</span>';
     var blCls=st==='paid'?'bl-grn':st==='unbilled'?'bl-amb':(isOverdue||bal>0.01)?'bl-red':'bl-grn';
-    var h='<div class="grp-row '+blCls+'" data-wid="'+w.id+'" onclick="openWO(this.dataset.wid)" style="gap:6px">';
+    var picked=!!_invSel[w.id];
+    _invShown.push(w.id);
+    var h='<div class="grp-row '+blCls+(picked?' inv-picked':'')+'" data-wid="'+w.id+'" onclick="openWO(this.dataset.wid)" style="gap:6px">';
+    h+='<span class="inv-cb'+(picked?' on':'')+'" data-wid="'+w.id+'" onclick="event.stopPropagation();invToggleSel(this.dataset.wid,this)"></span>';
     h+='<span class="grp-num">'+(isBilled(w)&&w.invoice_number?w.invoice_number:'—')+'</span>';
     h+='<div style="flex:1;min-width:0"><div class="grp-name">'+esc(cu.name||'Unknown')+'</div><div class="grp-sub" style="display:flex;align-items:center;gap:5px">'+sub+'</div></div>';
     h+='<div style="text-align:right;flex-shrink:0">';
@@ -7916,6 +8214,9 @@ function renderInvoices(force){
   }
 
   el.innerHTML=h;
+
+  invChromeUpdate(_fOn);
+
   // First look at the QuickBooks tab in a session: ask QuickBooks what
   // it actually has before claiming anything is missing.
   if(activeTab==='notpushed'&&!_qboInvoices&&!_qboCheckRunning&&!_qboCheckTried)qboSyncCheck(true);
@@ -7945,7 +8246,10 @@ function qboWorklistHtml(notPushed,pendPmts,pmtCount){
     h+='<div class="grp-card" style="margin:0 14px 10px">';
     notPushed.forEach(function(w){
       var cu=cMap[w.customer_id]||{};
-      h+='<div class="grp-row bl-amb" data-wid="'+w.id+'" onclick="openWO(this.dataset.wid)" style="gap:6px">';
+      var picked=!!_invSel[w.id];
+      _invShown.push(w.id);
+      h+='<div class="grp-row bl-amb'+(picked?' inv-picked':'')+'" data-wid="'+w.id+'" onclick="openWO(this.dataset.wid)" style="gap:6px">';
+      h+='<span class="inv-cb'+(picked?' on':'')+'" data-wid="'+w.id+'" onclick="event.stopPropagation();invToggleSel(this.dataset.wid,this)"></span>';
       h+='<span class="grp-num">'+(w.invoice_number||'—')+'</span>';
       h+='<div style="flex:1;min-width:0"><div class="grp-name">'+esc(cu.name||'Unknown')+'</div><div class="grp-sub">'+fd(w.scheduled_date||w.created_at)+'</div></div>';
       h+='<div style="text-align:right;flex-shrink:0"><div class="grp-amt">$'+woTotal(w).toFixed(0)+'</div><div class="grp-status amb">to push</div></div>';
