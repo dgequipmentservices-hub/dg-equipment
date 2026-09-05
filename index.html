@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.55</title>
+<title>DG Equipment v27.56</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -160,7 +160,7 @@ html.dark .fchip.on .cnt{background:rgba(255,255,255,.1)}
   border:1px solid var(--bd2);background:var(--sf);color:var(--tx3);cursor:pointer;
   white-space:nowrap;font-family:var(--fn);transition:background .15s,color .15s,border-color .15s}
 .cnt-cat-btn:active{opacity:.75}
-.cnt-cat-btn.active{background:var(--red2);color:#fff;border-color:var(--red2)}
+.cnt-cat-btn.active{background:var(--red2);color:#fff!important;border-color:var(--red2)!important}
 .cnt-loc-btn{padding:11px 6px;border-radius:var(--rs);font-size:13px;font-weight:700;border:1px solid var(--bd2);background:var(--sf);color:var(--tx3);cursor:pointer;font-family:var(--fn)}
 .cnt-loc-btn.active{background:var(--red2);color:#fff;border-color:var(--red2)}
 
@@ -946,7 +946,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-05 · V27.55</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-05 · V27.56</div>
   </div>
 </div>
 
@@ -1430,16 +1430,13 @@ Check spark plug" rows="5" style="margin-bottom:8px;resize:none;line-height:1.7;
     <div class="hdr-l"><button class="back-btn" onclick="goBack()">&#8592;</button><button class="ham-btn" onclick="openHam()"><span></span><span></span><span></span></button><div class="htitle">Parts on Order</div></div>
     <div class="hdr-r">
       <button class="ibtn" onclick="scanPartFromPhoto()" title="Scan an invoice — photo or PDF" style="margin-right:4px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
-      <button class="ibtn" onclick="poQuickBillStart()" title="Park a bill — photo plus who it's from, read the lines later" style="margin-right:4px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg></button>
       <button class="ibtn" onclick="openAddPartOrder()" style="margin-right:4px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
       <button class="ibtn" onclick="toggleTheme()"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
     </div>
   </div>
   <div style="display:flex;gap:6px;padding:8px 14px 0;flex-shrink:0">
-    <button class="cnt-cat-btn active" id="pot_all" onclick="setPartsOrderTab('all')">All</button>
-    <button class="cnt-cat-btn" id="pot_buy" onclick="setPartsOrderTab('buy')" style="color:var(--red);border-color:var(--red)">To Buy</button>
-    <button class="cnt-cat-btn" id="pot_jobs" onclick="setPartsOrderTab('jobs')" style="color:var(--amb);border-color:var(--amb)">For Jobs</button>
-    <button class="cnt-cat-btn" id="pot_stock" onclick="setPartsOrderTab('stock')" style="color:var(--blu);border-color:var(--blu)">For Stock</button>
+    <button class="cnt-cat-btn active" id="pot_order" onclick="setPartsOrderTab('order')" style="color:var(--red);border-color:var(--red)">To Order</button>
+    <button class="cnt-cat-btn" id="pot_onorder" onclick="setPartsOrderTab('onorder')" style="color:var(--amb);border-color:var(--amb)">On Order</button>
     <button class="cnt-cat-btn" id="pot_received" onclick="setPartsOrderTab('received')" style="color:var(--grn);border-color:var(--grn)">Received</button>
     <button class="cnt-cat-btn" id="pot_history" onclick="setPartsOrderTab('history')">History</button>
     <button class="cnt-cat-btn" id="pot_photos" onclick="setPartsOrderTab('photos')" style="color:#a78bfa;border-color:#a78bfa">&#128247; Invoices</button>
@@ -1807,7 +1804,7 @@ var woId=null, mcs=[], prevInvParts={}, prevFreeParts={};
 var activeCat='All', expInvId=null;
 var countLoc='Truck', countCat='All', countChanges={};
 var rptFilter='all', invTransactions=[];
-var partsOnOrder=[], partsOrderTab='all';
+var partsOnOrder=[], partsOrderTab='order';
 var priceMatrix=[];
 var saleCart=[], saleCustId=null, saleCustObj=null;
 var saleItems=[];
@@ -5169,7 +5166,6 @@ function renderDupesFinder(){
   el.innerHTML=h;
   var srch=document.querySelector('#S_inv .sw');
   if(srch)srch.parentElement.style.display='none';
-  window._onReorderTab=true;
 }
 
 var _dupeGroups=null;
@@ -7075,7 +7071,6 @@ function setInvSubTab(tab, btn){
   if(tabRow)tabRow.querySelectorAll('.fchip').forEach(function(b){b.classList.remove('on');});
   if(btn)btn.classList.add('on');
   // Restore search/cat row when leaving reorder tab
-  if(window._onReorderTab&&tab!=='reorder'){var srchWrap=document.querySelector('#S_inv .sw');if(srchWrap)srchWrap.parentElement.style.display='';window._onReorderTab=false;}
   if(tab==='stock'){renderInv();}
   if(tab==='photos'){loadInvoicePhotos();}
   else if(tab==='count'){navTo('S_count');}
@@ -7167,94 +7162,6 @@ function buildBuyList(){
   return out;
 }
 
-async function renderReorderList(){
-  S('S_inv');
-  var el=document.getElementById('invBody');
-  if(!el)return;
-  window._onReorderTab=true;
-  var srch=document.querySelector('#S_inv .sw');
-  if(srch)srch.parentElement.style.display='none';
-
-  if(!_ledger){
-    el.innerHTML='<div class="loading"><div class="spin"></div><br>Reading parts history…</div>';
-    await loadLedger();
-    if(!window._onReorderTab)return; // user moved on while it loaded
-  }
-
-  var list=buildBuyList();
-  if(!list.length){
-    el.innerHTML='<div class="empty" style="margin-top:24px"><div class="et">Nothing to order</div><div class="es">Nothing is out, low, or flagged</div></div>';
-    return;
-  }
-
-  // Group by who you buy it from — one screen is one phone call
-  var groups={};
-  list.forEach(function(r){(groups[r.vendor]=groups[r.vendor]||[]).push(r);});
-  var vendorNames=Object.keys(groups).sort(function(a,b){
-    if(a==='No vendor set')return 1;
-    if(b==='No vendor set')return -1;
-    return a.localeCompare(b);
-  });
-
-  var totalCost=list.reduce(function(s,r){return s+r.cost*r.orderQty;},0);
-  var outCount=list.filter(function(r){return r.reason==='out';}).length;
-
-  var h='';
-  h+='<div style="display:flex;gap:6px;padding:2px 0 10px">';
-  h+='<div style="flex:1;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:8px 9px;text-align:center"><div style="font-size:17px;font-weight:800">'+list.length+'</div><div style="font-size:9px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em">To order</div></div>';
-  if(outCount)h+='<div style="flex:1;background:rgba(232,69,90,.1);border:1.5px solid var(--red);border-radius:var(--r);padding:8px 9px;text-align:center"><div style="font-size:17px;font-weight:800;color:var(--red)">'+outCount+'</div><div style="font-size:9px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:.05em">Out</div></div>';
-  h+='<div style="flex:1;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:8px 9px;text-align:center"><div style="font-size:17px;font-weight:800;font-family:var(--mo)">$'+Math.round(totalCost)+'</div><div style="font-size:9px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em">Est. cost</div></div>';
-  h+='<div style="flex:1;background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:8px 9px;text-align:center"><div style="font-size:17px;font-weight:800">'+vendorNames.length+'</div><div style="font-size:9px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em">Vendors</div></div>';
-  h+='</div>';
-
-  h+='<div style="display:flex;justify-content:flex-end;padding-bottom:8px"><button onclick="exportReorderList()" style="background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:5px 12px;font-size:12px;font-weight:700;font-family:var(--fn);color:var(--tx2);cursor:pointer">⬇ Export</button></div>';
-
-  vendorNames.forEach(function(vn){
-    var rows=groups[vn];
-    var vCost=rows.reduce(function(s,r){return s+r.cost*r.orderQty;},0);
-    h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0 7px;border-top:2px solid var(--bd2);margin-top:6px">';
-    h+='<div><div style="font-size:12.5px;font-weight:800">'+esc(vn)+'</div><div style="font-size:11px;color:var(--tx3);font-family:var(--mo)">'+rows.length+' line'+(rows.length!==1?'s':'')+' · $'+vCost.toFixed(2)+'</div></div>';
-    h+='<button data-v="'+esc(vn)+'" onclick="markVendorOrdered(this.dataset.v)" style="background:var(--grn);border:none;border-radius:var(--rs);padding:7px 12px;font-size:12px;font-weight:700;color:#fff;font-family:var(--fn);cursor:pointer;flex-shrink:0">Mark ordered</button>';
-    h+='</div>';
-
-    rows.forEach(function(r){
-      var i=r.item;
-      var col=r.reason==='out'?'var(--red)':r.reason==='flagged'?'var(--grn)':'var(--amb)';
-      var label=r.reason==='out'?'Out of stock':r.reason==='flagged'?'Flagged':'At or below '+r.point;
-      h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-left:4px solid '+col+';border-radius:var(--r);padding:10px 12px;margin-bottom:7px">';
-      h+='<div style="display:flex;align-items:flex-start;gap:10px">';
-      h+='<div onclick="toggleReorderFlag(\''+i.id+'\','+(!i.on_reorder_list)+')" style="width:22px;height:22px;border-radius:6px;border:2px solid '+(i.on_reorder_list?'var(--grn)':'var(--bd2)')+';background:'+(i.on_reorder_list?'var(--grn)':'transparent')+';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:1px">'+(i.on_reorder_list?'<span style="color:#fff;font-size:13px;line-height:1">✓</span>':'')+'</div>';
-      h+='<div style="flex:1;min-width:0;cursor:pointer" data-pid="'+i.id+'" onclick="openPartHistory(this.dataset.pid)">';
-      h+='<div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(i.name||'')+'</div>';
-      var meta=[];
-      var pn=invPrimaryNum(i); if(pn)meta.push(esc(pn));
-      meta.push('<span style="color:'+col+';font-weight:700">'+label+'</span>');
-      meta.push(r.qty+' on hand');
-      h+='<div style="font-size:11px;color:var(--tx3);margin-top:2px">'+meta.join(' · ')+'</div>';
-      // Show the reasoning behind a suggested point so it can be judged
-      if(r.used90>0){
-        h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">used '+Math.round(r.used90)+' in 90 days'+
-           (r.pointFromUser?'':' → suggest keeping '+r.suggested)+'</div>';
-      }else{
-        h+='<div style="font-size:11px;color:var(--tx3);margin-top:1px">no usage recorded in 90 days</div>';
-      }
-      h+='</div>';
-      h+='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">';
-      h+='<span style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3)">Order</span>';
-      h+='<input type="number" min="1" step="1" value="'+r.orderQty+'" onchange="saveReorderQty(\''+i.id+'\',this.value)" style="width:54px;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:5px 7px;font-size:13px;font-weight:700;font-family:var(--mo);color:var(--tx);text-align:right;outline:none">';
-      if(r.cost>0)h+='<span style="font-size:10px;color:var(--tx3);font-family:var(--mo)">$'+(r.cost*r.orderQty).toFixed(2)+'</span>';
-      h+='</div>';
-      h+='</div>';
-      if(!r.pointFromUser&&r.suggested>0){
-        h+='<div style="margin-top:7px"><button data-pid="'+i.id+'" data-pt="'+r.suggested+'" onclick="event.stopPropagation();acceptReorderPoint(this.dataset.pid,this.dataset.pt)" style="background:none;border:1.5px solid var(--bd2);border-radius:20px;padding:3px 10px;font-size:10.5px;font-weight:700;font-family:var(--fn);color:var(--tx2);cursor:pointer">Keep '+r.suggested+' on the shelf</button></div>';
-      }
-      h+='</div>';
-    });
-  });
-
-  el.innerHTML=h;
-}
-
 // Accept a suggested reorder point — this is what makes the low-stock
 // warning capable of firing at all.
 async function acceptReorderPoint(id,pt){
@@ -7264,50 +7171,8 @@ async function acceptReorderPoint(id,pt){
     var i=(inv||[]).find(function(x){return x.id===id;});
     if(i)i.reorder_point=v;
     toast('Keeping '+v+' on the shelf ✓','ok');
-    poRefresh();
+    renderPartsOnOrder();
   }catch(e){toast('Could not save','er');}
-}
-
-// The buy list is drawn by the Order Desk now, but the old Inventory
-// tab still exists; whichever is on screen is the one to redraw.
-function poRefresh(){
-  var d=document.getElementById('S_parts_order');
-  if(d&&d.classList.contains('on')){renderPartsOnOrder();return;}
-  if(window._onReorderTab){renderReorderList();return;}
-}
-
-// Everything for one vendor goes onto Parts on Order in one go.
-async function markVendorOrdered(vendor){
-  var rows=buildBuyList().filter(function(r){return r.vendor===vendor;});
-  if(!rows.length)return;
-  if(!confirm('Put '+rows.length+' line'+(rows.length!==1?'s':'')+' from '+vendor+' on order?'))return;
-  var now=new Date().toISOString();
-  var payload=rows.map(function(r){
-    return {
-      inventory_id:r.item.id,
-      part_name:r.item.name||'Part',
-      part_number:invPrimaryNum(r.item),
-      qty_ordered:r.orderQty,
-      cost:r.cost||null,
-      vendor:vendor==='No vendor set'?null:vendor,
-      status:'ordered',
-      ordered_at:now
-    };
-  });
-  try{
-    var created=await post('parts_on_order',payload);
-    if(created&&created.length)partsOnOrder=(partsOnOrder||[]).concat(created);
-    // Clear the hand-flag; it's on order now, not waiting to be decided
-    for(const r of rows){
-      if(r.item.on_reorder_list){
-        await patch('inventory',{on_reorder_list:false},'?id=eq.'+r.item.id).catch(function(){});
-        r.item.on_reorder_list=false;
-      }
-    }
-    toast(rows.length+' on order ✓','ok');
-    counts();
-    poRefresh();
-  }catch(e){toast('Could not place order: '+e.message,'er');}
 }
 
 async function toggleReorderFlag(id, flag){
@@ -7315,7 +7180,7 @@ async function toggleReorderFlag(id, flag){
     await patch('inventory',{on_reorder_list:flag},'?id=eq.'+id);
     var i=inv.find(function(x){return x.id===id;});
     if(i)i.on_reorder_list=flag;
-    poRefresh();
+    renderPartsOnOrder();
   }catch(e){toast('Failed','er');}
 }
 
@@ -17426,9 +17291,7 @@ async function loadPartsOnOrder(){
     var data=await get('parts_on_order','?order=created_at.desc&limit=300');
     partsOnOrder=data||[];_orders=partsOnOrder;
     renderPartsOnOrder();                       // paint what we have straight away
-    // The buy list needs the ledger and the parked bills need their own
-    // read. Neither should hold up the screen.
-    loadUnfiledBills().then(function(){renderPartsOnOrder();}).catch(function(){});
+    // The buy list reads the ledger; that shouldn't hold up the screen.
     if(!_ledger)loadLedger().then(function(){renderPartsOnOrder();}).catch(function(){});
   }catch(e){var el=document.getElementById('partsOrderBody');if(el)el.innerHTML='<div style="color:var(--red);padding:20px">Error: '+e.message+'</div>';}
 }
@@ -17447,7 +17310,7 @@ function setPartsOrderTab(tab){
   if(tab==='history'){loadPartsHistory();}
   else{
     renderPartsOnOrder();
-    if((tab==='all'||tab==='buy')&&!_ledger)loadLedger().then(function(){renderPartsOnOrder();}).catch(function(){});
+    if(tab==='order'&&!_ledger)loadLedger().then(function(){renderPartsOnOrder();}).catch(function(){});
   }
 }
 
@@ -17541,141 +17404,6 @@ function filterPartsOrderSearch(){
   partsOnOrder=filtered;
   renderPartsOnOrder();
   partsOnOrder=orig;
-}
-
-// ─────────────────────────────────────────
-// PARKING A BILL YOU HAVEN'T GOT TIME FOR
-//
-// The counter is not the desk. A bill gets handed over while three
-// other things are happening, and the reader takes a minute it doesn't
-// have. So: photograph it, type who it's from, done — five seconds and
-// it is on the books. The lines get read later, from the desk, off the
-// same photo.
-//
-// An unfiled bill is an invoice_photos row with no lines read off it
-// yet. Finishing one updates that row rather than making a second, so
-// a bill is one record from the moment it is photographed.
-// ─────────────────────────────────────────
-var _poUnfiled=[];
-
-async function loadUnfiledBills(){
-  try{
-    _poUnfiled=await get('invoice_photos','?line_count=is.null&order=created_at.desc&limit=50')||[];
-  }catch(e){_poUnfiled=[];}
-}
-
-function poQuickBillStart(){
-  var inp=document.createElement('input');
-  inp.type='file';inp.accept='image/*,application/pdf';
-  inp.onchange=function(){if(inp.files&&inp.files[0])poQuickBillAsk(inp.files[0]);};
-  inp.click();
-}
-
-// The upload runs while the vendor name is being typed, so Save is instant.
-function poQuickBillAsk(file){
-  var batchId='q'+Date.now()+Math.random().toString(36).slice(2,7);
-  window._qbUpload=uploadScanFile(file,batchId).catch(function(e){return {err:e.message||'upload failed'};});
-  window._qbFile=file;window._qbBatch=batchId;
-  var known={};(partsOnOrder||[]).forEach(function(o){if(o.vendor)known[o.vendor]=1;});
-  (_vendors||[]).forEach(function(v){if(v&&v.name)known[v.name]=1;});
-  var opts=Object.keys(known).sort().map(function(v){return '<option value="'+esc(v)+'">';}).join('');
-  openM('<div class="mt">Park this bill</div>'+
-    '<div class="ms">Who is it from? The lines can be read later.</div>'+
-    '<div class="mf">'+
-      '<div style="margin-bottom:10px"><div class="mlbl">Vendor</div>'+
-      '<input class="mi" id="qb_vendor" list="qb_vlist" placeholder="Maroney" autocomplete="off">'+
-      '<datalist id="qb_vlist">'+opts+'</datalist></div>'+
-      '<div style="margin-bottom:4px"><div class="mlbl">Note (optional)</div>'+
-      '<input class="mi" id="qb_note" placeholder="blower parts, pay by Friday…" autocomplete="off"></div>'+
-      '<div style="font-size:11px;color:var(--tx3)">'+esc(file.name||(_isPdf(file)?'PDF':'Photo'))+'</div>'+
-    '</div>'+
-    '<div class="mb"><button class="mc-btn" onclick="closeM()">Cancel</button>'+
-    '<button class="mo-btn" onclick="poQuickBillSave()">Park it</button></div>');
-  setTimeout(function(){var v=document.getElementById('qb_vendor');if(v)v.focus();},120);
-}
-
-async function poQuickBillSave(){
-  var vEl=document.getElementById('qb_vendor'),nEl=document.getElementById('qb_note');
-  var vendor=(vEl&&vEl.value||'').trim();
-  if(!vendor){toast('Who is it from?','er');if(vEl)vEl.focus();return;}
-  var note=(nEl&&nEl.value||'').trim();
-  if(!_lock('qbSave'))return;
-  closeM();toast('Parking '+esc(vendor)+'…','');
-  try{
-    var url=await window._qbUpload;
-    if(url&&url.err)throw new Error(url.err);
-    var f=window._qbFile||{};
-    var made=await post('invoice_photos',{
-      file_url:url,
-      file_name:f.name||'',
-      mime_type:f.type||(_isPdf(f)?'application/pdf':'image/jpeg'),
-      source:'quick',
-      vendor:vendor,
-      notes:note||null,
-      batch_id:window._qbBatch,
-      line_count:null            // null is what marks it unfiled
-    });
-    var row=Array.isArray(made)?made[0]:made;
-    if(row)_poUnfiled.unshift(row);
-    toast(vendor+' parked \u2713','ok');
-    if(document.getElementById('S_parts_order').classList.contains('on'))renderPartsOnOrder();
-  }catch(e){toast('Could not park it: '+e.message,'er');}
-  finally{_unlock('qbSave');window._qbUpload=null;window._qbFile=null;}
-}
-
-// Read the lines off one that was parked earlier. The file comes back
-// out of storage, so it is the same paper — nothing to photograph twice.
-async function poFinishBill(id){
-  var b=(_poUnfiled||[]).find(function(x){return x.id===id;});
-  if(!b){toast('Not found','er');return;}
-  if(!b.file_url){toast('No file kept for that one','er');return;}
-  if(!_lock('finBill_'+id))return;
-  toast('Fetching the bill…','');
-  try{
-    var r=await fetch(b.file_url);
-    if(!r.ok)throw new Error('could not fetch it back ('+r.status+')');
-    var blob=await r.blob();
-    var name=b.file_name||('bill.'+(/pdf/i.test(b.mime_type||'')?'pdf':'jpg'));
-    var file=new File([blob],name,{type:b.mime_type||blob.type||'image/jpeg'});
-    window._quickBillId=id;                    // update this row, don't make a second
-    window._quickBillUrl=b.file_url;
-    window._quickBillVendor=b.vendor||'';
-    await runPartsScan(file);
-  }catch(e){window._quickBillId=null;toast('Failed: '+e.message,'er');}
-  finally{_unlock('finBill_'+id);}
-}
-
-async function poDiscardBill(id){
-  var b=(_poUnfiled||[]).find(function(x){return x.id===id;});
-  if(!b)return;
-  if(!confirm('Throw away the parked bill from '+(b.vendor||'this vendor')+'?\n\nThe photo goes with it.'))return;
-  try{
-    await del('invoice_photos','?id=eq.'+id);
-    _poUnfiled=_poUnfiled.filter(function(x){return x.id!==id;});
-    toast('Gone','ok');renderPartsOnOrder();
-  }catch(e){toast('Failed: '+e.message,'er');}
-}
-
-function poUnfiledHtml(){
-  var rows=_poUnfiled||[];
-  if(!rows.length)return '';
-  var h=poSectionHead('Parked &#8212; lines not read yet',rows.length,0,'#a78bfa');
-  rows.forEach(function(b){
-    var dt=b.created_at?new Date(b.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
-    var isPdf=/pdf/i.test(b.mime_type||'')||/\.pdf($|\?)/i.test(b.file_url||'');
-    h+='<div style="background:var(--sf);border:1.5px solid #a78bfa;border-left:4px solid #a78bfa;border-radius:var(--r);padding:11px 13px;margin-bottom:8px">'+
-      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:8px">'+
-        '<div style="min-width:0"><div style="font-size:14px;font-weight:700">'+(isPdf?'&#128196; ':'')+esc(b.vendor||'Bill')+'</div>'+
-        '<div style="font-size:11px;color:var(--tx3)">'+dt+(b.notes?' &middot; '+esc(b.notes):'')+'</div></div>'+
-        (b.file_url&&!isPdf?'<img src="'+esc(b.file_url)+'" onclick="window.open(this.src,\'_blank\')" style="width:46px;height:46px;object-fit:cover;border-radius:6px;border:1.5px solid var(--bd2);cursor:pointer;flex-shrink:0">':'')+
-      '</div>'+
-      '<div style="display:flex;gap:6px">'+
-        '<button data-bid="'+b.id+'" onclick="poFinishBill(this.dataset.bid)" style="flex:2;background:#a78bfa;color:#fff;border:none;border-radius:var(--rs);padding:9px;font-size:12px;font-weight:700;font-family:var(--fn);cursor:pointer">Read the lines &#8594;</button>'+
-        (b.file_url?'<a href="'+esc(b.file_url)+'" target="_blank" rel="noopener" style="background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:9px 12px;font-size:12px;font-weight:700;font-family:var(--fn);color:var(--blu);text-decoration:none">Open</a>':'')+
-        '<button data-bid="'+b.id+'" onclick="poDiscardBill(this.dataset.bid)" style="background:none;color:var(--red);border:1.5px solid var(--red);border-radius:var(--rs);padding:9px 12px;font-size:12px;font-family:var(--fn);cursor:pointer">Del</button>'+
-      '</div></div>';
-  });
-  return h;
 }
 
 // ─────────────────────────────────────────
@@ -17773,9 +17501,21 @@ function poBuyRows(){
 }
 
 function poBuyHtml(rows){
-  if(!rows.length)return poSectionHead('To buy',0,0,'var(--tx3)')+'<div style="font-size:12px;color:var(--tx3);padding:2px 2px 8px">Nothing used lately is low or out.</div>';
+  if(!rows.length)return '<div class="empty" style="margin-top:30px"><div class="et">Nothing to order</div><div class="es">Nothing you have used lately is low or out</div></div>';
   var money=rows.reduce(function(s,r){return s+r.cost*r.orderQty;},0);
-  var h=poSectionHead('To buy &#8212; low or out',rows.length,money,'var(--red)');
+  var outN=rows.filter(function(r){return r.reason==='out';}).length;
+  var vendN=Object.keys(rows.reduce(function(m,r){m[r.vendor]=1;return m;},{})).length;
+  var tile=function(v,label,col){
+    return '<div style="flex:1;background:'+(col?'rgba(232,69,90,.1)':'var(--sf)')+';border:1.5px solid '+(col||'var(--bd2)')+';border-radius:var(--r);padding:8px 6px;text-align:center">'+
+      '<div style="font-size:17px;font-weight:800'+(col?';color:'+col:'')+'">'+v+'</div>'+
+      '<div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:'+(col||'var(--tx3)')+'">'+label+'</div></div>';
+  };
+  var h='<div style="display:flex;gap:6px;padding:2px 0 8px">'+
+    tile(rows.length,'To order',null)+
+    (outN?tile(outN,'Out','var(--red)'):'')+
+    tile('$'+Math.round(money),'Est. cost',null)+
+    tile(vendN,'Vendors',null)+'</div>';
+  h+='<div style="display:flex;justify-content:flex-end;padding-bottom:6px"><button onclick="exportReorderList()" style="background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:5px 12px;font-size:12px;font-weight:700;font-family:var(--fn);color:var(--tx2);cursor:pointer">&#11015; Export</button></div>';
   var groups={};
   rows.forEach(function(r){(groups[r.vendor]=groups[r.vendor]||[]).push(r);});
   Object.keys(groups).sort(function(a,b){
@@ -17785,9 +17525,9 @@ function poBuyHtml(rows){
   }).forEach(function(vn){
     var g=groups[vn];
     var vCost=g.reduce(function(s,r){return s+r.cost*r.orderQty;},0);
-    h+='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 0 7px">';
-    h+='<div><div style="font-size:12.5px;font-weight:800">'+esc(vn)+'</div><div style="font-size:11px;color:var(--tx3);font-family:var(--mo)">'+g.length+' line'+(g.length!==1?'s':'')+' &middot; $'+vCost.toFixed(2)+'</div></div>';
-    h+='<button data-v="'+esc(vn)+'" onclick="markVendorOrdered(this.dataset.v)" style="background:var(--grn);border:none;border-radius:var(--rs);padding:7px 12px;font-size:12px;font-weight:700;color:#fff;font-family:var(--fn);cursor:pointer;flex-shrink:0">Put on order</button>';
+    h+='<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:11px 2px 7px;border-top:2px solid var(--bd2);margin-top:6px">';
+    h+='<div style="font-size:12.5px;font-weight:800">'+esc(vn)+'</div>';
+    h+='<div style="font-size:11px;color:var(--tx3);font-family:var(--mo)">'+g.length+' line'+(g.length!==1?'s':'')+' &middot; $'+vCost.toFixed(2)+'</div>';
     h+='</div>';
     g.forEach(function(r){
       var i=r.item;
@@ -17859,49 +17599,41 @@ function poStockHtml(rows){
   return h;
 }
 
-// The strip across the top: the three numbers, in the order asked.
-function poSummaryHtml(nBuy,jobs,stock){
-  var mJobs=jobs.reduce(function(s,p){return s+poLineCost(p);},0);
-  var mStock=stock.reduce(function(s,p){return s+poLineCost(p);},0);
-  var tile=function(n,label,col,bg,sub){
-    return '<div style="flex:1;background:'+bg+';border:1.5px solid '+col+';border-radius:var(--r);padding:8px 6px;text-align:center">'+
-      '<div style="font-size:18px;font-weight:800;color:'+col+'">'+n+'</div>'+
-      '<div style="font-size:9px;font-weight:800;text-transform:uppercase;color:'+col+'">'+label+'</div>'+
-      (sub?'<div style="font-size:9.5px;color:var(--tx3);font-family:var(--mo);margin-top:1px">'+sub+'</div>':'')+'</div>';
-  };
-  return '<div style="display:flex;gap:6px;margin-bottom:4px">'+
-    tile(nBuy===null?'&middot;&middot;':nBuy,'To buy','var(--red)','rgba(232,93,58,.1)','')+
-    tile(jobs.length,'For jobs','var(--amb)','rgba(232,168,58,.1)',mJobs>0?'$'+Math.round(mJobs):'')+
-    tile(stock.length,'For stock','var(--blu)','rgba(58,143,232,.1)',mStock>0?'$'+Math.round(mStock):'')+
-    '</div>';
-}
-
 function renderPartsOnOrder(){
   var el=document.getElementById('partsOrderBody');if(!el)return;
   var live=poLive();
   var filed=(partsOnOrder||[]).filter(function(p){return !!p.archived_at;});
-  var jobs=poOpenJobs(), stock=poOpenStock();
   var tab=partsOrderTab;
-  var buy=poBuyRows();               // null until the ledger is in
   var h='';
 
-  if(tab==='all'||tab==='buy'||tab==='jobs'||tab==='stock'){
-    h+=poSummaryHtml(buy?buy.length:null,jobs,stock);
-    if(tab==='all')h+=poUnfiledHtml();
-    if(tab==='all'||tab==='buy'){
-      h+=buy?poBuyHtml(buy):poSectionHead('To buy',0,0,'var(--tx3)')+'<div style="font-size:12px;color:var(--tx3);padding:4px 2px 8px"><span class="spin" style="width:11px;height:11px;display:inline-block;vertical-align:-1px"></span> reading parts history…</div>';
+  // What needs buying. This is the whole reason to open the screen, so
+  // it is the screen — no summary tiles, no other lists stacked under it.
+  if(tab==='order'){
+    var buy=poBuyRows();             // null until the ledger is in
+    if(!buy){
+      el.innerHTML='<div class="loading"><div class="spin"></div><br>Reading parts history…</div>';
+      return;
     }
-    if(tab==='all'||tab==='jobs')h+=poJobsHtml(jobs);
-    if(tab==='all'||tab==='stock')h+=poStockHtml(stock);
-    if(tab==='all')h+=archivedFooterHtml(filed,live.filter(_poIsFinished));
+    el.innerHTML=poBuyHtml(buy);
+    return;
+  }
+
+  // What came off a bill and hasn't landed yet.
+  if(tab==='onorder'){
+    var jobs=poOpenJobs(), stock=poOpenStock();
+    if(!jobs.length&&!stock.length){
+      el.innerHTML='<div class="empty" style="margin-top:30px"><div class="et">Nothing outstanding</div><div class="es">Scan a bill and its lines land here until they are received</div></div>';
+      return;
+    }
+    if(jobs.length)h+=poJobsHtml(jobs);
+    if(stock.length)h+=poStockHtml(stock);
     el.innerHTML=h;
     return;
   }
 
-  // Status tabs (Received, and anything else that lands here)
   var items=live.filter(function(p){return p.status===tab;});
   if(!items.length){
-    el.innerHTML='<div class="empty" style="margin-top:30px"><div class="et">Nothing '+esc(tab)+'</div><div class="es">Scan a bill or tap + to add a line</div></div>'+archivedFooterHtml(filed);
+    el.innerHTML='<div class="empty" style="margin-top:30px"><div class="et">Nothing here</div><div class="es">Scan a bill, or tap + to add a line by hand</div></div>'+archivedFooterHtml(filed);
     return;
   }
   h+=poSectionHead(PO_ST_LABEL[tab]||esc(tab),items.length,items.reduce(function(s,p){return s+poLineCost(p);},0),PO_ST_COLOR[tab]||'var(--tx3)');
@@ -18130,16 +17862,8 @@ function scanPartFromPhoto(){
   // No capture attribute: it forces the camera on a phone, which would put
   // an emailed PDF out of reach. The picker still offers the camera.
   inp.type='file';inp.accept='image/*,application/pdf';
-  inp.onchange=function(){
-    if(!(inp.files&&inp.files[0]))return;
-    _clearParkedLink();          // a fresh photo is its own bill
-    runPartsScan(inp.files[0]);
-  };
+  inp.onchange=function(){if(inp.files&&inp.files[0])runPartsScan(inp.files[0]);};
   inp.click();
-}
-
-function _clearParkedLink(){
-  window._quickBillId=null;window._quickBillUrl=null;window._quickBillVendor=null;
 }
 
 async function runPartsScan(file){
@@ -18594,10 +18318,7 @@ async function addScannedParts(){
   // there — and the paper is the file as it arrived, PDF pages and all.
   var _batchId = 'scan_' + Date.now();
   var _photoUrl = null;
-  // Finishing a bill that was parked earlier: the paper is already in
-  // storage, so it is not uploaded twice.
-  if(window._quickBillUrl){ _photoUrl = window._quickBillUrl; }
-  else if(_scanFile){
+  if(_scanFile){
     try{ _photoUrl = await uploadScanFile(_scanFile,_batchId); }
     catch(_ue){ console.warn('Invoice upload failed:',_ue.message); toast('Invoice file not stored: '+_ue.message,'er'); }
   }
@@ -18623,9 +18344,7 @@ async function addScannedParts(){
         file_name:(_scanFile&&_scanFile.name)||'',
         mime_type:(_scanFile&&_scanFile.type)||'image/jpeg',
         source:'parts_scan',
-        // The vendor typed at the counter beats a guess off a blurry
-        // header — it was read by somebody who knew.
-        vendor:window._quickBillVendor||(_scanMeta&&_scanMeta.vendor)||(parts[0]&&parts[0].vendor)||'',
+        vendor:(_scanMeta&&_scanMeta.vendor)||(parts[0]&&parts[0].vendor)||'',
         bill_number:(_scanMeta&&_scanMeta.bill_number)||'',
         bill_date:(_scanMeta&&_scanMeta.bill_date)||null,
         line_count:parts.length,
@@ -18633,20 +18352,13 @@ async function addScannedParts(){
         batch_id:_batchId,
         parts_on_order_ids:_madeIds
       };
-      if(window._quickBillId){
-        delete _invRec.source;delete _invRec.batch_id;   // keep what parking wrote
-        await patch('invoice_photos',_invRec,'?id=eq.'+window._quickBillId);
-        _poUnfiled=(_poUnfiled||[]).filter(function(x){return x.id!==window._quickBillId;});
-      }else{
-        await post('invoice_photos',_invRec);
-      }
+      await post('invoice_photos',_invRec);
     }catch(e){
       console.error('Invoice record failed:',e.message);
       toast('Invoice not filed: '+e.message,'er');
     }
   }
   _scanFile=null;_scanMeta={};
-  _clearParkedLink();
   closeM();
   counts();renderPartsOnOrder();
   var msg=added+' part'+(added!==1?'s':'')+' added';
