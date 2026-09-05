@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.53</title>
+<title>DG Equipment v27.54</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -946,7 +946,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-05 · V27.53</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-05 · V27.54</div>
   </div>
 </div>
 
@@ -2158,7 +2158,7 @@ function machineLoc(w,eqId){
 function counts(){
   // Update parts on order badge in hamburger
   try{
-    var pending=(partsOnOrder||[]).filter(function(p){return p.status!=='received'&&p.status!=='cancelled';}).length;
+    var pending=(partsOnOrder||[]).filter(function(p){return !p.archived_at&&(p.status==='needed'||p.status==='ordered'||p.status==='partially received');}).length;
     var badge=document.getElementById('hamBadgeParts');
     if(badge){badge.style.display=pending>0?'inline':'none';badge.textContent=pending;}
   }catch(e){}
@@ -17527,8 +17527,13 @@ function filterPartsOrderSearch(){
 
 function renderPartsOnOrder(){
   var el=document.getElementById('partsOrderBody');if(!el)return;
-  var items=partsOrderTab==='all'?partsOnOrder:partsOnOrder.filter(function(p){return p.status===partsOrderTab;});
-  if(!items.length){el.innerHTML='<div class="empty" style="margin-top:30px"><div class="et">No parts '+(partsOrderTab==='all'?'on order':'with this status')+'</div><div class="es">Tap + to add a part to order</div></div>';return;}
+  // Filed-away lines are still in partsOnOrder — the inventory item's order
+  // history and "Order Again" read them. They just don't belong on a list
+  // that answers "what am I waiting on".
+  var live=(partsOnOrder||[]).filter(function(p){return !p.archived_at;});
+  var filed=(partsOnOrder||[]).filter(function(p){return !!p.archived_at;});
+  var items=partsOrderTab==='all'?live:live.filter(function(p){return p.status===partsOrderTab;});
+  if(!items.length){el.innerHTML='<div class="empty" style="margin-top:30px"><div class="et">No parts '+(partsOrderTab==='all'?'on order':'with this status')+'</div><div class="es">Tap + to add a part to order</div></div>'+archivedFooterHtml(filed);return;}
 
   var statusOrder=['needed','ordered','received','installed','cancelled'];
   var statusLabel={needed:'Needed',ordered:'Ordered',received:'Received &#8212; Ready to Install',installed:'Installed',cancelled:'Cancelled'};
@@ -17536,7 +17541,7 @@ function renderPartsOnOrder(){
 
   // Summary counts bar
   var cnts={needed:0,ordered:0,received:0,installed:0,cancelled:0};
-  partsOnOrder.forEach(function(p){if(cnts[p.status]!==undefined)cnts[p.status]++;});
+  live.forEach(function(p){if(cnts[p.status]!==undefined)cnts[p.status]++;});
   var h='<div style="display:flex;gap:6px;margin-bottom:12px">';
   h+='<div style="flex:1;background:rgba(232,93,58,.1);border:1.5px solid var(--red);border-radius:var(--r);padding:8px 6px;text-align:center"><div style="font-size:18px;font-weight:800;color:var(--red)">'+cnts.needed+'</div><div style="font-size:9px;font-weight:800;text-transform:uppercase;color:var(--red)">Need</div></div>';
   h+='<div style="flex:1;background:rgba(232,168,58,.1);border:1.5px solid var(--amb);border-radius:var(--r);padding:8px 6px;text-align:center"><div style="font-size:18px;font-weight:800;color:var(--amb)">'+cnts.ordered+'</div><div style="font-size:9px;font-weight:800;text-transform:uppercase;color:var(--amb)">Ordered</div></div>';
@@ -17595,7 +17600,69 @@ function renderPartsOnOrder(){
       h+='</div></div>';
     });
   });
+  h+=archivedFooterHtml(filed,items);
   el.innerHTML=h;
+}
+
+// ── Filing finished lines away ────────────────────────────────────
+//
+// Nothing is deleted. archived_at is a date on the row, so "clear the
+// list" and "keep the record" stop being opposites: the History tab and
+// the per-part order history read the same rows either way.
+var _poShowArchived=false;
+
+function archivedFooterHtml(filed,shown){
+  var doneNow=(shown||[]).filter(_poIsFinished);
+  var h='<div style="margin:18px 0 10px;padding-top:12px;border-top:1.5px solid var(--bd2)">';
+  if(doneNow.length){
+    h+='<button onclick="archiveFinishedParts()" style="width:100%;background:var(--sf2);color:var(--tx2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:11px;font-size:13px;font-weight:700;font-family:var(--fn);cursor:pointer;margin-bottom:8px">File away '+doneNow.length+' finished line'+(doneNow.length!==1?'s':'')+'</button>';
+  }
+  if(filed&&filed.length){
+    h+='<div onclick="togglePoArchived()" style="text-align:center;font-size:12px;color:var(--tx3);padding:6px;cursor:pointer">'+filed.length+' filed away · '+(_poShowArchived?'Hide':'Show')+'</div>';
+    if(_poShowArchived){
+      filed.slice().sort(function(a,b){return (b.archived_at||'').localeCompare(a.archived_at||'');}).forEach(function(p){
+        h+='<div style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;gap:8px;align-items:center;opacity:.75">'+
+          '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;word-break:break-word">'+esc(p.part_name||'Part')+'</div>'+
+          '<div style="font-size:11px;color:var(--tx3)">'+[p.vendor?esc(p.vendor):null,'Qty '+(p.qty_ordered||0),p.cost?'$'+parseFloat(p.cost).toFixed(2):null,p.received_at?new Date(p.received_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}):null].filter(Boolean).join(' · ')+'</div></div>'+
+          '<button data-pid="'+p.id+'" onclick="restorePartOrder(this.dataset.pid)" style="flex-shrink:0;background:none;color:var(--blu);border:1.5px solid var(--blu);border-radius:var(--rs);padding:7px 12px;font-size:12px;font-weight:700;font-family:var(--fn);cursor:pointer">Restore</button>'+
+        '</div>';
+      });
+    }
+  }
+  return h+'</div>';
+}
+
+function _poIsFinished(p){return p.status==='received'||p.status==='installed'||p.status==='cancelled';}
+
+function togglePoArchived(){_poShowArchived=!_poShowArchived;renderPartsOnOrder();}
+
+async function archiveFinishedParts(){
+  var done=(partsOnOrder||[]).filter(function(p){return !p.archived_at&&_poIsFinished(p);});
+  if(!done.length){toast('Nothing finished to file away','');return;}
+  if(!confirm('File away '+done.length+' finished line'+(done.length!==1?'s':'')+'?\n\nThey stay in History and on the part\u2019s order record \u2014 they just come off this list.'))return;
+  if(!_lock('poArch'))return;
+  var when=new Date().toISOString();
+  try{
+    for(var i=0;i<done.length;i+=50){
+      var chunk=done.slice(i,i+50);
+      await patch('parts_on_order',{archived_at:when},'?id=in.('+chunk.map(function(p){return p.id;}).join(',')+')');
+      chunk.forEach(function(p){p.archived_at=when;});
+    }
+    toast(done.length+' filed away \u2713','ok');
+    counts();renderPartsOnOrder();
+  }catch(e){toast('Failed: '+e.message,'er');}finally{_unlock('poArch');}
+}
+
+async function restorePartOrder(pid){
+  var p=(partsOnOrder||[]).find(function(x){return x.id===pid;});
+  if(!p)return;
+  if(!_lock('poRes_'+pid))return;
+  try{
+    await patch('parts_on_order',{archived_at:null},'?id=eq.'+pid);
+    p.archived_at=null;
+    toast('Back on the list \u2713','ok');
+    counts();renderPartsOnOrder();
+  }catch(e){toast('Failed: '+e.message,'er');}finally{_unlock('poRes_'+pid);}
 }
 // ── Reading an invoice into Parts on Order ────────────────────────
 //
