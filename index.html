@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.57</title>
+<title>DG Equipment v27.58</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -946,7 +946,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-05 · V27.57</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-13 · V27.58</div>
   </div>
 </div>
 
@@ -2056,15 +2056,111 @@ async function init(){
   }
 }
 
+// ─────────────────────────────────────────
+// QUICKBOOKS — one door for every call
+// ─────────────────────────────────────────
+// Every QBO call used to hand-roll its own fetch with 'Bearer '+_sessionToken.
+// Three things went wrong that way, and all three read to the owner as
+// "QuickBooks is disconnected":
+//   - _sessionToken is null in this frame while localStorage still holds a good
+//     token — a bfcache restore, or a timer that fires before sign-in lands.
+//     The literal string "Bearer null" goes up, qbo-push answers 401 "Sign in
+//     to use QuickBooks features", and the caller reads that as QuickBooks
+//     being unlinked and offers a reconnect that cannot help.
+//   - an expired app session was indistinguishable from a dead QBO token.
+//   - a failed token refresh left no trace anywhere, so the connection could
+//     rot for its full 100 days in silence.
+// Going through here instead: the session is restored before the call, a
+// missing one short-circuits rather than lying, and refresh outcomes are
+// recorded where the connection panel can show them.
+async function qboCall(payload){
+  var tok=_restoreSession();
+  // No app session: don't send "Bearer null" just to be told off, and don't
+  // record it as a QuickBooks fault — it isn't one.
+  if(!tok||_tokenExpired(tok))return {error:'Sign in again to use QuickBooks',app_signed_out:true};
+  var res,d;
+  try{
+    res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify(payload)});
+  }catch(e){
+    return {error:(navigator.onLine?(e.message||'Network error'):'No connection'),network_error:true};
+  }
+  try{ d=await res.json(); }catch(e){ d={error:'QuickBooks service returned no answer ('+res.status+')'}; }
+  if(!d||typeof d!=='object')d={error:'Unexpected response from QuickBooks service'};
+  // A 401 carrying qbo_disconnected is QuickBooks' token. A 401 without it is
+  // our own app session, and saying "reconnect QuickBooks" would be wrong.
+  if(res.status===401&&!d.qbo_disconnected)d.app_signed_out=true;
+  if(payload&&payload.action==='refresh')_qboNoteRefresh(d);
+  return d;
+}
+
+// Remember how the last silent refresh went, so a failing one is visible in
+// the QuickBooks Connection panel instead of vanishing into a catch block.
+function _qboNoteRefresh(d){
+  try{
+    if(d&&d.success){
+      localStorage.setItem('_qboRefreshTs',String(Date.now()));
+      localStorage.removeItem('_qboRefreshErr');
+    } else if(d&&!d.app_signed_out&&!d.network_error){
+      localStorage.setItem('_qboRefreshErr',JSON.stringify({at:Date.now(),msg:String(d.detail||d.error||'unknown'),creds:!!d.qbo_bad_credentials}));
+    }
+  }catch(e){}
+}
+
+// What the panel should say about the last refresh, or '' when it went fine.
+function _qboRefreshProblem(){
+  try{
+    var raw=localStorage.getItem('_qboRefreshErr');
+    if(!raw)return '';
+    var e=JSON.parse(raw);
+    if(!e||!e.at)return '';
+    return (e.creds
+      ? 'Token renewal is failing because QuickBooks is rejecting this app’s credentials — reconnecting will not fix it. '
+      : 'Token renewal is failing — the saved QuickBooks token is being refused. ')
+      +'Last tried '+new Date(e.at).toLocaleString()+': '+e.msg;
+  }catch(e){return '';}
+}
+
+// Renewal on demand. The silent refresh only runs on a 45-minute timer and
+// swallowed whatever it found, so there was no way to ask "is renewal actually
+// working?" — the answer only arrived as a dead connection weeks later. This
+// asks Intuit right now and reports exactly what came back.
+async function qboTestRefresh(){
+  closeM();
+  // The "testing…" toast outlives a fast answer and would sit on top of the
+  // result modal, so it gets cleared before anything opens over it.
+  var _toastOff=function(){try{document.getElementById('toast').classList.remove('on');}catch(e){}};
+  toast('Testing QuickBooks token renewal…','');
+  try{localStorage.removeItem('_qboRefreshTs');}catch(e){} // bypass the 45-min guard
+  var d=await qboCall({action:'refresh'});
+  if(d&&d.success){toast('Renewal works — token renewed ✓','ok');return;}
+  if(d&&d.app_signed_out){toast('Sign in again first','er');return;}
+  if(d&&d.network_error){toast('No answer from the QuickBooks service','er');return;}
+  var detail=String((d&&(d.detail||d.error))||'unknown');
+  if(d&&d.qbo_bad_credentials){
+    _toastOff();
+    openM('<div class="mt" style="color:var(--red)">Renewal is failing</div>'+
+      '<div class="ms" style="margin-bottom:14px">QuickBooks is rejecting this app\'s own credentials, not the connection. <strong>Reconnecting will not fix this</strong> — the QBO_CLIENT_ID and QBO_CLIENT_SECRET the sync runs on have to match the Intuit app that authorized it.</div>'+
+      '<div style="font-size:12px;color:var(--tx3);font-family:var(--mo);word-break:break-word;margin-bottom:14px">'+esc(detail)+'</div>'+
+      '<div class="mb"><button class="mo-btn" onclick="closeM()">OK</button></div>');
+    return;
+  }
+  if(d&&d.qbo_disconnected){
+    _toastOff();
+    openM('<div class="mt" style="color:var(--amb)">Renewal is failing</div>'+
+      '<div class="ms" style="margin-bottom:14px">QuickBooks refused the saved token, so renewal can\'t keep the connection alive. Reconnecting will fix it — if it comes back within the hour, the credentials are the problem, not the token.</div>'+
+      '<div style="font-size:12px;color:var(--tx3);font-family:var(--mo);word-break:break-word;margin-bottom:14px">'+esc(detail)+'</div>'+
+      '<div class="mb"><button class="mc-btn" onclick="closeM()">Not Now</button>'+
+      '<button class="mo-btn" style="background:#2CA01C" onclick="closeM();connectQBO()">Reconnect QBO →</button></div>');
+    return;
+  }
+  toast('Renewal failed: '+detail,'er');
+}
+
 // Silently refresh QBO token every 45 min so it never expires mid-session
 async function silentQBORefresh(){
-  try{
-    var last=localStorage.getItem('_qboRefreshTs');
-    if(last&&(Date.now()-parseInt(last))<45*60*1000)return;
-    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'refresh'})});
-    var d=await res.json();
-    if(d.success)localStorage.setItem('_qboRefreshTs',String(Date.now()));
-  }catch(e){}
+  var last=localStorage.getItem('_qboRefreshTs');
+  if(last&&(Date.now()-parseInt(last))<45*60*1000)return;
+  await qboCall({action:'refresh'}); // qboCall records the outcome either way
 }
 setTimeout(silentQBORefresh,5000);
 setInterval(silentQBORefresh,45*60*1000);
@@ -10165,8 +10261,7 @@ async function loadQboView(force){
   if(_qboInvoices&&!force){renderQboView();return;}
   if(el)el.innerHTML='<div class="loading"><div class="spin"></div><br>Loading from QuickBooks…</div>';
   try{
-    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'list_invoices',max_results:100})});
-    var data=await res.json();
+    var data=await qboCall({action:'list_invoices',max_results:100});
     if(data.qbo_disconnected){
       el.innerHTML='<div class="empty" style="margin-top:30px"><div class="et">QuickBooks disconnected</div><div class="es">Reconnect from Settings to view invoices</div></div>';
       return;
@@ -10507,8 +10602,7 @@ async function loadReconcile(){
     // Reuses the cache from "View in QBO" if already loaded this session.
     if(!_qboInvoices){
       try{
-        var qres=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'list_invoices',max_results:200})});
-        var qdata=await qres.json();
+        var qdata=await qboCall({action:'list_invoices',max_results:200});
         if(qdata.invoices){_qboInvoices=qdata.invoices;_qboByDoc=null;}
       }catch(qe){/* QBO check is best-effort — payments still show without it */}
     }
@@ -15832,9 +15926,24 @@ function _qboDisconnectedBanner(){
 // Check QBO status on startup — silent unless there's a problem
 async function _checkQBOStatus(){
   try{
-    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'status'})});
-    var data=await res.json();
+    var data=await qboCall({action:'status'});
+    // Signed out of the app, not disconnected from QuickBooks. Nothing to warn
+    // about here — the sign-in screen is the right prompt, not a reconnect.
+    if(data.app_signed_out||data.network_error) return;
     if(!data.connected) return; // not set up, no warning needed
+    // A refresh that keeps failing is the early warning this app never had.
+    // days_since_auth only starts creeping up once renewal has already stopped
+    // working, so by the time it crosses 100 the connection is long dead and
+    // the reason is gone. Say it while it's still fixable.
+    var prob=_qboRefreshProblem();
+    if(prob){
+      var pb=document.createElement('div');
+      pb.style.cssText='position:fixed;bottom:80px;left:12px;right:12px;background:var(--amb);color:#000;border-radius:var(--rs);padding:12px 14px;font-size:12.5px;font-weight:700;z-index:9999;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4)';
+      pb.innerHTML='⚠ QuickBooks token renewal is failing <span style="text-decoration:underline;margin-left:6px">Details →</span>';
+      pb.onclick=function(){if(pb.parentNode)pb.parentNode.removeChild(pb);openQBOSettings();};
+      document.body.appendChild(pb);
+      setTimeout(function(){if(pb.parentNode)pb.parentNode.removeChild(pb);},15000);
+    }
     var days=data.days_since_auth||0;
     if(days>100){
       // Already expired — show the reconnect modal immediately on next invoice action
@@ -15861,8 +15970,24 @@ async function _checkQBOStatus(){
 
 async function openQBOSettings(){
   try{
-    const res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'status'})});
-    const data=await res.json();
+    const data=await qboCall({action:'status'});
+    // These two used to fall through to "Connect your QBO account", which is
+    // how a five-second app-session hiccup came to look like QuickBooks having
+    // never been linked — and sent the owner round the reconnect loop for
+    // nothing. Neither is fixed by reconnecting, so neither offers it.
+    if(data.app_signed_out){
+      openM('<div class="mt">QuickBooks Online</div>'+
+        '<div class="ms">Your app sign-in has expired, so QuickBooks can\'t be checked. Sign in again — the QuickBooks connection itself is untouched.</div>'+
+        '<div class="mb"><button class="mo-btn" onclick="closeM()">OK</button></div>');
+      return;
+    }
+    if(data.network_error){
+      openM('<div class="mt">QuickBooks Online</div>'+
+        '<div class="ms">Couldn\'t reach the QuickBooks service: '+esc(String(data.error||'no connection'))+'</div>'+
+        '<div class="mb"><button class="mo-btn" onclick="closeM()">OK</button></div>');
+      return;
+    }
+    const prob=_qboRefreshProblem();
     if(data.connected){
       const dt=data.updated_at?new Date(data.updated_at).toLocaleDateString():'unknown';
       const days=data.days_since_auth||0;
@@ -15875,7 +16000,10 @@ async function openQBOSettings(){
           '<div style="font-size:13px;font-weight:700;color:'+statusColor+'">'+statusIcon+' '+statusMsg+'</div>'+
         '</div>'+
         (warn?'<div style="font-size:13px;color:var(--tx2);margin-bottom:14px">QBO tokens expire after 100 days. Tap Reconnect to refresh — only takes 30 seconds.</div>':'')+
+        (prob?'<div style="background:rgba(196,144,48,.1);border:1.5px solid var(--amb);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;font-size:12.5px;color:var(--tx2);line-height:1.45">'+esc(prob)+'</div>':'')+
+        '<div style="font-size:12.5px;color:var(--tx3);margin-bottom:14px">Renewal is what keeps this connection alive between reconnects. Test it if QuickBooks keeps dropping.</div>'+
         '<div class="mb"><button class="mc-btn" onclick="closeM()">Close</button>'+
+        '<button class="mc-btn" onclick="qboTestRefresh()">Test renewal</button>'+
         '<button class="mo-btn" onclick="connectQBO()">Reconnect</button></div>');
     } else {
       openM('<div class="mt">QuickBooks Online</div>'+
@@ -15972,8 +16100,7 @@ async function updateInQBO(woId){
     };
     toast('Updating invoice in QuickBooks...','');
     if(!qboLineItemsLookSafe(lineItems)){toast('Update cancelled','');return;}
-    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify(payload)});
-    var data=await res.json();
+    var data=await qboCall(payload);
     if(data.qbo_disconnected){_qboDisconnectedBanner();return;}
     if(data.error){toast('QBO error: '+data.error,'er');return;}
     toast('Updated in QBO — total $'+parseFloat(data.qbo_total||0).toFixed(2),'ok');
@@ -16032,8 +16159,7 @@ async function pushPaymentToQBO(woId){
           note:pmt.note||''
         }
       };
-      var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify(payload)});
-      var data=await res.json();
+      var data=await qboCall(payload);
       if(data.qbo_disconnected){_qboDisconnectedBanner();return;}
       if(data.error){failed++;lastErr=data.error;continue;}
       if(data.success){
@@ -16089,12 +16215,7 @@ async function attachInvoicePdfToQBO(woId,qboInvId){
   if(!qboInvId)return;
   try{
     var p=await invoicePdfBase64(woId);
-    var res=await fetch(QBO_PUSH_URL,{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
-      body:JSON.stringify({action:'attach_pdf',qbo_invoice_id:qboInvId,filename:p.invNum+'.pdf',pdf_base64:p.b64})
-    });
-    var d=await res.json();
+    var d=await qboCall({action:'attach_pdf',qbo_invoice_id:qboInvId,filename:p.invNum+'.pdf',pdf_base64:p.b64});
     if(d&&d.success)toast('PDF attached in QuickBooks ✓','ok');
     else toast('Pushed OK — PDF attach failed'+(d&&d.error?': '+d.error:''),'er');
   }catch(e){
@@ -16235,8 +16356,7 @@ async function qboSyncCheck(silent){
   _qboCheckTried=true;   // a failed read doesn't re-fire on every redraw
   if(!silent)renderInvoices();
   try{
-    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'list_invoices',max_results:200})});
-    var data=await res.json();
+    var data=await qboCall({action:'list_invoices',max_results:200});
     if(data.qbo_disconnected){_qboCheckRunning=false;toast('QuickBooks disconnected — reconnect in Settings','er');renderInvoices();return;}
     if(data.error||!data.invoices){_qboCheckRunning=false;toast('Couldn\'t read QuickBooks: '+(data.error||'no answer'),'er');renderInvoices();return;}
     _qboInvoices=data.invoices;
@@ -16328,22 +16448,17 @@ async function qboPushAllPayments(){
   });
   await _qboBulkRun(list,'payments',async function(it){
     var c=cMap[it.w.customer_id]||{};
-    var res=await fetch(QBO_PUSH_URL,{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},
-      body:JSON.stringify({
-        action:'push_payment',
-        qbo_invoice_id:it.w.qbo_invoice_id,
-        customer_name:c.name||'Customer',
-        payment:{
-          amount:parseFloat(it.pmt.amount||0),
-          date:(it.pmt.payment_date||it.pmt.created_at||new Date().toISOString()).split('T')[0],
-          method:it.pmt.method||'Other',
-          note:it.pmt.note||''
-        }
-      })
+    var data=await qboCall({
+      action:'push_payment',
+      qbo_invoice_id:it.w.qbo_invoice_id,
+      customer_name:c.name||'Customer',
+      payment:{
+        amount:parseFloat(it.pmt.amount||0),
+        date:(it.pmt.payment_date||it.pmt.created_at||new Date().toISOString()).split('T')[0],
+        method:it.pmt.method||'Other',
+        note:it.pmt.note||''
+      }
     });
-    var data=await res.json();
     if(data.qbo_disconnected)return {ok:false,error:'QuickBooks disconnected'};
     if(data.error)return {ok:false,error:data.error};
     if(data.success){
@@ -16369,8 +16484,7 @@ async function pushToQBO(woId,allowDup){
     // user explicitly chose "Push as New (duplicate)".
     if(!allowDup){
       try{
-        var _dupRes=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify({action:'list_invoices',max_results:100})});
-        var _dupData=await _dupRes.json();
+        var _dupData=await qboCall({action:'list_invoices',max_results:100});
         var _dupHit=(_dupData.invoices||[]).find(function(x){return String(x.DocNumber)===String(w.invoice_number);});
         if(_dupHit){
           var _healUpd={qbo_pushed:true,qbo_invoice_id:String(_dupHit.Id||'')};
@@ -16440,8 +16554,7 @@ async function pushToQBO(woId,allowDup){
     const _poRef=(w.po_number||'').trim();
     const payload={action:'push_invoice',invoice:{invoice_number:invNum,customer_name:c.name||'Customer',customer_phone:c.phone||'',date:today,due_date:dueDateStr,po_number:_poRef||null,memo:(_poRef?'PO #'+_poRef+' — ':'')+(w.problem||''),tax_amount:taxTotalQbo,line_items:lineItems,payments:woPaymentsForPush}};
     if(!qboLineItemsLookSafe(lineItems)){toast('Push cancelled','');return;}
-    const res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify(payload)});
-    const data=await res.json();
+    const data=await qboCall(payload);
     if(data.qbo_disconnected||data.error==='QuickBooks disconnected — reconnect required.'||(typeof data.error==='string'&&data.error.includes('invalid_grant'))){_qboDisconnectedBanner();return;}
     if(data.error){toast('QBO error — tap QBO settings to reconnect','er');return;}
     toast('Pushed to QBO — total $'+parseFloat(data.qbo_total||0).toFixed(2),'ok');
@@ -19739,8 +19852,7 @@ async function pushSaleToQBO(){
       return {item_name:itemName, description:s.name+(s.partNum?' #'+s.partNum:''), qty:s.qty, rate:s.price, amount:parseFloat((s.qty*s.price).toFixed(2))};
     });
     var payload={action:'push_invoice',invoice:{invoice_number:invNum,customer_name:c?c.name:'Walk-in Customer',customer_phone:c?c.phone||'':'',date:today,due_date:today,memo:'Parts sale',tax_amount:parseFloat(t.tax.toFixed(2)),line_items:lineItems}};
-    var res=await fetch(QBO_PUSH_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_sessionToken},body:JSON.stringify(payload)});
-    var data=await res.json();
+    var data=await qboCall(payload);
     if(data.qbo_disconnected||data.error==='QuickBooks disconnected — reconnect required.'||(typeof data.error==='string'&&data.error.includes('invalid_grant'))){_qboDisconnectedBanner();return;}
     if(data.error){toast('QBO error — tap QBO settings to reconnect','er');return;}
     toast('Pushed to QBO — total $'+parseFloat(data.qbo_total||0).toFixed(2),'ok');
