@@ -11,6 +11,13 @@
 // from QBO_CLIENT_SECRET only, so the secret is not sitting in source.
 //
 // Requires QBO_CLIENT_ID, QBO_CLIENT_SECRET, APP_JWT_SECRET.
+//
+// These two must be the same Intuit app credentials qbo-auth authorizes with
+// (qbo-auth still has its pair hardcoded and is not in this repo). Intuit ties
+// a refresh token to the client that minted it, so if the two disagree every
+// refresh fails with invalid_grant while every fresh connect succeeds — the
+// connection then dies about an hour after each reconnect. See badCredentials
+// below for how that is reported now.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { verify } from 'https://deno.land/x/djwt@v3.0.2/mod.ts';
@@ -26,6 +33,27 @@ const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 function ok(data: any) { return new Response(JSON.stringify(data), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
 function fail(msg: string) { return new Response(JSON.stringify({ error: msg }), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
 function disconnected(detail: string) { return new Response(JSON.stringify({ error: 'QuickBooks disconnected — reconnect required.', qbo_disconnected: true, detail }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } }); }
+
+// A refresh can fail two ways that look identical from the app, and telling
+// them apart is the difference between a fix and a wasted reconnect:
+//   invalid_grant  → the saved refresh token is dead (unused past its 100
+//                    days, superseded by a newer one, or the app was
+//                    disconnected inside QuickBooks). Reconnecting fixes it,
+//                    and that is what disconnected() says.
+//   invalid_client → the credentials THIS function refreshes with are not the
+//                    ones Intuit issued the token to. Reconnecting cannot fix
+//                    it: qbo-auth mints tokens with its own hardcoded pair,
+//                    qbo-push refreshes with QBO_CLIENT_ID/QBO_CLIENT_SECRET,
+//                    and if those two disagree every refresh fails while
+//                    every fresh connect works. This used to fall into fail(),
+//                    which returns HTTP 200 with a generic message that the
+//                    client swallowed — so it read as "disconnected" too.
+function badCredentials(detail: string) {
+  return new Response(JSON.stringify({
+    error: 'QuickBooks rejected this app\'s credentials — reconnecting will not help.',
+    qbo_bad_credentials: true, detail,
+  }), { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } });
+}
 
 async function jwtKey() {
   return await crypto.subtle.importKey(
@@ -48,9 +76,30 @@ async function refreshTokens(supabase: any, rt: string) {
     headers: { 'Authorization': `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
     body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: rt })
   });
-  const t = await res.json();
-  if (t.error === 'invalid_grant' || t.error === 'AuthenticationFailed') throw { qbo_disconnected: true, message: t.error_description || t.error };
-  if (!t.access_token) throw new Error('Token refresh failed: ' + JSON.stringify(t));
+  // Read as text first: a gateway error page is not JSON, and res.json()
+  // throwing on it turned a legible failure into "Unexpected token <".
+  const raw = await res.text();
+  let t: any = {};
+  try { t = JSON.parse(raw); } catch { /* handled below — t stays empty */ }
+  if (!t.access_token) {
+    // CLIENT_ID is safe to log: it travels in the clear in every OAuth
+    // request. It is here so a credential mismatch between qbo-auth and
+    // qbo-push shows up in the logs instead of being guessed at. The secret
+    // itself is never logged, not even a fingerprint of it.
+    console.error('qbo refresh failed: ' + JSON.stringify({
+      http: res.status,
+      error: t.error || null,
+      detail: t.error_description || raw.slice(0, 200),
+      client_id: CLIENT_ID,
+    }));
+    if (t.error === 'invalid_grant' || t.error === 'AuthenticationFailed') {
+      throw { qbo_disconnected: true, message: t.error_description || t.error };
+    }
+    throw {
+      qbo_bad_credentials: true,
+      message: `Intuit refused the refresh (HTTP ${res.status}${t.error ? ', ' + t.error : ''}). QBO_CLIENT_ID/QBO_CLIENT_SECRET must match the Intuit app that authorized the connection.`,
+    };
+  }
   await supabase.from('qbo_tokens').update({
     access_token: t.access_token,
     refresh_token: t.refresh_token || rt,
@@ -193,6 +242,7 @@ Deno.serve(async (req: Request) => {
       return ok({ success: true, message: 'Token refreshed' });
     } catch (e: any) {
       if (e?.qbo_disconnected) return disconnected(e.message);
+      if (e?.qbo_bad_credentials) return badCredentials(e.message);
       return fail(e.message);
     }
   }
@@ -207,7 +257,11 @@ Deno.serve(async (req: Request) => {
       const refreshed = await refreshTokens(supabase, currentRefreshToken);
       accessToken = refreshed.accessToken;
       currentRefreshToken = refreshed.refreshToken;
-    } catch (e: any) { if (e.qbo_disconnected) return disconnected(e.message); throw e; }
+    } catch (e: any) {
+      if (e?.qbo_disconnected) return disconnected(e.message);
+      if (e?.qbo_bad_credentials) return badCredentials(e.message);
+      throw e;
+    }
   }
 
   const baseUrl = `${QBO_BASE}/v3/company/${tok.realm_id}`;
@@ -409,6 +463,7 @@ Deno.serve(async (req: Request) => {
 
   } catch (e: any) {
     if (e?.qbo_disconnected) return disconnected(e.message || 'Token error');
+    if (e?.qbo_bad_credentials) return badCredentials(e.message || 'Credential error');
     console.error('qbo-push error:', e.message);
     return fail(e.message || 'Unknown error');
   }
