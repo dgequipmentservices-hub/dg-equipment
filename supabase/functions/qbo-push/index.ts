@@ -31,7 +31,15 @@ const QBO_BASE = 'https://quickbooks.api.intuit.com';
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
 
 function ok(data: any) { return new Response(JSON.stringify(data), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
-function fail(msg: string) { return new Response(JSON.stringify({ error: msg }), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
+// fail() answers HTTP 200 with the error in the body, which every caller in
+// index.html reads correctly — but it means the edge logs show a clean 200
+// while the owner is staring at an error toast. Every app-visible QuickBooks
+// failure therefore left no trace at all. Log it, so the next "it won't push"
+// can be answered from the logs instead of guessed at.
+function fail(msg: string) {
+  console.error('qbo-push fail: ' + String(msg).slice(0, 500));
+  return new Response(JSON.stringify({ error: msg }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+}
 function disconnected(detail: string) { return new Response(JSON.stringify({ error: 'QuickBooks disconnected — reconnect required.', qbo_disconnected: true, detail }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } }); }
 
 // A refresh can fail two ways that look identical from the app, and telling
