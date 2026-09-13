@@ -31,7 +31,15 @@ const QBO_BASE = 'https://quickbooks.api.intuit.com';
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
 
 function ok(data: any) { return new Response(JSON.stringify(data), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
-function fail(msg: string) { return new Response(JSON.stringify({ error: msg }), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
+// fail() answers HTTP 200 with the error in the body, which every caller in
+// index.html reads correctly — but it means the edge logs show a clean 200
+// while the owner is staring at an error toast. Every app-visible QuickBooks
+// failure therefore left no trace at all. Log it, so the next "it won't push"
+// can be answered from the logs instead of guessed at.
+function fail(msg: string) {
+  console.error('qbo-push fail: ' + String(msg).slice(0, 500));
+  return new Response(JSON.stringify({ error: msg }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+}
 function disconnected(detail: string) { return new Response(JSON.stringify({ error: 'QuickBooks disconnected — reconnect required.', qbo_disconnected: true, detail }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } }); }
 
 // A refresh can fail two ways that look identical from the app, and telling
@@ -194,17 +202,37 @@ async function buildLines(baseUrl: string, h: any, lineItems: any[]) {
     // back to an unrelated Item ("Testt") on the Equipment line before
     // this fix existed.
     if (!itemId) itemId = await ensureItem(baseUrl, h, li.item_name || 'Misc');
+
+    // QuickBooks rejects the whole invoice unless Amount === UnitPrice × Qty,
+    // and the app can charge a sub-cent rate: two tires at $69.045 are billed
+    // as $138.09, but rounding the rate on its own sends 69.05 × 2 = 138.10
+    // and QBO refuses it — "Amount is not equal to UnitPrice * Qty. Supplied
+    // value:138.09" — which reached the owner as "tap QBO settings to
+    // reconnect", a token error it never was.
+    //
+    // The amount is what the customer was actually charged, so it stays
+    // authoritative and the rounded unit price is only sent when it
+    // multiplies back to it exactly. When it doesn't, UnitPrice is left out
+    // and QuickBooks derives it from Amount ÷ Qty itself — consistent by
+    // construction, and it can't dispute its own arithmetic. Sending the
+    // sub-cent rate instead would only move the problem: QBO rounds
+    // UnitPrice to the company's decimal setting and rejects it again.
+    const qty = Math.abs(li.qty || 1) || 1;
+    const amount = parseFloat(Math.abs(li.amount).toFixed(2));
+    const unitPrice = parseFloat(Math.abs(li.rate).toFixed(2));
+    const detail: any = {
+      ItemRef: itemId ? { value: itemId, name: li.item_name } : { name: li.item_name },
+      Qty: qty,
+      TaxCodeRef: { value: li.taxable === false ? 'NON' : 'TAX' }
+    };
+    if (Math.abs(unitPrice * qty - amount) < 1e-6) detail.UnitPrice = unitPrice;
+
     return {
       LineNum: i + 1,
       Description: li.description,
-      Amount: parseFloat(Math.abs(li.amount).toFixed(2)),
+      Amount: amount,
       DetailType: 'SalesItemLineDetail',
-      SalesItemLineDetail: {
-        ItemRef: itemId ? { value: itemId, name: li.item_name } : { name: li.item_name },
-        Qty: Math.abs(li.qty || 1),
-        UnitPrice: parseFloat(Math.abs(li.rate).toFixed(2)),
-        TaxCodeRef: { value: li.taxable === false ? 'NON' : 'TAX' }
-      }
+      SalesItemLineDetail: detail
     };
   }));
 }
