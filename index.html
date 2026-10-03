@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.65</title>
+<title>DG Equipment v27.66</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -956,7 +956,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-09-20 · V27.65</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-03 · V27.66</div>
   </div>
 </div>
 
@@ -8780,7 +8780,9 @@ async function scanBill(file){
     _billLines=(result.lines||[]).map(function(l,idx){
       var m=matchBillLine(l);
       var cost=parseFloat(l.unit_cost||0)||0;
-      var desc=(l.desc||'').trim();
+      // Unit and quantity columns sometimes ride along on the end of the
+      // description ("…52420002, ea, 1") — they're already in qty.
+      var desc=(l.desc||'').trim().replace(/(,\s*(ea|each)\.?)(,\s*\d+)?\s*$/i,'').trim();
       // Whose number is this? On a Rotary or Stens bill it is theirs,
       // whatever brand the description names — that brand is the machine
       // it fits. Off an OEM or dealer bill, the line's own brand names
@@ -9273,6 +9275,12 @@ function setBillLineCost(idx,v){
   if(!l.sellTouched)l.sell=suggestSellFromCost(l.cost,guessBillCategory(l));
   renderBillReview();
 }
+function setBillLineName(idx,v){
+  var l=_billLines[idx];if(!l)return;
+  var n=String(v||'').trim();
+  if(n)l.desc=n;
+  renderBillReview();
+}
 function setBillLineQty(idx,v){var l=_billLines[idx];if(l)l.qty=parseFloat(v||0)||0;renderBillReview();}
 
 function showBillReview(){go('S_billreview');S('S_billreview');renderBillReview();}
@@ -9334,7 +9342,11 @@ function renderBillReview(){
     // tick
     h+='<div onclick="toggleBillLine('+l.idx+')" style="width:22px;height:22px;border-radius:6px;border:2px solid '+(l.include?'var(--grn)':'var(--bd2)')+';background:'+(l.include?'var(--grn)':'transparent')+';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:1px">'+(l.include?'<span style="color:#fff;font-size:13px;line-height:1">✓</span>':'')+'</div>';
     h+='<div style="flex:1 1 170px;min-width:170px">';
-    h+='<div style="font-size:13px;font-weight:700">'+esc(item?item.name:(l.desc||'Unknown part'))+'</div>';
+    // A new part takes its name from the bill, and bills write names for
+    // their own catalogue, not the shelf — so the name is editable here,
+    // before Apply writes it. A matched part keeps its inventory name.
+    if(item)h+='<div style="font-size:13px;font-weight:700">'+esc(item.name)+'</div>';
+    else h+='<input type="text" value="'+esc(l.desc||'')+'" placeholder="Part name" onchange="setBillLineName('+l.idx+',this.value)" title="Name it will be saved under" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:5px 8px;font-size:13px;font-weight:700;font-family:var(--fn);color:var(--tx);outline:none">';
     var meta=[];
     if(l.part_number)meta.push(esc(l.part_number));
     if(!item)meta.push('<span style="color:var(--red);font-weight:700">no match</span>');
