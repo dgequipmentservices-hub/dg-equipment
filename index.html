@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.66</title>
+<title>DG Equipment v27.67</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -956,7 +956,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-03 · V27.66</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-05 · V27.67</div>
   </div>
 </div>
 
@@ -1205,7 +1205,7 @@ Check spark plug" rows="5" style="margin-bottom:8px;resize:none;line-height:1.7;
     <div class="sw"><input class="sinp" id="isrch" placeholder="Name, OEM#, Stens#, Rotary#…" oninput="renderInv()"><span class="sico">⌕</span></div>
     <div class="crow" id="catRow" style="padding-bottom:8px"></div>
   </div>
-  <div style="flex:1;overflow-y:auto;padding:6px 14px 80px" id="invBody"></div>
+  <div id="invBillBack" style="display:none"></div><div style="flex:1;overflow-y:auto;padding:6px 14px 80px" id="invBody"></div>
 </div>
 
 <!-- ═══════════ SCREEN: SCHEDULE ═══════════ -->
@@ -1388,7 +1388,7 @@ Check spark plug" rows="5" style="margin-bottom:8px;resize:none;line-height:1.7;
 <!-- ═══════════ SCREEN: BILL REVIEW ═══════════ -->
 <div class="scr" id="S_billreview">
   <div class="hdr">
-    <div class="hdr-l"><button class="back-btn" onclick="goBack()">&#8592;</button>
+    <div class="hdr-l"><button class="back-btn" onclick="leaveBillReview()">&#8592;</button>
       <div><div class="htitle" id="bill_title">Vendor bill</div><div class="hsub" id="bill_sub"></div></div>
     </div>
     <div class="hdr-r"><button class="ibtn" onclick="scanBillStart()" title="Scan another"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></button></div>
@@ -1848,6 +1848,7 @@ function _nav(dest){
   else if(dest==='S_partsused'){showPartsUsed();}
   else if(dest==='S_photos'){showPhotos();}
   else if(dest==='S_qboview'){S('S_qboview');loadQboView();}
+  else if(dest==='S_billreview'){S('S_billreview');_billRefreshMatches();renderBillReview();}
   else if(dest==='S_parts_order'){S('S_parts_order');loadPartsOnOrder();}
   else if(dest==='S_price_matrix'){S('S_price_matrix');loadPriceMatrix();}
   else if(dest==='S_pfind'){S('S_pfind');pfEnter();}
@@ -7625,6 +7626,14 @@ function xrefAddToInv(stensNum, oemNum, desc){
 
 function renderInv(){
   renderCatBar();
+  // A bill left open to come here gets a way straight back to it.
+  var _bb=document.getElementById('invBillBack');
+  if(_bb){
+    if(_billOpen&&_billLines.length){
+      _bb.style.display='block';
+      _bb.innerHTML='<button onclick="returnToBill()" style="display:block;text-align:left;background:var(--sf);border:1.5px solid var(--blu);border-radius:var(--rs);padding:9px 12px;margin:8px 14px 0;width:calc(100% - 28px);font-size:13px;font-weight:700;font-family:var(--fn);color:var(--blu);cursor:pointer">← Back to '+esc((_billMeta.vendor||'vendor')+' bill'+(_billMeta.bill_number?' #'+_billMeta.bill_number:''))+'</button>';
+    }else{_bb.style.display='none';_bb.innerHTML='';}
+  }
   const q=(document.getElementById('isrch').value||'').toLowerCase().trim();
   let items=[...inv];
   if(activeCat!=='All')items=items.filter(p=>(p.category||autoCat(p.name))===activeCat);
@@ -7726,7 +7735,9 @@ async function saveInv(id){
   var brEl=document.getElementById('ibr_'+id);
   var hnEl=document.getElementById('ihn_'+id);
   var data={name:document.getElementById('inm_'+id).value.trim(),category:document.getElementById('ict_'+id).value,item_type:document.getElementById('ityp_'+id)?document.getElementById('ityp_'+id).value:'Stock',cost:parseFloat(document.getElementById('ics_'+id).value)||0,sell_price:sell,sell,min_stock:parseInt(document.getElementById('imn_'+id).value)||0,qty_on_hand:qty,cross_refs:xrEl?xrEl.value.trim():'',stens_num:stEl?stEl.value.trim():'',rotary_num:rtEl?rtEl.value.trim():'',qty_stens:parseFloat((document.getElementById('iqst_'+id)||{}).value)||0,qty_rotary:parseFloat((document.getElementById('iqrt_'+id)||{}).value)||0,wright_num:wrEl?wrEl.value.trim()||null:null,scag_num:scEl?scEl.value.trim()||null:null,redmax_num:rmEl?rmEl.value.trim()||null:null,echo_num:ecEl?ecEl.value.trim()||null:null,toro_num:toEl?toEl.value.trim()||null:null,kawasaki_num:kwEl?kwEl.value.trim()||null:null,briggs_num:brEl?brEl.value.trim()||null:null,honda_num:hnEl?hnEl.value.trim()||null:null,qty_wright:parseFloat((document.getElementById('iqwr_'+id)||{}).value)||0,qty_scag:parseFloat((document.getElementById('iqsc_'+id)||{}).value)||0,qty_redmax:parseFloat((document.getElementById('iqrm_'+id)||{}).value)||0,qty_echo:parseFloat((document.getElementById('iqec_'+id)||{}).value)||0,qty_toro:parseFloat((document.getElementById('iqto_'+id)||{}).value)||0,qty_kawasaki:parseFloat((document.getElementById('iqkw_'+id)||{}).value)||0,qty_briggs:parseFloat((document.getElementById('iqbr_'+id)||{}).value)||0,qty_honda:parseFloat((document.getElementById('iqhn_'+id)||{}).value)||0,fits:(document.getElementById('ift_'+id)?document.getElementById('ift_'+id).value||'':'').trim()||null,notes:(document.getElementById('ino_'+id)?document.getElementById('ino_'+id).value||'':'').trim(),purchase_notes:(document.getElementById('ipn_'+id)?document.getElementById('ipn_'+id).value||'':'').trim()||null};
-  try{await patch('inventory',data,'?id=eq.'+id);const i=inv.findIndex(x=>x.id===id);if(i>=0)inv[i]={...inv[i],...data};expInvId=null;renderInv();toast('Saved ✓','ok');}
+  try{await patch('inventory',data,'?id=eq.'+id);const i=inv.findIndex(x=>x.id===id);if(i>=0)inv[i]={...inv[i],...data};expInvId=null;renderInv();
+    if(_billOpen){returnToBill();toast('Saved ✓ — back to the bill','ok');}
+    else toast('Saved ✓','ok');}
   catch(e){toast('Save failed: '+e.message,'er');if(btn){btn.disabled=false;btn.textContent='Save changes';}}
 }
 async function delInv(id){
@@ -7752,6 +7763,7 @@ function showLow(){
   el.innerHTML=h;
 }
 function addInvItem(){
+  _billAddIdx=null;
   var catOpts=['Equipment for Sale','Air Filter','Fuel Filter','Oil Filter','Belt','Blade','Spark Plug','Oil','Carburetor','Recoil / Starter','Electrical','Cable','Pulley','Fuel Line','Hardware','Tire','Snow Parts','Spring','Bearing','Transmission','Misc'].map(function(c){return'<option>'+ c+'</option>';}).join('');
   openM('<div class="mt">New inventory item</div><div class="mf">'+
     '<div><div class="mlbl">Name *</div><input class="mi" id="ai_nm" placeholder="Part name"></div>'+
@@ -7857,7 +7869,14 @@ async function saveNewInv(){
   var _aiNotes=(document.getElementById('ai_notes')||{}).value||'';
   var _aiFits=(document.getElementById('ai_fits')||{}).value||'';
   const [item]=await post('inventory',{name,item_type:itype,category:document.getElementById('ai_ct').value,qty_on_hand:parseFloat(document.getElementById('ai_qty').value)||0,cost:parseFloat(document.getElementById('ai_cs').value)||0,sell_price:sell,sell,oem:document.getElementById('ai_om').value.trim(),part:document.getElementById('ai_om').value.trim(),stens_num:document.getElementById('ai_st').value.trim(),rotary_num:document.getElementById('ai_rt').value.trim(),wright_num:(document.getElementById('ai_wr')||{value:''}).value.trim()||null,scag_num:(document.getElementById('ai_sc')||{value:''}).value.trim()||null,redmax_num:(document.getElementById('ai_rm')||{value:''}).value.trim()||null,echo_num:(document.getElementById('ai_ec')||{value:''}).value.trim()||null,toro_num:(document.getElementById('ai_to')||{value:''}).value.trim()||null,kawasaki_num:(document.getElementById('ai_kw')||{value:''}).value.trim()||null,briggs_num:(document.getElementById('ai_br')||{value:''}).value.trim()||null,honda_num:(document.getElementById('ai_hn')||{value:''}).value.trim()||null,min_stock:0,sold_qty:0,fits:_aiFits.trim()||null,notes:_aiNotes.trim()||null});
-    if(item&&item.id){inv.push(item);inv.sort((a,b)=>(a.name||'').localeCompare(b.name||''));closeM();expInvId=item.id;renderInv();toast('Item added ✓','ok');}
+    if(item&&item.id){inv.push(item);inv.sort((a,b)=>(a.name||'').localeCompare(b.name||''));closeM();
+      // Added from a bill line: tie it to that line and stay on the bill.
+      var _bl=(_billAddIdx!=null&&_billOnScreen())?_billLines[_billAddIdx]:null;
+      _billAddIdx=null;
+      if(_bl){_bl.match={item:item,how:'the part you just added',confidence:'certain'};_bl.include=true;renderBillReview();toast('Added to inventory ✓','ok');return;}
+      expInvId=item.id;renderInv();
+      if(_billOpen){returnToBill();toast('Item added ✓ — back to the bill','ok');}
+      else toast('Item added ✓','ok');}
   }catch(e){toast('Save failed: '+e.message,'er');btn.disabled=false;btn.textContent='Add item';}
 }
 
@@ -8675,6 +8694,11 @@ function setPuDate(which,v){if(which==='from')_puFrom=v;else _puTo=v;renderParts
 // and ticked, with the old value shown beside the new one.
 // ─────────────────────────────────────────
 var _billLines=[], _billMeta={}, _billPhotoUrl=null, _billFile=null;
+// A bill is "open" from the moment it's on screen until it's applied or
+// backed out of. While it's open, a trip to Inventory to fix or add a part
+// comes back to the bill on save, instead of stranding it — navTo() resets
+// the history, so without this the bill was only reachable by rescanning.
+var _billOpen=false, _billAddIdx=null;
 
 // Reading a dot-matrix vendor invoice is worth the better model. The
 // proxy may not know it, so fall back to what the rest of the app uses
@@ -9283,7 +9307,60 @@ function setBillLineName(idx,v){
 }
 function setBillLineQty(idx,v){var l=_billLines[idx];if(l)l.qty=parseFloat(v||0)||0;renderBillReview();}
 
-function showBillReview(){go('S_billreview');S('S_billreview');renderBillReview();}
+function showBillReview(){_billOpen=true;go('S_billreview');S('S_billreview');renderBillReview();}
+function leaveBillReview(){_billOpen=false;goBack();}
+// Inventory may have changed while the bill was off screen: a part edited
+// (its object in inv[] was replaced), deleted, or added. Point matched lines
+// at the current copy and give unmatched ones another look.
+function _billRefreshMatches(){
+  _billLines.forEach(function(l){
+    if(l.match&&l.match.item){
+      var cur=(inv||[]).find(function(i){return i.id===l.match.item.id;});
+      if(cur)l.match.item=cur;else l.match=null;
+    }
+    if(!l.match){var m=matchBillLine(l);if(m)l.match=m;}
+  });
+}
+function _billOnScreen(){var el=document.getElementById('S_billreview');return !!(el&&el.classList.contains('on'));}
+function returnToBill(){
+  var i=_hist.lastIndexOf('S_billreview');
+  _hist=i>=0?_hist.slice(0,i+1):['S_list','S_billreview'];
+  prevScr='S_billreview';
+  _nav('S_billreview');
+}
+// Jump to this line's part in Inventory; Save changes there comes back here.
+function billEditPart(idx){
+  var l=_billLines[idx];if(!l||!l.match||!l.match.item)return;
+  var item=l.match.item;
+  go('S_inv');S('S_inv');
+  var s=document.getElementById('isrch');if(s)s.value=item.name||'';
+  expInvId=item.id;renderInv();
+  setTimeout(function(){var el=document.getElementById('ic_'+item.id);if(el)el.scrollIntoView({block:'nearest'});},80);
+}
+// The new-item form, filled in from the bill line. Qty starts at 0 because
+// Apply is what puts the bill's quantity on the shelf.
+var _BILL_COL_FIELD={stens_num:'ai_st',rotary_num:'ai_rt',wright_num:'ai_wr',scag_num:'ai_sc',redmax_num:'ai_rm',echo_num:'ai_ec',toro_num:'ai_to',kawasaki_num:'ai_kw',briggs_num:'ai_br',honda_num:'ai_hn'};
+function billAddPart(idx){
+  var l=_billLines[idx];if(!l)return;
+  addInvItem();
+  _billAddIdx=idx;
+  var set=function(id,v){var el=document.getElementById(id);if(el&&v!=null&&v!=='')el.value=v;};
+  set('ai_nm',l.desc||'');
+  set('ai_qty','0');
+  var cat=guessBillCategory(l);
+  var ct=document.getElementById('ai_ct');
+  if(ct&&cat&&Array.prototype.some.call(ct.options,function(o){return o.value===cat;}))ct.value=cat;
+  if(l.cost>0)set('ai_cs',l.cost.toFixed(2));
+  if(parseFloat(l.sell||0)>0)set('ai_sl',parseFloat(l.sell).toFixed(2));
+  if(l.part_number){
+    var f=_BILL_COL_FIELD[l.brandCol];
+    if(f){
+      set(f,l.part_number);
+      if(f!=='ai_st'&&f!=='ai_rt'){var b=document.getElementById('ai_oemXrefBlock');if(b)b.style.display='block';}
+    }else set('ai_om',l.part_number);
+  }
+  if(typeof aiShowPct==='function')try{aiShowPct();}catch(e){}
+}
 
 function renderBillReview(){
   var el=document.getElementById('billBody');if(!el)return;
@@ -9436,6 +9513,9 @@ function renderBillReview(){
     h+='<div style="margin-top:8px">';
     h+='<input list="billPartList" placeholder="'+(item?'Wrong part? search yours…':'Search your inventory…')+'" value="" onchange="pickBillPart('+l.idx+',this.value)" style="width:100%;background:var(--sf2);border:1.5px solid '+(item?'var(--bd2)':'var(--red)')+';border-radius:var(--rs);padding:7px 9px;font-size:12px;font-family:var(--fn);color:var(--tx)">';
     h+='</div>';
+    h+='<div style="margin-top:6px">'+(item
+      ?'<button onclick="billEditPart('+l.idx+')" style="background:transparent;border:none;padding:2px 0;font-size:12px;font-weight:700;font-family:var(--fn);color:var(--blu);cursor:pointer">Edit this part in inventory →</button>'
+      :'<button onclick="billAddPart('+l.idx+')" style="background:transparent;border:none;padding:2px 0;font-size:12px;font-weight:700;font-family:var(--fn);color:var(--blu);cursor:pointer">+ Add to inventory with full details</button>')+'</div>';
 
     // Stock or job — the switch that says whether the shelf moves
     h+='<div style="display:flex;gap:6px;margin-top:9px;align-items:center;flex-wrap:wrap">';
@@ -9603,6 +9683,7 @@ async function applyBill(){
   _ledger=null; // next screen re-reads with the new lines in it
   toast(applied+' line'+(applied!==1?'s':'')+' applied'+(failed?', '+failed+' failed':'')+' ✓', failed?'er':'ok');
   counts();
+  _billOpen=false;
   goBack();
 }
 
