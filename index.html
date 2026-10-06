@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.67</title>
+<title>DG Equipment v27.68</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -956,7 +956,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-05 · V27.67</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-06 · V27.68</div>
   </div>
 </div>
 
@@ -1194,6 +1194,7 @@ Check spark plug" rows="5" style="margin-bottom:8px;resize:none;line-height:1.7;
   </div>
   <div style="display:flex;gap:6px;padding:8px 14px;border-bottom:1px solid var(--bd2);flex-shrink:0;overflow-x:auto;scrollbar-width:none">
     <button class="fchip on" onclick="setInvSubTab('stock',this)">Stock</button>
+    <button class="fchip" onclick="setInvSubTab('recent',this)">Recent</button>
     <button class="fchip" onclick="setInvSubTab('count',this)">Count</button>
     <button class="fchip" onclick="setInvSubTab('prices',this)">Prices</button>
     <button class="fchip" onclick="setInvSubTab('xref',this)">OEM XRef</button>
@@ -1842,7 +1843,7 @@ function _nav(dest){
   else if(dest==='S_dayplan'){if(typeof openDayPlan==='function')openDayPlan();else S('S_dayplan');}
   else if(dest==='S_sale'){prevScr=document.querySelector('.scr.on')?document.querySelector('.scr.on').id:'S_list';S('S_sale');if(typeof initSaleReceipt==='function')initSaleReceipt();}
   else if(dest==='S_leads'){S('S_leads');loadLeads();}
-  else if(dest==='S_inv'){S('S_inv');renderInv();}
+  else if(dest==='S_inv'){S('S_inv');if(_invSub==='recent')renderRecentParts();else renderInv();}
   else if(dest==='S_invoices'){S('S_invoices');renderInvoices(true);}
   else if(dest==='S_status'){S('S_status');renderStatusOverview();}
   else if(dest==='S_partsused'){showPartsUsed();}
@@ -7269,13 +7270,104 @@ function renderCatBar(){
   }).join('');
 }
 function setCat(btn){activeCat=btn.dataset.c;expInvId=null;renderCatBar();renderInv();}
+// ─────────────────────────────────────────
+// RECENT — every part that went on a job in the last 90 days, read off the
+// jobs themselves. The ledger only knows parts that were in inventory when
+// they were used; a part typed onto a job before it was catalogued shows up
+// here too, which is the point: check before adding a part you already
+// bought and used.
+// ─────────────────────────────────────────
+var _invSub='stock', _rpOnlyUncat=false, _rpSort='date';
+function _recentPartRows(days){
+  var since=Date.now()-days*86400000, rows=[];
+  (wos||[]).forEach(function(w){
+    if(!w.machines_data)return;
+    var md;try{md=JSON.parse(w.machines_data);}catch(e){return;}
+    if(!md||typeof md!=='object')return;
+    var c=cMap[w.customer_id]||{};
+    Object.keys(md).forEach(function(k){
+      var d=md[k]||{};
+      if(!Array.isArray(d.parts)||!d.parts.length)return;
+      // The machine's service date when it was set, otherwise the job's.
+      var when=d.svcDate?new Date(d.svcDate+'T12:00:00'):new Date(w.invoiced_at||w.created_at||0);
+      if(isNaN(when)||when.getTime()<since)return;
+      var eq=eMap[k];
+      var mach=eq?[eq.make,eq.model].filter(Boolean).join(' '):(d.label||(d.sale?'Counter sale':''));
+      d.parts.forEach(function(pt){
+        if(!pt)return;
+        var iid=pt.inv_id||pt.invId||null;
+        var item=iid?(inv||[]).find(function(i){return i.id===iid;}):null;
+        rows.push({
+          name:(pt.name||pt.desc||(item&&item.name)||'Part').trim(),
+          num:(pt.partNum||pt.part_number||(item?invPrimaryNum(item):'')||'').trim(),
+          qty:parseFloat(pt.qty||1)||1,
+          cust:c.name||'Walk-in', mach:mach, when:when, woId:w.id,
+          inInv:!!item
+        });
+      });
+    });
+  });
+  return rows;
+}
+function renderRecentParts(){
+  S('S_inv');
+  _invSub='recent';
+  var el=document.getElementById('invBody');if(!el)return;
+  var chip='background:transparent;color:var(--tx2);border:1.5px solid var(--bd2);border-radius:20px;padding:4px 11px;font-size:11.5px;font-weight:700;font-family:var(--fn);cursor:pointer';
+  var on='background:var(--tx);color:var(--bg);border:1.5px solid var(--tx);border-radius:20px;padding:4px 11px;font-size:11.5px;font-weight:700;font-family:var(--fn);cursor:pointer';
+  var h='<div style="font-size:12.5px;color:var(--tx3);padding:4px 0 8px">Parts put on jobs in the last 90 days — including ones typed in before they were in inventory. Tap one to open the job.</div>';
+  h+='<input id="rpSrch" class="mi" placeholder="Search part, number, customer…" oninput="_drawRecentParts()" style="margin-bottom:8px">';
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">';
+  h+='<button style="'+(_rpSort==='date'?on:chip)+'" onclick="_rpSort=\'date\';renderRecentParts()">Newest</button>';
+  h+='<button style="'+(_rpSort==='name'?on:chip)+'" onclick="_rpSort=\'name\';renderRecentParts()">A–Z</button>';
+  h+='<button style="'+(_rpOnlyUncat?on:chip)+'" onclick="_rpOnlyUncat=!_rpOnlyUncat;renderRecentParts()">Not in inventory only</button>';
+  h+='</div><div id="rpList"></div>';
+  var q=(document.getElementById('rpSrch')||{}).value||'';
+  el.innerHTML=h;
+  var sb=document.getElementById('rpSrch');if(sb)sb.value=q;
+  _drawRecentParts();
+}
+function _drawRecentParts(){
+  var el=document.getElementById('rpList');if(!el)return;
+  var q=((document.getElementById('rpSrch')||{}).value||'').toLowerCase().trim();
+  var rows=_recentPartRows(90).filter(function(r){
+    if(_rpOnlyUncat&&r.inInv)return false;
+    if(!q)return true;
+    var f=[r.name,r.num,r.cust,r.mach].join(' ').toLowerCase();
+    return q.split(/\s+/).every(function(w){return f.indexOf(w)>=0;});
+  });
+  rows.sort(_rpSort==='name'
+    ?function(a,b){return a.name.toLowerCase().localeCompare(b.name.toLowerCase())||b.when-a.when;}
+    :function(a,b){return b.when-a.when;});
+  if(!rows.length){el.innerHTML='<div class="empty" style="padding:30px 20px"><div class="et">Nothing here</div><div class="es">'+(q?'No parts match that search':'No parts on jobs in the last 90 days')+'</div></div>';return;}
+  var total=rows.reduce(function(s,r){return s+r.qty;},0);
+  var h='<div class="sublbl" style="margin-bottom:6px">'+rows.length+' line'+(rows.length!==1?'s':'')+' · '+(Math.round(total*10)/10)+' parts</div>';
+  rows.forEach(function(r){
+    h+='<div data-wid="'+esc(r.woId)+'" onclick="openWO(this.dataset.wid)" style="background:var(--sf);border:1.5px solid var(--bd2);border-left:4px solid '+(r.inInv?'var(--bd2)':'var(--amb)')+';border-radius:var(--r);padding:9px 12px;margin-bottom:6px;cursor:pointer;display:flex;gap:10px;align-items:flex-start">';
+    h+='<div style="flex:1;min-width:0">';
+    h+='<div style="font-size:13.5px;font-weight:700">'+esc(r.name)+'</div>';
+    var meta=[];
+    if(r.num)meta.push(esc(r.num));
+    if(!r.inInv)meta.push('<span style="color:var(--amb);font-weight:700">not in inventory</span>');
+    if(meta.length)h+='<div style="font-size:11px;color:var(--tx3);margin-top:2px">'+meta.join(' · ')+'</div>';
+    h+='<div style="font-size:11.5px;color:var(--tx2);margin-top:2px">'+esc(r.cust)+(r.mach?' · '+esc(r.mach):'')+'</div>';
+    h+='</div>';
+    h+='<div style="text-align:right;flex-shrink:0"><div style="font-size:16px;font-weight:800;font-family:var(--mo)">×'+r.qty+'</div>';
+    h+='<div style="font-size:11px;color:var(--tx3)">'+r.when.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</div></div>';
+    h+='</div>';
+  });
+  el.innerHTML=h;
+}
+
 function setInvSubTab(tab, btn){
   // Update active chip
   var tabRow=btn&&btn.parentElement;
   if(tabRow)tabRow.querySelectorAll('.fchip').forEach(function(b){b.classList.remove('on');});
   if(btn)btn.classList.add('on');
   // Restore search/cat row when leaving reorder tab
+  _invSub=tab;
   if(tab==='stock'){renderInv();}
+  else if(tab==='recent'){renderRecentParts();}
   if(tab==='photos'){loadInvoicePhotos();}
   else if(tab==='count'){navTo('S_count');}
   else if(tab==='prices'){navTo('S_price_matrix');}
