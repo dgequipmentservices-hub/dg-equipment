@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.68</title>
+<title>DG Equipment v27.69</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -956,7 +956,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-06 · V27.68</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-06 · V27.69</div>
   </div>
 </div>
 
@@ -11771,15 +11771,19 @@ async function openStmt(custId, fromDate, toDate){
     var filterFrom=fromDate?new Date(fromDate+'T00:00:00'):null;
     var filterTo=toDate?new Date(toDate+'T23:59:59'):null;
     var filtered=ledger.filter(function(r){
+      // Open invoices always show, whatever the range, so the listed
+      // invoices add up to the Amount Due.
+      if(r.type==='invoice'&&!r.paid)return true;
       if(filterFrom&&r.date<filterFrom)return false;
       if(filterTo&&r.date>filterTo)return false;
       return true;
     });
 
-    // Totals always across full history
-    var totalCharged=ledger.filter(function(r){return r.type==='invoice';}).reduce(function(s,r){return s+r.total;},0);
-    var totalPaid=ledger.filter(function(r){return r.type==='payment';}).reduce(function(s,r){return s+r.amount;},0);
-    var balance=totalCharged-totalPaid;
+    // Amount Due = what's still owed on the open invoices listed above,
+    // so the statement always adds up on its face.
+    var balance=ledger.filter(function(r){return r.type==='invoice'&&!r.paid;})
+      .reduce(function(s,r){return s+Math.max(0,r.total-(r.amountPaid||0));},0);
+    balance=parseFloat(balance.toFixed(2));
 
     var h='<div id="stmtPrint">';
 
@@ -11974,13 +11978,6 @@ async function openStmt(custId, fromDate, toDate){
     // ── BALANCE BOX ────────────────────────────────────────
     var isPaidUp=balance<0.01;
     h+='<div style="border-radius:var(--r);padding:18px 20px;margin-top:8px;margin-bottom:4px;'+(isPaidUp?'background:rgba(52,199,89,.08);border:2px solid var(--grn)':'background:rgba(232,93,58,.07);border:2px solid var(--red)')+'">';
-    if(!isPaidUp){
-      h+='<div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px;color:var(--tx3)">';
-      h+='<span>Total charged</span><span style="font-family:var(--mo)">$'+totalCharged.toFixed(2)+'</span></div>';
-      h+='<div style="display:flex;justify-content:space-between;margin-bottom:10px;font-size:13px;color:var(--grn)">';
-      h+='<span>Total paid</span><span style="font-family:var(--mo)">−$'+totalPaid.toFixed(2)+'</span></div>';
-      h+='<div style="border-top:1.5px solid rgba(232,93,58,.2);margin-bottom:10px"></div>';
-    }
     h+='<div style="display:flex;justify-content:space-between;align-items:center">';
     if(isPaidUp){
       h+='<span style="font-size:17px;font-weight:900;color:var(--grn)">✓ Account is paid up — thank you!</span>';
