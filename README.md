@@ -17,8 +17,18 @@ and keeps working when signal drops.
 | `supabase/migrations/` | Database schema, in apply order |
 
 There is no build step. `index.html` is the deployable artifact — edit it and
-serve it. The version ships in the `<title>` (currently `v27.27`), and the menu footer
+serve it. The version ships in the `<title>` (currently `v27.80`), and the menu footer
 shows the same number — check it to confirm a deploy actually landed.
+
+## How the app is organised (v27.80)
+
+Five sections on the bottom bar — **Jobs, Customers, Invoices, Parts, More** —
+plus **Note** in the middle (quick field notes: got paid, looked at, needs part,
+note). Each section keeps its own Back trail and remembers the page and scroll
+position you left. The ☰ menu shows the same map as the More screen.
+
+Features taken out in the October 2026 cleanup live in `archive/` (not loaded
+by the app); the full pre-cleanup app is on branch `archive/v27.70-before-revamp`.
 
 ## Running it
 
