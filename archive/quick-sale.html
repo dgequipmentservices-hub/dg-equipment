@@ -1,0 +1,50 @@
+<div class="scr" id="S_sale">
+  <div class="hdr">
+    <div class="hdr-l"><button class="bk-btn" onclick="navBack()">←</button><div class="htitle" id="saleTitle">New Sale</div></div>
+    <div class="hdr-r">
+      <button class="ibtn" onclick="toggleTheme()"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+    </div>
+  </div>
+  <div style="flex:1;overflow-y:auto;padding:10px 14px 160px">
+
+    <!-- Customer picker -->
+    <div style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:12px 14px;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--tx3);margin-bottom:8px">Customer</div>
+      <input class="dta" id="saleCustSearch" placeholder="Search customer name…" oninput="saleSrchCust(this.value)" style="margin-bottom:6px">
+      <div id="saleCustResults"></div>
+      <div id="saleCustSelected" style="display:none;background:var(--sf2);border:1.5px solid var(--ac);border-radius:var(--rs);padding:9px 12px;display:flex;align-items:center;justify-content:space-between">
+        <span id="saleCustName" style="font-weight:700;font-size:14px"></span>
+        <button onclick="clearSaleCust()" style="background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer">✕</button>
+      </div>
+    </div>
+
+    <!-- Items -->
+    <div style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:12px 14px;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--tx3);margin-bottom:8px">Items</div>
+      <input class="dta" id="saleItemSearch" placeholder="Search parts…" oninput="saleSrchItem(this.value)" style="margin-bottom:6px">
+      <div id="saleItemResults" style="margin-bottom:8px"></div>
+      <!-- Custom item -->
+      <div style="border-top:1px solid var(--bd);padding-top:8px;margin-top:4px">
+        <div style="font-size:11px;color:var(--tx3);margin-bottom:6px">Or add custom item:</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <input class="ii" id="saleCustomName" placeholder="Item name" style="flex:2;min-width:120px">
+          <input class="ii" id="saleCustomPrice" type="number" step="0.01" placeholder="Price" style="flex:1;min-width:70px">
+          <button onclick="addSaleCustomItem()" style="background:var(--red);color:#fff;border:none;border-radius:var(--rs);padding:8px 14px;font-size:13px;font-weight:700;font-family:var(--fn);cursor:pointer">Add</button>
+        </div>
+      </div>
+      <!-- Cart -->
+      <div id="saleCart" style="margin-top:10px"></div>
+    </div>
+
+    <!-- Totals -->
+    <div style="background:var(--sf);border:1.5px solid var(--bd2);border-radius:var(--r);padding:12px 14px;margin-bottom:10px" id="saleTotals"></div>
+
+  </div>
+  <!-- Actions -->
+  <div class="inv-actions" style="flex-wrap:wrap;gap:8px">
+    <button onclick="printSaleReceipt()" style="flex:1;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:11px;font-size:12px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer">Print</button>
+    <button onclick="sendSaleShare()" style="flex:1;background:#1565c0;color:#fff;border:none;border-radius:var(--rs);padding:11px;font-size:12px;font-weight:700;font-family:var(--fn);cursor:pointer">✉ Send</button>
+    <button onclick="pushSaleToQBO()" style="flex:1;background:var(--sf2);border:1.5px solid #2CA01C;border-radius:var(--rs);padding:11px;font-size:12px;font-weight:700;font-family:var(--fn);color:#2CA01C;cursor:pointer">Push QBO</button>
+    <button onclick="saveSaleReceipt()" style="flex:2;background:var(--red);color:#fff;border:none;border-radius:var(--rs);padding:13px;font-size:14px;font-weight:700;font-family:var(--fn);cursor:pointer">Save Receipt</button>
+  </div>
+</div>

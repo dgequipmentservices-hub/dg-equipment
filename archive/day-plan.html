@@ -1,0 +1,16 @@
+<div class="scr" id="S_dayplan">
+  <div class="hdr">
+    <div class="hdr-l"><button class="ham-btn" onclick="openHam()"><span></span><span></span><span></span></button>
+      <div>
+        <div class="htitle">Day Plan</div>
+        <div class="hsub" id="dpDateLabel" style="cursor:pointer" onclick="dpPickDate()">Today</div>
+      </div>
+    </div>
+    <div class="hdr-r">
+      <input type="date" id="dpDateInput" style="opacity:0;position:absolute;width:1px;height:1px" onchange="dpDateChanged(this.value)">
+      <button class="ibtn" onclick="toggleTheme()"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/></svg></button>
+      <button class="pbtn" onclick="dpAddStop()">+ Stop</button>
+    </div>
+  </div>
+  <div class="body" id="dpBody" style="padding:12px"></div>
+</div>

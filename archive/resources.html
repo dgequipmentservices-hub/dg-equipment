@@ -1,0 +1,26 @@
+<div class="scr" id="S_resources">
+  <div class="hdr">
+    <div class="hdr-l"><button class="back-btn" onclick="goBack()">&#8592;</button><button class="ham-btn" onclick="openHam()"><span></span><span></span><span></span></button><div class="htitle">Resources</div></div>
+    <div class="hdr-r">
+      <button class="ibtn" onclick="navTo('S_inv');setTimeout(function(){setInvSubTab('xref',document.querySelector('.fchip[onclick*=xref]'));},50)" style="color:var(--blu);font-size:12px;font-weight:700;padding:0 10px">OEM XRef</button>
+      <button class="ibtn" onclick="openAddResource()" style="margin-right:4px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      <button class="ibtn" onclick="toggleTheme()"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+    </div>
+  </div>
+  <div style="padding:10px 14px 0;flex-shrink:0">
+    <div class="sw"><input class="sinp" id="resQ" placeholder="Search belts, plugs, specs, part numbers…" oninput="renderResources()"><span class="sico">⌕</span></div>
+    <div class="crow" id="resCatRow" style="padding:8px 0">
+      <button class="ccat on" data-rc="All" onclick="setResCat(this)">All</button>
+      <button class="ccat" data-rc="Belts" onclick="setResCat(this)">Belts</button>
+      <button class="ccat" data-rc="Blades" onclick="setResCat(this)">Blades</button>
+      <button class="ccat" data-rc="Spark Plugs" onclick="setResCat(this)">Spark Plugs</button>
+      <button class="ccat" data-rc="Carburetor" onclick="setResCat(this)">Carburetor</button>
+      <button class="ccat" data-rc="Fuel System" onclick="setResCat(this)">Fuel</button>
+      <button class="ccat" data-rc="Engine Oil" onclick="setResCat(this)">Oil</button>
+      <button class="ccat" data-rc="Tires" onclick="setResCat(this)">Tires</button>
+      <button class="ccat" data-rc="General" onclick="setResCat(this)">General</button>
+    </div>
+  </div>
+
+  <div style="flex:1;overflow-y:auto;padding:6px 14px 80px" id="resourcesBody"></div>
+</div>
