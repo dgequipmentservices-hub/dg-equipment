@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.80</title>
+<title>DG Equipment v27.81</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -941,7 +941,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-08 · V27.80</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-08 · V27.81</div>
   </div>
 </div>
 
@@ -993,8 +993,6 @@ window.addEventListener('offline',function(){
       <button class="fchip" style="white-space:nowrap" data-f="Looked At" onclick="setF(this)">Diagnosed <span class="cnt" id="f_LA">0</span></button>
       <button class="fchip" style="white-space:nowrap" data-f="Parts Ordered" onclick="setF(this)">Ordered <span class="cnt" id="f_PO">0</span></button>
       <button class="fchip" style="white-space:nowrap" data-f="Parts In" onclick="setF(this)">Parts In <span class="cnt" id="f_PI">0</span></button>
-      <button class="fchip" style="white-space:nowrap" data-f="Done" onclick="setF(this)">Done <span class="cnt" id="f_Do">0</span></button>
-      <button class="fchip" style="white-space:nowrap" data-f="Invoiced" onclick="setF(this)">Invoiced <span class="cnt" id="f_In">0</span></button>
       <button class="fchip" style="white-space:nowrap;border-color:var(--pur);color:var(--pur)" data-f="Backlog" onclick="setF(this)"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg> Backlog <span class="cnt" id="f_Bl">0</span></button>
     </div>
   </div>
@@ -2353,6 +2351,8 @@ function counts(){
   }catch(e){}
   const c={all:wos.length,Request:0,New:0,'Looked At':0,'Parts Ordered':0,'Parts In':0,Done:0,Invoiced:0};
   wos.forEach(w=>{const s=csEff(w);if(c[s]!==undefined)c[s]++;});
+  // v27.81: Jobs is work still in progress. Done and billed jobs live on Invoices.
+  c.all=wos.filter(function(w){return JOB_OPEN.indexOf(csEff(w))>=0;}).length;
   var _fc=function(id,val){var el=document.getElementById(id);if(el)el.textContent=val;};
   _fc('f_all',c.all);
   _fc('f_Req',c['Request']);
@@ -2857,10 +2857,15 @@ function csEff(w){
   return cs(w.status);
 }
 
+// What belongs on the Jobs board: work that isn't finished. A finished job
+// moves to Invoices (as "Not billed" until it's invoiced); billed and
+// closed work is only on Invoices and the customer's history.
+var JOB_OPEN=['Request','New','Looked At','Parts Ordered','Parts In'];
 function renderList(){
   var q=(document.getElementById('lsrch').value||'').toLowerCase();
   var list=wos;
-  if(activeF==='all')list=list.filter(function(w){return csEff(w)!=='Backlog'&&csEff(w)!=='Closed';});
+  if(activeF==='Done'||activeF==='Invoiced')activeF='all';
+  if(activeF==='all')list=list.filter(function(w){return JOB_OPEN.indexOf(csEff(w))>=0;});
   else list=list.filter(function(w){return csEff(w)===activeF;});
   if(q)list=list.filter(function(w){
     var c=cMap[w.customer_id]||{},e=eMap[w.equipment_id]||{};
@@ -2893,7 +2898,7 @@ function renderList(){
     var overdueCount=list.filter(function(w){
       return w.scheduled_date&&new Date(w.scheduled_date+'T12:00:00')<now2&&!['Done','Invoiced','Backlog'].includes(cs(w.status));
     }).length;
-    var needsInvCount=list.filter(needsInvoice).length;
+    var needsInvCount=(wos||[]).filter(needsInvoice).length; // finished, waiting on Invoices
     var partsWaitCount=list.filter(function(w){
       return cs(w.status)==='Parts Ordered';
     }).length;
@@ -2901,7 +2906,7 @@ function renderList(){
       h+='<div style="display:flex;gap:6px;padding:8px 14px 2px;flex-shrink:0">';
       if(overdueCount)h+='<div style="flex:1;background:rgba(232,93,58,.12);border:1.5px solid var(--red);border-radius:var(--r);padding:7px 8px;text-align:center;cursor:pointer" onclick="setF(document.querySelector(\'[data-f=New]\'))"><div style="font-size:18px;font-weight:800;color:var(--red)">'+overdueCount+'</div><div style="font-size:9px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:.05em">Overdue</div></div>';
       if(partsWaitCount)h+='<div style="flex:1;background:rgba(232,168,58,.1);border:1.5px solid var(--amb);border-radius:var(--r);padding:7px 8px;text-align:center"><div style="font-size:18px;font-weight:800;color:var(--amb)">'+partsWaitCount+'</div><div style="font-size:9px;font-weight:800;color:var(--amb);text-transform:uppercase;letter-spacing:.05em">Parts Wait</div></div>';
-      if(needsInvCount)h+='<div style="flex:1;background:rgba(58,184,122,.1);border:1.5px solid var(--grn);border-radius:var(--r);padding:7px 8px;text-align:center"><div style="font-size:18px;font-weight:800;color:var(--grn)">'+needsInvCount+'</div><div style="font-size:9px;font-weight:800;color:var(--grn);text-transform:uppercase;letter-spacing:.05em">Bill Ready</div></div>';
+      if(needsInvCount)h+='<div onclick="_invTabCur=\'open\';modTab(\'invoices\')" style="flex:1;cursor:pointer;background:rgba(58,184,122,.1);border:1.5px solid var(--grn);border-radius:var(--r);padding:7px 8px;text-align:center"><div style="font-size:18px;font-weight:800;color:var(--grn)">'+needsInvCount+'</div><div style="font-size:9px;font-weight:800;color:var(--grn);text-transform:uppercase;letter-spacing:.05em">Bill Ready</div></div>';
       h+='</div>';
     }
   }
