@@ -228,6 +228,7 @@ function render(){
   if(p[0]==='statement')return viewStatement();
   if(p[0]==='request')return viewRequest(p[1]||'');
   if(p[0]==='invoices')return viewAllInvoices();
+  if(p[0]==='payments')return viewPayments();
   return viewHome();
 }
 
@@ -333,17 +334,55 @@ function viewHome(){
   if(D.invoices.length>4)h+='<a class="btn line" href="#/invoices">See all '+D.invoices.length+' invoices</a>';
   h+='</div>';
 
+  var pays=allPayments();
+  if(pays.length){
+    h+='<div class="pad" style="padding-bottom:0"><div class="row" style="align-items:baseline"><h2 style="margin:8px 2px 0">Payments received</h2>'+(pays.length>3?'<a href="#/payments" style="font-weight:600;text-decoration:none">See all</a>':'')+'</div>';
+    pays.slice(0,3).forEach(function(p){h+=payItem(p);});
+    h+='</div>';
+  }
+
+  // Real machines first; cards typed "Other" or "General / Supplies"
+  // (parts sales, odds and ends) go in their own group below.
+  var isOther=function(m){var t=String(m.type||'').toLowerCase().trim(),n=String(m.name||'').toLowerCase().trim();return t==='other'||/general|suppl/.test(t)||n==='other'||/^(general|supplies|parts)\b/.test(n);};
+  var mItem=function(m){return '<a class="item" href="#/machine/'+esc(m.id)+'"><span class="ico">'+(isOther(m)?I.tool:I.mower)+'</span><span class="g"><span class="n">'+esc(m.name)+'</span><span class="small muted">'+(m.last_service?'Last service '+fd(m.last_service):'No service yet')+'</span></span>'+
+      (m.reminder?'<span class="chip partial">Due '+fd(m.reminder.due,{month:'short',day:undefined,year:undefined})+'</span>':'')+'</a>';};
+  var realM=D.machines.filter(function(m){return !isOther(m);}),otherM=D.machines.filter(isOther);
   h+='<div class="pad" style="padding-bottom:0"><h2 style="margin:8px 2px 0">Your machines</h2>';
-  if(!D.machines.length)h+='<div class="card small muted">No machines on file yet.</div>';
-  D.machines.forEach(function(m){
-    h+='<a class="item" href="#/machine/'+esc(m.id)+'"><span class="ico">'+I.mower+'</span><span class="g"><span class="n">'+esc(m.name)+'</span><span class="small muted">'+(m.last_service?'Last service '+fd(m.last_service):'No service yet')+'</span></span>'+
-      (m.reminder?'<span class="chip partial">Due '+fd(m.reminder.due,{month:'short',day:undefined,year:undefined})+'</span>':'')+'</a>';
-  });
+  if(!realM.length)h+='<div class="card small muted">No machines on file yet.</div>';
+  realM.slice(0,4).forEach(function(m){h+=mItem(m);});
+  if(realM.length>4){
+    h+='<div id="moreM" class="hide" style="display:flex;flex-direction:column;gap:14px">';
+    realM.slice(4).forEach(function(m){h+=mItem(m);});
+    h+='</div><button class="btn line" id="moreMBtn">Show all '+realM.length+' machines</button>';
+  }
   h+='</div>';
+  if(otherM.length){
+    h+='<div class="pad" style="padding-bottom:0"><h2 style="margin:8px 2px 0">Other</h2>';
+    otherM.forEach(function(m){h+=mItem(m);});
+    h+='</div>';
+  }
 
   h+='<div class="pad"><a class="btn red" href="#/request">'+I.plus+' Request service</a>'+contactCard()+'</div>';
   app.innerHTML=h;
   $('acct').onclick=accountSheet;
+  if($('moreMBtn'))$('moreMBtn').onclick=function(){$('moreM').classList.remove('hide');this.remove();};
+}
+function allPayments(){
+  var out=[];
+  D.invoices.forEach(function(v){v.payments.forEach(function(p){out.push({date:p.date,amount:p.amount,method:p.method,number:v.number,id:v.id});});});
+  return out.sort(function(a,b){return String(b.date).localeCompare(String(a.date));});
+}
+function payItem(p){
+  return '<a class="item" href="#/invoice/'+esc(p.id)+'" style="padding:12px 16px"><span class="g"><span class="n" style="font-weight:600">'+fdy(p.date)+'</span><span class="small muted">'+esc(p.method||'Payment')+' · Invoice #'+esc(p.number)+'</span></span>'+
+    '<span class="money" style="color:var(--grn);font-weight:600">'+money(p.amount)+'</span></a>';
+}
+function viewPayments(){
+  var list=allPayments(),tot=list.reduce(function(t,p){return t+p.amount;},0);
+  var h=bar('Payments received')+'<div class="pad">';
+  h+='<div class="card row" style="align-items:baseline"><span class="muted">Total received</span><b class="money" style="font-size:18px">'+money(tot)+'</b></div>';
+  if(!list.length)h+='<div class="card small muted">No payments yet.</div>';
+  list.forEach(function(p){h+=payItem(p);});
+  app.innerHTML=h+'</div>';wireBar();
 }
 function viewAllInvoices(){
   var h=bar('All invoices')+'<div class="pad">';
@@ -377,7 +416,7 @@ function viewInvoice(id,scrollZelle){
   track('view_invoice',v.number);
   var owed=v.balance>0.01;
   var chip=v.state==='paid'?'<span class="chip paid">Paid</span>':v.state==='partial'?'<span class="chip partial">Part paid</span>':'<span class="chip unpaid">Unpaid</span>';
-  var h=bar('Invoice #'+v.number,'Print or save as PDF')+'<div class="pad">'+printHead('Invoice #'+v.number);
+  var h=bar('Invoice #'+v.number,v.has_pdf?'Download invoice':'')+'<div class="pad">';
   h+='<div class="card" style="display:flex;flex-direction:column;gap:6px"><div class="row" style="align-items:center"><span class="muted">'+(owed?'Amount due':'Total')+'</span>'+chip+'</div>'+
      '<div style="font-size:36px;font-weight:700;line-height:1.1">'+money(owed?v.balance:v.total)+'</div>'+
      '<div class="small muted">'+esc(v.customer)+' · '+fdy(v.date)+(v.po?' · PO '+esc(v.po):'')+'</div></div>';
@@ -397,6 +436,7 @@ function viewInvoice(id,scrollZelle){
   v.payments.forEach(function(p){h+='<div class="row" style="color:var(--grn)"><span>Paid '+fd(p.date)+(p.method?' · '+esc(p.method):'')+'</span><span class="money">'+money(-p.amount)+'</span></div>';});
   if(v.payments.length||v.state==='paid')h+='<div class="row" style="font-weight:700"><span>Balance</span><span class="money">'+money(v.balance)+'</span></div>';
   h+='</div>';
+  if(v.has_pdf)h+='<button class="btn line" id="dlInv">Download invoice (PDF)</button>';
 
   if(owed){
     var zDigits=String(D.zelle).replace(/\D/g,'');
@@ -419,7 +459,12 @@ function viewInvoice(id,scrollZelle){
   }
   h+='<div class="small muted" style="text-align:center;padding:4px 0 20px">Questions about this invoice? <a href="sms:'+esc(SHOP.phone_digits)+'">Text '+esc(SHOP.phone)+'</a></div></div>';
   app.innerHTML=h;
-  wireBar(function(){track('print_invoice',v.number);window.print();});
+  var dl=async function(){
+    var d=await call('invoice_pdf',{invoice_id:v.id});
+    if(d.error||!d.url){toast(d.error||'Couldn’t get the invoice');return;}
+    location.href=d.url;
+  };
+  wireBar(dl);if($('dlInv'))$('dlInv').onclick=dl;
   Array.prototype.forEach.call(document.querySelectorAll('.zcp'),function(b){b.onclick=function(){
     var t=b.getAttribute('data-copy');copy(t);b.textContent='Copied ✓';b.classList.add('on');
     setTimeout(function(){b.textContent='Copy';b.classList.remove('on');},1800);
