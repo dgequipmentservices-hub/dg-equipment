@@ -6,7 +6,7 @@
 // file. So Send opened a draft and left the attaching to a human.
 //
 // This sends it outright, over Gmail's own SMTP, so the mail arrives from
-// dgequipmentservices@gmail.com with INV-1234.jpg on it and lands in the
+// dgequipmentservices@gmail.com with INV-1234.pdf (or .jpg) on it and lands in the
 // shop's Gmail "Sent" folder like anything else typed by hand.
 //
 // Requires APP_JWT_SECRET (the same session the rest of the app uses),
@@ -141,7 +141,7 @@ Deno.serve(async (req: Request) => {
       subject,
       content: text,
       attachments: b64
-        ? [{ filename, encoding: 'base64', content: b64, contentType: 'image/jpeg' }]
+        ? [{ filename, encoding: 'base64', content: b64, contentType: /\.pdf$/i.test(filename) ? 'application/pdf' : 'image/jpeg' }]
         : [],
     });
     return json({ sent: true, to });
