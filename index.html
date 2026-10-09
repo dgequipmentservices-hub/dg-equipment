@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.85</title>
+<title>DG Equipment v27.86</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -941,7 +941,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-09 · V27.85</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-09 · V27.86</div>
   </div>
 </div>
 
@@ -6878,6 +6878,9 @@ async function loadCust(id){
     h+='</div>';
   }
 
+  // Online account (customer portal) — filled in after the page draws.
+  if(_isOwner())h+='<div id="custPortal" style="padding:4px 14px 0"></div>';
+
   // Statement & Reminders
   h+='<div style="display:flex;gap:8px;padding:8px 14px 16px">';
   h+='<button onclick="openStmt(\''+c.id+'\')" style="flex:1;background:var(--sf2);border:1px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:12px;font-weight:700;font-family:var(--fn);color:var(--tx2);cursor:pointer">Statement</button>';
@@ -6887,6 +6890,7 @@ async function loadCust(id){
   }
   h+='</div>';
   document.getElementById('custBody').innerHTML=h;
+  if(_isOwner())renderCustPortal(c);
   }catch(_custErr){
     document.getElementById('custBody').innerHTML='<div style="padding:20px;color:var(--red);font-size:13px">Customer load error: '+_custErr.message+'</div>';
     console.error('loadCust error:',_custErr);
@@ -20076,6 +20080,7 @@ var MORE_ITEMS=[
   {grp:'Customers'},
   {lbl:'Service reminders',sub:'Machines due for service',go:"navTo('S_maint')"},
   {lbl:'Leads & prospects',sub:'Follow-ups and snow list',go:"navTo('S_leads')",owner:1},
+  {lbl:'Portal activity',sub:'Sign-ins, service requests, \u201cI sent Zelle\u201d',go:"openPortalActivity()",owner:1},
   {grp:'Money'},
   {lbl:'Statements',sub:'Customer balances and ledgers',go:"navTo('S_stmt')",owner:1},
   {lbl:'Receive a payment',sub:'Cash, check, Zelle, card',go:"openReceivePayment()",owner:1},
@@ -20112,6 +20117,143 @@ function renderMore(){
   h+='<div style="text-align:center;font-size:11px;color:var(--tx3);padding:18px 0 6px">'+document.title+'</div>';
   el.innerHTML=h;
 }
+// ── CUSTOMER PORTAL (shop side) ──────────────────────────
+// Customers sign in at portal.html with a one-time code sent to the phone
+// or email on their card. Everything they do lands in portal_log; this is
+// where the shop sees it, sends the link, and switches access off.
+var PORTAL_URL=(/^https?:/.test(location.protocol)&&!/localhost|127\.0\.0\.1/.test(location.host))
+  ?new URL('portal.html',location.href).href.split('?')[0]
+  :'https://dgequipmentservices-hub.github.io/dg-equipment/portal.html';
+var _portalCfg=null;
+async function portalCfg(){
+  if(_portalCfg)return _portalCfg;
+  try{var r=await fetch(SU+'/functions/v1/portal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'config'})});_portalCfg=await r.json();}
+  catch(e){_portalCfg={sms:false,email:true};}
+  return _portalCfg;
+}
+var PORTAL_EV={
+  code_sent:'Asked for a sign-in code',sign_in:'Signed in',opened:'Opened their account',sign_out:'Signed out',
+  view_invoice:'Looked at invoice',print_invoice:'Printed / saved invoice',open_card:'Opened the card payment for invoice',
+  copy_zelle:'Copied your Zelle number for invoice',zelle_sent:'Says they sent Zelle',view_statement:'Looked at their statement',
+  print_statement:'Printed / saved their statement',view_machine:'Looked at machine',service_request:'Sent a service request',
+  bad_code:'Several wrong codes',code_failed:'A sign-in code could not be sent',unknown_contact:'Someone tried a contact that isn’t on file'
+};
+var PORTAL_HOT={zelle_sent:'var(--pur)',service_request:'var(--red)',bad_code:'var(--amb)',code_failed:'var(--amb)'};
+function portalEvText(l){
+  var d=l.detail||{},t=PORTAL_EV[l.event]||l.event;
+  if(l.event==='zelle_sent')return t+' $'+(parseFloat(d.amount)||0).toFixed(2)+(d.invoice?' for #'+d.invoice:'');
+  if(l.event==='service_request')return t+(d.machine?' — '+d.machine:'')+(d.photo?' (with photo)':'');
+  if(l.event==='code_sent')return t+(d.channel==='sms'?' by text':' by email');
+  if(l.event==='sign_in')return t+(d.channel==='sms'?' (text code)':' (email code)');
+  if(l.event==='unknown_contact')return t+(d.contact?' ('+d.contact+')':'');
+  if(l.event==='bad_code')return t+(d.tries?' ('+d.tries+')':'');
+  if(d.ref&&/invoice|machine/.test(t))return t+' '+(/invoice/.test(t)?'#':'')+d.ref;
+  return t;
+}
+function _portalWhen(iso){
+  var d=new Date(iso),now=new Date();
+  var t=d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  if(d.toDateString()===now.toDateString())return t;
+  var y=new Date(now.getTime()-864e5);if(d.toDateString()===y.toDateString())return 'Yesterday '+t;
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+t;
+}
+
+async function renderCustPortal(c){
+  var el=document.getElementById('custPortal');if(!el)return;
+  var off=!!c.portal_disabled;
+  var canSign=!!((c.phone||'').replace(/\D/g,'').length>=10||/@/.test(c.email||''));
+  var box=function(inner){return '<div style="background:var(--sf);border:1px solid var(--bd);border-radius:var(--rs);padding:10px 12px">'+inner+'</div>';};
+  var head='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div><div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--tx3)">Online account</div><div id="custPortalSub" style="font-size:12px;color:var(--tx2);margin-top:2px">'+(off?'Turned off':(canSign?'Checking…':'Needs a cell or email on the card'))+'</div></div>'+
+    '<span style="font-size:10px;font-weight:800;border-radius:4px;padding:2px 6px;'+(off?'background:var(--sf2);color:var(--tx3)':'background:rgba(31,138,88,.12);color:var(--grn)')+'">'+(off?'OFF':'ON')+'</span></div>';
+  var btn='flex:1;background:var(--sf2);border:1px solid var(--bd2);border-radius:var(--rs);padding:9px 6px;font-size:12px;font-weight:700;font-family:var(--fn);color:var(--tx2);cursor:pointer';
+  var btns='<div style="display:flex;gap:6px;margin-top:8px">'+
+    (!off&&canSign?'<button style="'+btn+';color:var(--blu)" onclick="openPortalInvite(\''+c.id+'\')">Send link</button>':'')+
+    '<button style="'+btn+'" onclick="openPortalActivity(\''+c.id+'\')">Activity</button>'+
+    '<button style="'+btn+(off?';color:var(--grn)':'')+'" onclick="togglePortal(\''+c.id+'\')">'+(off?'Turn on':'Turn off')+'</button></div>';
+  el.innerHTML=box(head+btns);
+  if(off||!canSign)return;
+  try{
+    var logs=await get('portal_log','?customer_id=eq.'+c.id+'&event=in.(sign_in,opened)&order=created_at.desc&limit=1');
+    var sub=document.getElementById('custPortalSub');if(!sub)return;
+    sub.textContent=logs&&logs[0]?'Last visit '+_portalWhen(logs[0].created_at):'Hasn’t signed in yet';
+  }catch(e){var s2=document.getElementById('custPortalSub');if(s2)s2.textContent='Ready';}
+}
+
+async function togglePortal(custId){
+  var c=custs.find(function(x){return x.id===custId;});if(!c)return;
+  var turnOff=!c.portal_disabled;
+  if(turnOff&&!confirm('Turn off online access for '+c.name+'?\n\nThey’re signed out right away and can’t get a new code until you turn it back on.'))return;
+  try{
+    await patch('customers',{portal_disabled:turnOff},'?id=eq.'+custId);
+    c.portal_disabled=turnOff;cMap[custId]=c;
+    toast(turnOff?'Online access off':'Online access on','ok');
+    renderCustPortal(c);
+  }catch(e){toast('Couldn’t change it: '+e.message,'er');}
+}
+
+async function openPortalInvite(custId){
+  var c=custs.find(function(x){return x.id===custId;});if(!c)return;
+  var cfg=await portalCfg();
+  var phone=(c.phone||'').replace(/\D/g,'').slice(-10);
+  var email=((c.email||'').split(/[\s,;\/]+/).filter(function(x){return /@/.test(x);})[0])||'';
+  var _biz=['Contractor','Commercial'].indexOf(c.customer_type)>=0;
+  var hi=_biz?(c.name||'there'):((c.name||'').split(' ')[0]||'there');
+  var how=(cfg.sms&&phone)?'Sign in with this cell number — we’ll text you a code. No password needed.'
+    :(email?'Sign in with your email ('+email+') — we’ll email you a code. No password needed.'
+    :'Sign in with the phone or email we have on file — we’ll send you a code.');
+  var msg='Hi '+hi+',\n\nYou can now see your invoices, statement and machines, pay, and request service online:\n'+PORTAL_URL+'\n\n'+how+
+    '\n\nQuestions? Call or text (516) 350-8898.\n\nThank you,\nDanny\nDG Equipment Repair & Services';
+  window._pInv={phone:phone,email:email,msg:msg,custId:custId};
+  var big='flex:1;border:none;border-radius:var(--rs);padding:13px 6px;font-size:14px;font-weight:800;font-family:var(--fn);cursor:pointer;color:#fff';
+  openM('<div class="mt">Send online account link</div>'+
+    '<div class="mlbl">Message</div><textarea class="mi" id="pInvMsg" rows="9" style="font-size:13px;line-height:1.45">'+esc(msg)+'</textarea>'+
+    (!cfg.sms?'<div style="font-size:11px;color:var(--amb);margin:6px 0 0">Text sign-in codes turn on once Twilio is set up — until then customers sign in with their email.'+(email?'':' This card has no email, so add one before sending.')+'</div>':'')+
+    '<div style="display:flex;gap:8px;margin-top:10px">'+
+      (phone?'<button style="'+big+';background:var(--grn)" onclick="sendPortalInvite(\'sms\')">Text it</button>':'')+
+      (email?'<button style="'+big+';background:var(--blu)" id="pInvEm" onclick="sendPortalInvite(\'email\')">Email it</button>':'')+
+    '</div>'+
+    '<div class="mb"><button class="mc-btn" onclick="navigator.clipboard&&navigator.clipboard.writeText(PORTAL_URL).then(function(){toast(\'Link copied\',\'ok\');})">Copy link</button><button class="mc-btn" onclick="closeM()">Close</button></div>');
+}
+async function sendPortalInvite(how){
+  var f=window._pInv;if(!f)return;
+  var text=(document.getElementById('pInvMsg')||{}).value||f.msg;
+  if(how==='sms'){window.open('sms:'+f.phone+'?body='+encodeURIComponent(text),'_self');closeM();toast('Opening Messages…','ok');return;}
+  var b=document.getElementById('pInvEm');if(b){b.disabled=true;b.textContent='Sending…';}
+  var tok=_restoreSession();
+  try{
+    var res=await fetch(SU+'/functions/v1/send-invoice',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},
+      body:JSON.stringify({to:f.email,subject:'Your online account — DG Equipment Repair & Services',body:text})});
+    var d=await res.json().catch(function(){return{};});
+    if(!res.ok||!d.sent)throw new Error(d.error||('Email failed ('+res.status+')'));
+    closeM();toast('Emailed to '+f.email+' ✓','ok');
+  }catch(e){toast(e.message,'er');if(b){b.disabled=false;b.textContent='Email it';}}
+}
+
+async function openPortalActivity(custId){
+  var c=custId?custs.find(function(x){return x.id===custId;}):null;
+  openM('<div class="mt">Portal activity'+(c?' — '+esc(c.name):'')+'</div><div id="pActBody"><div class="loading"><div class="spin"></div></div></div>'+
+    '<div class="mb">'+(c?'<button class="mc-btn" onclick="openPortalActivity()">Everyone</button>':'<button class="mc-btn" onclick="window.open(PORTAL_URL,\'_blank\')">Open portal</button>')+'<button class="mc-btn" onclick="closeM()">Close</button></div>');
+  try{
+    var q='?order=created_at.desc&limit='+(c?150:250)+(c?'&customer_id=eq.'+c.id:'');
+    var logs=await get('portal_log',q)||[];
+    var el=document.getElementById('pActBody');if(!el)return;
+    if(!logs.length){el.innerHTML='<div style="padding:18px 4px;font-size:13px;color:var(--tx3)">Nothing yet. Send a customer their link from their customer page (Online account → Send link).</div>';return;}
+    var h='<div style="max-height:62vh;overflow-y:auto">',lastDay='';
+    logs.forEach(function(l){
+      var day=new Date(l.created_at).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      if(day!==lastDay){h+='<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3);padding:10px 2px 4px">'+day+'</div>';lastDay=day;}
+      var who=l.customer_id?((cMap[l.customer_id]||{}).name||'Customer'):'Not a customer';
+      var hot=PORTAL_HOT[l.event];
+      h+='<div style="display:flex;gap:10px;padding:8px 2px;border-bottom:1px solid var(--bd);align-items:flex-start'+(l.customer_id&&!c?';cursor:pointer':'')+'"'+(l.customer_id&&!c?' onclick="openPortalActivity(\''+l.customer_id+'\')"':'')+'>'+
+        '<span style="width:8px;height:8px;border-radius:4px;margin-top:6px;flex-shrink:0;background:'+(hot||'var(--bd2)')+'"></span>'+
+        '<div style="flex:1;min-width:0">'+(c?'':'<div style="font-size:13px;font-weight:700">'+esc(who)+'</div>')+
+        '<div style="font-size:13px;color:'+(hot?'var(--tx)':'var(--tx2)')+(hot?';font-weight:600':'')+'">'+esc(portalEvText(l))+'</div></div>'+
+        '<div style="font-size:11px;color:var(--tx3);white-space:nowrap">'+esc(new Date(l.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}))+'</div></div>';
+    });
+    el.innerHTML=h+'</div>';
+  }catch(e){var el2=document.getElementById('pActBody');if(el2)el2.innerHTML='<div style="padding:14px 4px;font-size:13px;color:var(--red)">Couldn’t load: '+esc(e.message)+'</div>';}
+}
+
 function openVendorBills(){
   navTo('S_parts_order');
   setTimeout(function(){setPartsOrderTab('photos');},60);
