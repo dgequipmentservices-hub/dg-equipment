@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.81</title>
+<title>DG Equipment v27.82</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -941,7 +941,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-08 · V27.81</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-08 · V27.82</div>
   </div>
 </div>
 
@@ -19984,51 +19984,69 @@ function openDaySheet(){
   openM('<div class="mt">Print a day sheet</div>'+
     '<div class="mlbl" style="margin-top:12px">Day</div><input class="mi" type="date" id="dsDate" value="'+d.toISOString().split('T')[0]+'">'+
     '<label style="display:flex;gap:8px;align-items:center;margin:12px 0;font-size:14px"><input type="checkbox" id="dsFill" checked> Start it with my open jobs</label>'+
-    '<div class="es">Open jobs go in the list on the right so you can write the times in. The rest of the lines stay blank.</div>'+
-    '<div class="mb"><button class="mc-btn" onclick="closeM()">Cancel</button><button class="mo-btn" onclick="printDaySheet()">Print</button></div>');
+    '<div class="es">Type right on the sheet, then print. Tap an open job to drop it into the next empty stop. It saves as you go.</div>'+
+    '<div class="mb"><button class="mc-btn" onclick="closeM()">Cancel</button><button class="mo-btn" onclick="printDaySheet()">Open sheet</button></div>');
 }
 function printDaySheet(){
+  // v27.82: the sheet is editable before printing. Type into any box; tap an
+  // open job to drop it into the next empty stop. It saves as you type (on
+  // this phone), so the same day's sheet comes back filled in.
   var dv=(document.getElementById('dsDate')||{}).value;
   var fill=!!((document.getElementById('dsFill')||{}).checked);
   closeM();
   var day=dv?new Date(dv+'T12:00:00'):new Date();
+  var key='dg_daysheet_'+(dv||day.toISOString().slice(0,10));
   var title=day.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
-  var jobs=fill?(wos||[]).filter(function(w){var s=cs(w.status);return !isBilled(w)&&!isClosed(w)&&['Request','New','Looked At','Parts Ordered','Parts In'].indexOf(s)>=0;}):[];
-  var lines=function(n,cls){var r='';for(var i=0;i<n;i++)r+='<tr class="'+(cls||'')+'"><td></td><td></td><td></td></tr>';return r;};
-  var b='<h1>'+esc(title)+'</h1><div class="who">DG Equipment Repair &amp; Services</div>';
+  var jobs=fill?(wos||[]).filter(function(w){return JOB_OPEN.indexOf(csEff(w))>=0;}):[];
+  var jobData=jobs.slice(0,25).map(function(w){
+    var c=cMap[w.customer_id]||{},e=eMap[w.equipment_id]||{};
+    return {stop:(c.name||'')+(c.address?' — '+c.address:''),work:[[e.make,e.model].filter(Boolean).join(' '),(w.problem||'').split('\n')[0]].filter(Boolean).join(' — '),st:cs(w.status),name:c.name||'Job'};
+  });
+  var row=function(sec,i){return '<tr><td><div class="ed t" contenteditable data-k="'+sec+i+'t"></div></td><td><div class="ed" contenteditable data-k="'+sec+i+'s"></div></td><td><div class="ed" contenteditable data-k="'+sec+i+'w"></div></td></tr>';};
+  var rows=function(sec,n){var r='';for(var i=0;i<n;i++)r+=row(sec,i);return r;};
+  var b='<div class="bar"><button onclick="window.print()">🖨 Print</button><button class="alt" onclick="addRow()">+ Add a line</button><button class="alt" onclick="clearSheet()">Clear</button><button class="alt" onclick="window.close()">Close</button><span id="sv"></span></div>';
+  b+='<h1 contenteditable class="ed" data-k="title">'+esc(title)+'</h1><div class="who">DG Equipment Repair &amp; Services</div>';
   b+='<div class="grid"><div>';
-  b+='<h2>Morning</h2><table><tr><th style="width:70px">Time</th><th style="width:30%">Stop</th><th>Work</th></tr>'+lines(6)+'</table>';
-  b+='<h2>Afternoon</h2><table><tr><th style="width:70px">Time</th><th style="width:30%">Stop</th><th>Work</th></tr>'+lines(6)+'</table>';
+  b+='<h2>Morning</h2><table id="tm"><tr><th style="width:80px">Time</th><th style="width:34%">Stop</th><th>Work</th></tr>'+rows('m',7)+'</table>';
+  b+='<h2>Afternoon</h2><table id="ta"><tr><th style="width:80px">Time</th><th style="width:34%">Stop</th><th>Work</th></tr>'+rows('a',7)+'</table>';
   b+='</div><div>';
-  if(jobs.length){
-    b+='<h2>Open jobs</h2><table class="jobs"><tr><th style="width:18px"></th><th>Customer / work</th></tr>';
-    jobs.slice(0,18).forEach(function(w){
-      var c=cMap[w.customer_id]||{},e=eMap[w.equipment_id]||{};
-      b+='<tr><td><span class="box"></span></td><td><b>'+esc(c.name||'')+'</b> <span class="st">'+esc(cs(w.status))+'</span><br>'+esc([e.make,e.model].filter(Boolean).join(' '))+(w.problem?' — '+esc(w.problem.slice(0,60)):'')+'</td></tr>';
-    });
-    b+='</table>';
+  if(jobData.length){
+    b+='<h2 class="noprint">Open jobs <span class="hint">tap to add</span></h2><div id="jl">';
+    jobData.forEach(function(j,i){b+='<div class="job" data-i="'+i+'" onclick="useJob('+i+')"><b>'+esc(j.name)+'</b> <span class="st">'+esc(j.st)+'</span><br>'+esc(j.work)+'</div>';});
+    b+='</div>';
   }
-  b+='<h2>Load the truck</h2><div class="box-lines">'+'<div></div>'.repeat(7)+'</div>';
-  b+='<h2>Notes</h2><div class="box-lines">'+'<div></div>'.repeat(5)+'</div>';
+  b+='<h2>Load the truck</h2><div class="ed box" contenteditable data-k="truck"></div>';
+  b+='<h2>Notes</h2><div class="ed box" contenteditable data-k="notes"></div>';
   b+='</div></div>';
-  var css='body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:18px;max-width:1000px;margin:0 auto}'+
-    'h1{font-size:22px;margin:0}.who{font-size:12px;color:#555;margin-bottom:12px}'+
+  var css='body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:14px;max-width:1000px;margin:0 auto;background:#fff}'+
+    'h1{font-size:22px;margin:0;outline:none}.who{font-size:12px;color:#555;margin-bottom:10px}'+
     'h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px;border-bottom:2px solid #111;padding-bottom:3px}'+
+    '.hint{font-size:10px;color:#888;text-transform:none;letter-spacing:0;font-weight:400}'+
     '.grid{display:grid;grid-template-columns:1.6fr 1fr;gap:18px}'+
     'table{width:100%;border-collapse:collapse}th{text-align:left;font-size:11px;color:#555;padding:3px 4px;border-bottom:1px solid #999}'+
-    'td{border-bottom:1px solid #bbb;height:30px;padding:2px 4px;font-size:12px;vertical-align:top}'+
-    'table.jobs td{height:auto;padding:5px 4px}.st{font-size:10px;color:#666}'+
-    '.box{display:inline-block;width:12px;height:12px;border:1.5px solid #111;border-radius:2px}'+
-    '.box-lines div{border-bottom:1px solid #bbb;height:26px}'+
-    '.bar{margin-bottom:12px}.bar button{font-size:15px;padding:8px 16px;margin-right:8px}'+
-    '@page{margin:.4in}@media print{.bar{display:none}body{padding:0}}'+
+    'td{border-bottom:1px solid #bbb;padding:0;vertical-align:top}'+
+    '.ed{min-height:30px;padding:6px 5px;font-size:13.5px;outline:none;line-height:1.35;word-break:break-word}'+
+    '.ed:focus{background:#fff8d6}.ed.t{font-family:monospace}'+
+    '.box{border:1px solid #bbb;border-radius:6px;min-height:150px;background-image:repeating-linear-gradient(#fff 0 25px,#ddd 25px 26px)}'+
+    '.job{border:1px solid #ccc;border-radius:8px;padding:7px 9px;margin-bottom:6px;font-size:12.5px;cursor:pointer}.job:active{background:#eee}.job.used{opacity:.4}.st{font-size:10px;color:#666}'+
+    '.bar{position:sticky;top:0;background:#fff;padding:6px 0 10px;z-index:2;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid #eee;margin-bottom:10px}'+
+    '.bar button{font-size:15px;padding:9px 14px;border-radius:8px;border:none;background:#c8102e;color:#fff;font-weight:700}.bar button.alt{background:#eee;color:#111}'+
+    '#sv{font-size:12px;color:#2a7}'+
+    '@page{margin:.4in}@media print{.bar,.hint,#jl,.noprint{display:none}body{padding:0}.ed:focus{background:none}.box{background-image:none}}'+
     '@media (max-width:700px){.grid{grid-template-columns:1fr}}';
+  var js='var KEY='+JSON.stringify(key)+',JOBS='+JSON.stringify(jobData)+';'+
+    'function els(){return Array.prototype.slice.call(document.querySelectorAll("[data-k]"));}'+
+    'function save(){var d={rows:{m:document.querySelectorAll("#tm tr").length-1,a:document.querySelectorAll("#ta tr").length-1}};els().forEach(function(e){d[e.dataset.k]=e.innerText;});d.used=Array.prototype.map.call(document.querySelectorAll(".job.used"),function(j){return j.dataset.i;});try{localStorage.setItem(KEY,JSON.stringify(d));document.getElementById("sv").textContent="Saved ✓";}catch(e){}}'+
+    'var t;document.addEventListener("input",function(){clearTimeout(t);document.getElementById("sv").textContent="";t=setTimeout(save,400);});'+
+    'function mkRow(sec,i){var tr=document.createElement("tr");tr.innerHTML=\'<td><div class="ed t" contenteditable data-k="\'+sec+i+\'t"></div></td><td><div class="ed" contenteditable data-k="\'+sec+i+\'s"></div></td><td><div class="ed" contenteditable data-k="\'+sec+i+\'w"></div></td>\';return tr;}'+
+    'function addRow(){var tb=document.querySelector("#ta tbody")||document.getElementById("ta");var n=document.querySelectorAll("#ta tr").length-1;tb.appendChild(mkRow("a",n));save();}'+
+    'function useJob(i){var j=JOBS[i];var rows=Array.prototype.slice.call(document.querySelectorAll("#tm tr,#ta tr")).slice(0);for(var r=0;r<rows.length;r++){var s=rows[r].querySelector("[data-k$=s]"),w=rows[r].querySelector("[data-k$=w]");if(s&&w&&!s.innerText.trim()&&!w.innerText.trim()){s.innerText=j.stop;w.innerText=j.work;document.querySelector(".job[data-i=\\""+i+"\\"]").classList.add("used");save();return;}}addRow();useJob(i);}'+
+    'function clearSheet(){if(!confirm("Clear this sheet?"))return;try{localStorage.removeItem(KEY);}catch(e){}location.reload();}'+
+    'try{var d=JSON.parse(localStorage.getItem(KEY)||"null");if(d){var extra=(d.rows&&d.rows.a||7)-7;for(var x=0;x<extra;x++)addRow();els().forEach(function(e){if(d[e.dataset.k]!=null)e.innerText=d[e.dataset.k];});(d.used||[]).forEach(function(i){var el=document.querySelector(".job[data-i=\\""+i+"\\"]");if(el)el.classList.add("used");});document.getElementById("sv").textContent="Saved ✓";}}catch(e){}';
   var win=window.open('','_blank');
-  if(!win){toast('Allow pop-ups to print the sheet','er');return;}
-  win.document.write('<html><head><title>Day sheet — '+esc(title)+'</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+css+'</style></head><body>');
-  win.document.write('<div class="bar"><button onclick="window.print()">Print</button><button onclick="window.close()">Close</button></div>'+b+'</body></html>');
+  if(!win){toast('Allow pop-ups to open the sheet','er');return;}
+  win.document.write('<html><head><title>Day sheet — '+esc(title)+'</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+css+'</style></head><body>'+b+'<scr'+'ipt>'+js+'</scr'+'ipt></body></html>');
   win.document.close();
-  setTimeout(function(){try{win.focus();win.print();}catch(e){}},400);
 }
 
 // ── REMINDERS (cleaner) ──────────────────────────────────
