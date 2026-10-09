@@ -41,6 +41,8 @@ self.addEventListener('fetch', function(e) {
   if (e.request.method !== 'GET') return;
   // Never cache Supabase — data and auth must always hit the network.
   if (e.request.url.includes('supabase.co')) return;
+  // The portal's code is fetched fresh (?t=) on every visit; don't keep copies.
+  if (e.request.url.includes('portal-app.')) return;
 
   // The whole app is one HTML file, so serving it cache-first meant a fix
   // could not reach a phone that already had a copy: the cached page rendered
