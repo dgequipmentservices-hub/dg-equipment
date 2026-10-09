@@ -534,11 +534,11 @@ async function handle(req: Request) {
     const machine = eq ? [eq.make, eq.model].filter(Boolean).join(' ') : clip(body.machine, 120);
     const { error } = await db.from('leads').insert({
       name: cust.name || 'Portal customer', business: cust.company || null, phone: cust.phone || null, email: cust.email || null,
-      source: 'Portal', status: 'New', customer_id: custId, address, equipment: machine || null,
+      source: 'Portal', status: 'new', customer_id: custId, address, equipment: machine || null,
       equipment_type: eq ? eq.equipment_type : null, complaint: issue,
       notes: 'Sent from the customer portal' + (photoUrl ? '\nPhoto: ' + photoUrl : ''),
     });
-    if (error) return json({ error: 'Couldn’t send that just now. Call or text ' + SHOP.phone + '.' }, 500);
+    if (error) return json({ error: 'Couldn’t send that just now. Call or text ' + SHOP.phone + '.', detail: clip(error.message, 200) }, 500);
     await log(custId, 'service_request', { machine, address, photo: !!photoUrl }, req);
     await tellShop(`Service request: ${cust.name || 'Customer'}${machine ? ' — ' + machine : ''}`, [
       `${cust.name || 'A customer'} sent a service request from the portal.`, '',

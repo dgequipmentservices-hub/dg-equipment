@@ -95,6 +95,12 @@ textarea.in{height:110px;padding:12px 14px;font-size:15px;resize:vertical}
 
 /* pay boxes */
 .zbox{background:#f1edfc;border:1.5px solid var(--pur);border-radius:var(--r);padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.zrow{display:flex;align-items:center;gap:10px;background:#fff;border-radius:12px;padding:10px 10px 10px 14px}
+.zrow>div{flex:1}
+.zl{font-size:12px;color:var(--tx2)}
+.zv{font-weight:700;font-size:17px;word-break:break-all}
+.zcp{flex-shrink:0;min-width:76px;height:44px;border-radius:10px;border:1.5px solid var(--pur);background:#fff;color:var(--pur2);font-weight:700;font-size:14px;cursor:pointer}
+.zcp.on{background:var(--pur);color:#fff}
 .zgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .zcell{background:#fff;border-radius:10px;padding:10px 12px}
 .zcell div:first-child{font-size:12px;color:var(--tx2)}
@@ -215,7 +221,7 @@ function render(){
     return viewSignIn();
   }
   var p=(location.hash||'').replace(/^#\/?/,'').split('/');
-  if(p[0]==='invoice')return viewInvoice(p[1]);
+  if(p[0]==='invoice')return viewInvoice(p[1],p[2]==='zelle');
   if(p[0]==='machine')return viewMachine(p[1]);
   if(p[0]==='statement')return viewStatement();
   if(p[0]==='request')return viewRequest(p[1]||'');
@@ -306,7 +312,7 @@ function viewHome(){
   if(owed){
     h+='<div class="row" style="align-items:baseline"><span style="font-weight:600;color:var(--tx2)">You owe</span><span class="small muted">'+openInv.length+' open invoice'+(openInv.length===1?'':'s')+'</span></div>'+
       '<div class="big">'+money(s.balance)+'</div>'+
-      '<a class="btn pur" href="#/invoice/'+esc(openInv[0]?openInv[0].id:'')+'" style="height:52px">Pay with Zelle <span class="tag">Preferred</span></a>'+
+      '<a class="btn pur" href="#/invoice/'+esc(openInv[0]?openInv[0].id:'')+'/zelle" style="height:52px">Pay with Zelle <span class="tag">Preferred</span></a>'+
       (openInv.some(function(v){return v.card_link;})?'<a class="btn line" href="#/invoice/'+esc((openInv.find(function(v){return v.card_link;})||{}).id)+'">Pay by card</a>':'');
   }else{
     h+='<div style="font-weight:600;color:var(--tx2)">Your balance</div><div class="big" style="color:var(--grn)">'+money(0)+'</div><div class="small muted">You’re all paid up — thank you!'+(s.credit>0.01?' You have a '+money(s.credit)+' credit.':'')+'</div>';
@@ -363,7 +369,7 @@ function printHead(title){
 }
 
 // ── invoice ─────────────────────────────────────────────────────────
-function viewInvoice(id){
+function viewInvoice(id,scrollZelle){
   var v=D.invoices.find(function(x){return x.id===id;});
   if(!v){go('');return;}
   track('view_invoice',v.number);
@@ -392,12 +398,14 @@ function viewInvoice(id){
 
   if(owed){
     h+='<h2 class="noprint">How to pay</h2>'+
-    '<div class="zbox"><div class="row" style="align-items:center"><b style="font-size:16px;color:var(--pur2)">1 · Zelle</b><span class="chip pref">Preferred</span></div>'+
-      '<div class="zgrid"><div class="zcell"><div>Send to</div><div>'+esc(fphone(D.zelle)||D.zelle)+'</div></div><div class="zcell"><div>Memo</div><div>Invoice '+esc(v.number)+'</div></div></div>'+
-      '<div class="zcell"><div>Amount</div><div>'+money(v.balance)+'</div></div>'+
-      '<button class="btn pur noprint" id="cpZ" style="height:46px;font-size:15px">Copy Zelle number</button>'+
-      '<button class="btn line noprint" id="sentZ" style="height:46px;border-color:var(--pur);color:var(--pur2)">I sent it</button>'+
-      '<div class="small" style="color:var(--pur2)">No fee. Shows as paid here once Danny confirms it.</div></div>';
+    '<div class="zbox" id="zelle"><div class="row" style="align-items:center"><b style="font-size:16px;color:var(--pur2)">1 · Zelle</b><span class="chip pref">Preferred · no fee</span></div>'+
+      '<div class="small" style="color:var(--pur2);font-weight:600">Open your bank’s app → <b>Zelle</b> → <b>Send</b>, then fill in:</div>'+
+      zrow('Send to',fphone(D.zelle)||D.zelle,String(D.zelle).replace(/\D/g,'').length===10?String(D.zelle).replace(/\D/g,''):D.zelle,'number')+
+      zrow('Amount',money(v.balance),v.balance.toFixed(2),'amount')+
+      zrow('Memo','Invoice '+v.number,'Invoice '+v.number,'memo')+
+      '<div class="zqrw noprint hide" id="zqrw"><img src="portal-zelle-qr.png" alt="Zelle QR code for DG Equipment Repair" id="zqr" style="width:150px;height:150px;display:block;margin:0 auto;border-radius:10px;background:#fff;padding:6px"><div class="small" style="text-align:center;color:var(--pur2);margin-top:6px">On a computer? Scan this with your bank app’s Zelle scanner.</div></div>'+
+      '<button class="btn pur noprint" id="sentZ" style="height:50px">I sent it — let Danny know</button>'+
+      '<div class="small" style="color:var(--pur2)">Shows as paid here once Danny confirms it.</div></div>';
     if(v.card_link){
       h+='<div class="card noprint" style="display:flex;flex-direction:column;gap:10px"><b style="font-size:16px;color:var(--grn)">2 · Credit card</b>'+
         '<a class="btn grn" id="card" href="'+esc(v.card_link)+'" target="_blank" rel="noopener noreferrer" style="height:46px;font-size:15px">Pay by card</a>'+
@@ -409,7 +417,13 @@ function viewInvoice(id){
   h+='<div class="small muted" style="text-align:center;padding:4px 0 20px">Questions about this invoice? <a href="sms:'+esc(SHOP.phone_digits)+'">Text '+esc(SHOP.phone)+'</a></div></div>';
   app.innerHTML=h;
   wireBar(function(){track('print_invoice',v.number);window.print();});
-  if($('cpZ'))$('cpZ').onclick=function(){copy(String(D.zelle).replace(/\D/g,'')||D.zelle);track('copy_zelle',v.number);};
+  Array.prototype.forEach.call(document.querySelectorAll('.zcp'),function(b){b.onclick=function(){
+    var t=b.getAttribute('data-copy');copy(t);b.textContent='Copied ✓';b.classList.add('on');
+    setTimeout(function(){b.textContent='Copy';b.classList.remove('on');},1800);
+    if(b.getAttribute('data-k')==='number')track('copy_zelle',v.number);
+  };});
+  var zq=$('zqr');if(zq){zq.onload=function(){$('zqrw').classList.remove('hide');};zq.onerror=function(){$('zqrw').remove();};}
+  if(scrollZelle&&$('zelle'))setTimeout(function(){$('zelle').scrollIntoView({behavior:'smooth',block:'start'});},80);
   if($('sentZ'))$('sentZ').onclick=async function(){
     if(!confirm('Let Danny know you sent '+money(v.balance)+' by Zelle for invoice '+v.number+'?'))return;
     this.disabled=true;var d=await call('zelle_sent',{invoice_id:v.id,amount:v.balance});
@@ -417,6 +431,10 @@ function viewInvoice(id){
     this.textContent='Thanks — Danny’s been told ✓';
   };
   if($('card'))$('card').onclick=function(){track('open_card',v.number);};
+}
+function zrow(label,show,val,key){
+  return '<div class="zrow"><div style="min-width:0"><div class="zl">'+esc(label)+'</div><div class="zv">'+esc(show)+'</div></div>'+
+    '<button class="zcp noprint" data-copy="'+esc(val)+'" data-k="'+esc(key)+'" aria-label="Copy '+esc(label)+'">Copy</button></div>';
 }
 function copy(t){
   if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){toast('Copied '+t);},function(){toast(t);});}
@@ -504,7 +522,7 @@ function viewStatement(){
   });
   h+='</div>';
   var firstOpen=D.invoices.find(function(v){return v.balance>0.01;});
-  if(s.balance>0.01&&firstOpen)h+='<a class="btn pur noprint" href="#/invoice/'+esc(firstOpen.id)+'" style="height:52px">Pay with Zelle <span class="tag">Preferred</span></a>';
+  if(s.balance>0.01&&firstOpen)h+='<a class="btn pur noprint" href="#/invoice/'+esc(firstOpen.id)+'/zelle" style="height:52px">Pay with Zelle <span class="tag">Preferred</span></a>';
   h+='<button class="btn line noprint" id="pr2">Print or save statement (PDF)</button></div>';
   app.innerHTML=h;
   var pr=function(){track('print_statement');window.print();};
