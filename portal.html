@@ -95,11 +95,11 @@ textarea.in{height:110px;padding:12px 14px;font-size:15px;resize:vertical}
 
 /* pay boxes */
 .zbox{background:#f1edfc;border:1.5px solid var(--pur);border-radius:var(--r);padding:16px 18px;display:flex;flex-direction:column;gap:10px}
-.zrow{display:flex;align-items:center;gap:10px;background:#fff;border-radius:12px;padding:6px 6px 6px 14px;margin-top:4px}
+.zrow{display:flex;align-items:center;gap:10px;background:#fff;border-radius:12px;padding:8px 8px 8px 14px}
 .zstep{display:flex;gap:12px;align-items:flex-start;font-size:15px;color:var(--tx)}
 .zn{width:26px;height:26px;border-radius:13px;background:var(--pur);color:#fff;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
 .zrow>.zv{flex:1;min-width:0}
-.zl{font-size:12px;color:var(--tx2)}
+.zl{font-size:12px;color:var(--tx2);font-weight:500}
 .zv{font-weight:700;font-size:17px;word-break:break-all}
 .zcp{flex-shrink:0;min-width:76px;height:44px;border-radius:10px;border:1.5px solid var(--pur);background:#fff;color:var(--pur2);font-weight:700;font-size:14px;cursor:pointer}
 .zcp.on{background:var(--pur);color:#fff}
@@ -441,14 +441,13 @@ function viewInvoice(id,scrollZelle){
   if(owed){
     var zDigits=String(D.zelle).replace(/\D/g,'');
     h+='<div class="zbox" id="zelle">'+
-      '<div class="row" style="align-items:baseline"><b style="font-size:18px;color:var(--pur2)">Pay with Zelle</b><span class="small" style="color:var(--pur2)">No fee</span></div>'+
-      '<div class="zstep"><span class="zn">1</span><div>Open your bank app and tap <b>Zelle</b>.</div></div>'+
-      '<div class="zstep"><span class="zn">2</span><div style="flex:1;min-width:0">Send to'+zrow(fphone(D.zelle)||D.zelle,zDigits.length===10?zDigits:D.zelle,'number','phone number')+'</div></div>'+
-      '<div class="zstep"><span class="zn">3</span><div style="flex:1;min-width:0">Amount'+zrow(money(v.balance),v.balance.toFixed(2),'amount','amount')+'</div></div>'+
-      '<div class="zstep"><span class="zn">4</span><div style="flex:1;min-width:0">In the memo, write'+zrow('Invoice '+v.number,'Invoice '+v.number,'memo','memo')+'</div></div>'+
-      '<div class="zqrw noprint hide" id="zqrw"><img src="portal-zelle-qr.png" alt="Zelle QR code for DG Equipment Repair" id="zqr" style="width:150px;height:150px;display:block;margin:0 auto;border-radius:10px;background:#fff;padding:6px"><div class="small" style="text-align:center;color:var(--pur2);margin-top:6px">Paying from a computer? Scan this with your phone’s bank app.</div></div>'+
+      '<b style="font-size:18px;color:var(--pur2)">Pay with Zelle</b>'+
+      zfield('Zelle',fphone(D.zelle)||D.zelle,zDigits.length===10?zDigits:D.zelle,'number')+
+      zfield('Amount',money(v.balance),v.balance.toFixed(2),'amount')+
+      zfield('Memo','Invoice '+v.number,'Invoice '+v.number,'memo')+
+      '<div class="zqrw noprint hide" id="zqrw"><img src="portal-zelle-qr.png" alt="Zelle QR code for DG Equipment Repair" id="zqr" style="width:150px;height:150px;display:block;margin:0 auto;border-radius:10px;background:#fff;padding:6px"></div>'+
       '<button class="btn pur noprint" id="sentZ" style="height:50px">I sent it</button>'+
-      '<div class="small" style="color:var(--pur2)">Tap that once you’ve sent it and I’ll mark the invoice paid when it comes in. — Danny</div></div>';
+      '</div>';
     if(v.card_link){
       h+='<div class="card noprint" style="display:flex;flex-direction:column;gap:10px"><b style="font-size:16px">Or pay by card</b>'+
         '<a class="btn grn" id="card" href="'+esc(v.card_link)+'" target="_blank" rel="noopener noreferrer" style="height:46px;font-size:15px">Pay by card</a>'+
@@ -479,6 +478,10 @@ function viewInvoice(id,scrollZelle){
     this.textContent='Thanks! Got it ✓';
   };
   if($('card'))$('card').onclick=function(){track('open_card',v.number);};
+}
+function zfield(label,show,val,key){
+  return '<div class="zrow"><div class="zv"><div class="zl">'+esc(label)+'</div>'+esc(show)+'</div>'+
+    '<button class="zcp noprint" data-copy="'+esc(val)+'" data-k="'+esc(key)+'" aria-label="Copy '+esc(label)+'">Copy</button></div>';
 }
 function zrow(show,val,key,label){
   return '<div class="zrow"><div class="zv">'+esc(show)+'</div>'+
