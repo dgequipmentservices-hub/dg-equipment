@@ -349,6 +349,12 @@ async function data(s: any, req: Request) {
   const { data: pays } = woIds.length
     ? await db.from('payments').select('id,work_order_id,amount,method,payment_date,created_at').in('work_order_id', woIds)
     : { data: [] as any[] };
+  // Which invoices have the PDF the shop sent (saved by the app when it builds one).
+  const pdfs = new Set<string>();
+  for (const id of ids) {
+    const { data: files } = await db.storage.from('invoice-pdfs').list(id, { limit: 1000 });
+    (files || []).forEach((f: any) => pdfs.add(String(f.name).replace(/\.pdf$/, '')));
+  }
   const cMap: Record<string, any> = {}; (custs || []).forEach((c: any) => { cMap[c.id] = c; });
   const eMap: Record<string, any> = {}; (eqs || []).forEach((e: any) => { eMap[e.id] = e; });
   const byWo: Record<string, any[]> = {};
@@ -391,6 +397,7 @@ async function data(s: any, req: Request) {
       subtotal: m.sub, tax: m.tax, exempt, cc_fee: m.cc + m.ccTax, total: m.total, paid, balance, state,
       payments: plist.map((p) => ({ amount: parseFloat(p.amount || 0), method: p.method || '', date: pmtDate(p).toISOString() })),
       card_link: balance > 0.01 && w.qbo_payment_link ? w.qbo_payment_link : '',
+      has_pdf: pdfs.has(w.id),
     });
     // Statement ledger — openStmt's rules.
     ledger.push({ type: 'invoice', id: w.id, date: dt.toISOString(), sort: dt.getTime(), number: num, title: w.problem || 'Service', amount: m.total, paidOff: state === 'paid', amountPaid: paid });
@@ -459,7 +466,7 @@ async function data(s: any, req: Request) {
   });
 }
 
-const LOGGABLE = new Set(['view_invoice', 'print_invoice', 'open_card', 'view_statement', 'print_statement', 'copy_zelle', 'view_machine']);
+const LOGGABLE = new Set(['view_invoice', 'open_card', 'view_statement', 'print_statement', 'copy_zelle', 'view_machine']);
 
 async function handle(req: Request) {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -489,6 +496,16 @@ async function handle(req: Request) {
     await db.from('portal_sessions').update({ revoked_at: new Date().toISOString() }).eq('id', s.id);
     await log(who, 'sign_out', {}, req);
     return json({ ok: true });
+  }
+
+  if (action === 'invoice_pdf') {
+    const { data: w } = await db.from('work_orders').select('id,customer_id,invoice_number').eq('id', String(body.invoice_id || '')).in('customer_id', s.ids).limit(1);
+    if (!w || !w[0]) return json({ error: 'Invoice not found' }, 404);
+    const name = 'INV-' + (w[0].invoice_number || w[0].id.slice(0, 6)) + '.pdf';
+    const { data: signed, error } = await db.storage.from('invoice-pdfs').createSignedUrl(`${w[0].customer_id}/${w[0].id}.pdf`, 300, { download: name });
+    if (error || !signed) return json({ error: 'That invoice isn’t available to download yet. Call or text ' + SHOP.phone + ' for a copy.' }, 404);
+    await log(w[0].customer_id, 'download_invoice', { ref: String(w[0].invoice_number || '') }, req);
+    return json({ ok: true, url: signed.signedUrl, filename: name });
   }
 
   if (action === 'zelle_sent') {
