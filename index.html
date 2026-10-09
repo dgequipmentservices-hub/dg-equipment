@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.83</title>
+<title>DG Equipment v27.84</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -941,7 +941,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-09 · V27.83</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-09 · V27.84</div>
   </div>
 </div>
 
@@ -8164,7 +8164,7 @@ function renderInvoices(force){
     var b1=isClosed(w)?'<span class="ib">Closed</span>':'<span class="ib">Open</span>';
     var b2=st==='unbilled'?'<span class="ib amb">Not billed</span>':bal<=0.01?'<span class="ib grn">Paid</span>':isOverdue?'<span class="ib red">Overdue</span>':st==='partial'?'<span class="ib amb">Partial</span>':'<span class="ib red">Unpaid</span>';
     var b3=st==='unbilled'?'':invoiceInQB(w)?'<span class="ib grn">QB \u2713</span>':'<span class="ib amb">Not in QB</span>';
-    if(isBilled(w)&&bal>0.01)b3+='<span class="ib grn" role="button" data-wid="'+w.id+'" onclick="event.stopPropagation();sendPayLink(this.dataset.wid)" style="cursor:pointer;background:rgba(44,160,28,.12)">\uD83D\uDCB3 Pay link</span>';
+    if(isBilled(w)&&bal>0.01)b3+='<span class="ib grn" role="button" data-wid="'+w.id+'" onclick="event.stopPropagation();openSendInvoice(this.dataset.wid)" style="cursor:pointer;background:rgba(44,160,28,.12)">\uD83D\uDCB3 Pay link</span>';
     var h='<div class="grp-row '+blCls+(picked?' inv-picked':'')+'" data-wid="'+w.id+'" onclick="openWO(this.dataset.wid)" style="gap:6px">';
     h+='<span class="inv-cb'+(picked?' on':'')+'" data-wid="'+w.id+'" onclick="event.stopPropagation();invToggleSel(this.dataset.wid,this)"></span>';
     h+='<span class="grp-num">'+(isBilled(w)&&w.invoice_number?w.invoice_number:'—')+'</span>';
@@ -14448,7 +14448,7 @@ async function openInvoice(id, create) {
     const _siId=id, _siNum=invNum, _siC=c;
     const _siInfo={total:total,paid:totalPaid,balance:Math.max(0,balance),payLink:w.qbo_payment_link||''};
     window._curInvId = id; // track for refresh after payment
-    sendInvBtn.onclick = function(){ sendInvoiceShare(_siId,_siNum,_siC,_siInfo); };
+    sendInvBtn.onclick = function(){ openSendInvoice(_siId); };
     row1.appendChild(sendInvBtn);
     actEl.appendChild(row1);
 
@@ -14457,9 +14457,9 @@ async function openInvoice(id, create) {
       const payRow=document.createElement('div');payRow.style.cssText='display:flex;gap:6px;margin-bottom:6px';
       const payBtn=document.createElement('button');
       payBtn.style.cssText='flex:1;background:#2CA01C;color:#fff;border:none;border-radius:var(--rs);padding:13px;font-size:14px;font-weight:800;font-family:var(--fn);cursor:pointer';
-      payBtn.textContent='\uD83D\uDCB3 Send pay link \u2014 $'+Math.max(0,balance).toFixed(2);
+      payBtn.textContent='\uD83D\uDCB3 Send pay link + invoice \u2014 $'+Math.max(0,balance).toFixed(2);
       const _plId=id;
-      payBtn.onclick=function(){sendPayLink(_plId);};
+      payBtn.onclick=function(){openSendInvoice(_plId);};
       payRow.appendChild(payBtn);actEl.appendChild(payRow);
     }
 
@@ -15558,8 +15558,21 @@ async function invoicePdfBase64(woId){
   if(!window.jspdf||!window.jspdf.jsPDF)throw new Error('PDF library unavailable');
   var pw=595.28;                                  // A4 width in points
   var hpt=r.canvas.height*(pw/r.canvas.width);    // keep the aspect ratio
-  var doc=new window.jspdf.jsPDF({unit:'pt',format:[pw,hpt]});
+  // v27.84: when money is owed and QuickBooks gave a pay link, the PDF ends
+  // with a real, clickable "Pay online" line.
+  var _w=(wos||[]).find(function(x){return x.id===woId;})||{};
+  var _link=(_w.qbo_payment_link&&woBalance(_w)>0.01)?_w.qbo_payment_link:'';
+  var extra=_link?56:0;
+  var doc=new window.jspdf.jsPDF({unit:'pt',format:[pw,hpt+extra]});
   doc.addImage(r.canvas.toDataURL('image/jpeg',0.92),'JPEG',0,0,pw,hpt);
+  if(_link){
+    doc.setFillColor(232,245,233);doc.rect(28,hpt+8,pw-56,38,'F');
+    doc.setTextColor(46,125,50);doc.setFont('helvetica','bold');doc.setFontSize(13);
+    doc.text('Pay online by card or bank \u2014 $'+woBalance(_w).toFixed(2),40,hpt+25);
+    doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(21,101,192);
+    doc.textWithLink('Tap or click here to pay this invoice',40,hpt+39,{url:_link});
+    doc.link(28,hpt+8,pw-56,38,{url:_link});
+  }
   var uri=doc.output('datauristring');
   return {b64:uri.substring(uri.indexOf(',')+1),invNum:r.invNum};
 }
@@ -15707,12 +15720,171 @@ function qboBlockedPayments(){
 // invoices QuickBooks turns out to already have, so the answer sticks
 // after a reload instead of being re-asked every session.
 
+
+// ═══════════════════════════════════════════════════════
+// v27.84 — one Send invoice sheet: email (PDF attached) or text (picture
+// attached), both carrying the QuickBooks pay link when money is owed.
+// ═══════════════════════════════════════════════════════
+async function openSendInvoice(woId){
+  var w=wos.find(function(x){return x.id===woId;});
+  if(!w){toast('Invoice not found','er');return;}
+  var c=cMap[w.customer_id]||{};
+  // The attachment is drawn from the open invoice, so make sure it's this one.
+  var onInv=document.getElementById('S_inv_view').classList.contains('on')&&invWoId===woId;
+  if(!onInv){var _cs=document.querySelector('.scr.on');prevScr=_cs?_cs.id:'S_invoices';go('S_inv_view');await openInvoice(woId);await new Promise(function(r){setTimeout(r,250);});}
+  var bal=woBalance(w);
+  var link=w.qbo_payment_link||'';
+  if(bal>0.01&&w.qbo_invoice_id&&!link){
+    toast('Getting the pay link from QuickBooks…','');
+    try{
+      var r=await qboCall({action:'get_payment_link',qbo_invoice_id:w.qbo_invoice_id,bill_email:(c.email||'').trim()});
+      if(r&&r.payment_link){link=r.payment_link;w.qbo_payment_link=link;patch('work_orders',{qbo_payment_link:link},'?id=eq.'+w.id).catch(function(){});}
+    }catch(e){}
+  }
+  var invNum=w.invoice_number?'INV-'+w.invoice_number:'Invoice';
+  var _biz=['Contractor','Commercial'].indexOf(c.customer_type)>=0;
+  var hi=_biz?(c.name||'there'):((c.name||'').split(' ')[0]||'there');
+  var owed=bal>0.01;
+  var msg='Hi '+hi+', here is invoice '+(w.invoice_number||'')+' from DG Equipment'+
+    (owed?' — $'+bal.toFixed(2)+' due.':' — paid in full, thank you!')+
+    (owed&&link?' Pay by card or bank here: '+link:'')+
+    (owed&&!link?' Call or text (516) 350-8898 to pay.':'')+
+    '\n\nThank you,\nDG Equipment Repair & Services\n(516) 350-8898';
+  window._sendInv={woId:woId,invNum:invNum,custId:c.id||'',hadEmail:!!(c.email||''),hadPhone:!!(c.phone||''),link:link};
+  var big='flex:1;border:none;border-radius:var(--rs);padding:13px 6px;font-size:14px;font-weight:800;font-family:var(--fn);cursor:pointer;color:#fff';
+  var _fmt='pdf';try{_fmt=localStorage.getItem('dg_send_fmt')||'pdf';}catch(e){}
+  window._sendInv.fmt=_fmt;
+  var h='<div class="mt">💳 Pay link + invoice — '+esc(invNum)+'</div>'+
+    '<div class="ms" style="margin-bottom:10px">'+esc(c.name||'')+(owed?' · $'+bal.toFixed(2)+' due':' · paid')+
+      (owed&&!w.qbo_invoice_id?'<br><span style="color:var(--amb)">Not in QuickBooks yet, so there’s no pay link. <a href="#" data-wid="'+woId+'" onclick="event.preventDefault();closeM();_pushThenPayLink(this.dataset.wid)" style="color:var(--blu);font-weight:700">Send to QuickBooks</a></span>':'')+
+      (owed&&w.qbo_invoice_id&&!link?'<br><span style="color:var(--amb)">QuickBooks didn’t give a pay link — check online payments are on in QuickBooks.</span>':'')+'</div>'+
+    '<div class="mf">'+
+      '<div><div class="mlbl">Email</div><input class="mi" id="siEmail" type="email" autocomplete="off" value="'+esc(c.email||'')+'" placeholder="customer@email.com"></div>'+
+      '<div><div class="mlbl">Cell</div><input class="mi" id="siPhone" type="tel" autocomplete="off" value="'+esc(c.phone||'')+'" placeholder="516-555-1234"></div>'+
+      '<div><div class="mlbl">Message</div><textarea class="mi" id="siMsg" rows="6" style="resize:none;font-size:13px;line-height:1.45">'+esc(msg)+'</textarea></div>'+
+      '<div><div class="mlbl">Attach the invoice as</div><div style="display:flex;gap:6px">'+
+        '<button class="qn-chip'+(_fmt==='pdf'?' on':'')+'" data-f="pdf" onclick="siSetFmt(this)" style="flex:1;padding:9px">PDF</button>'+
+        '<button class="qn-chip'+(_fmt==='jpg'?' on':'')+'" data-f="jpg" onclick="siSetFmt(this)" style="flex:1;padding:9px">JPG picture</button>'+
+      '</div></div>'+
+      '<div id="siNote"></div>'+
+    '</div>'+
+    '<div style="display:flex;gap:6px">'+
+      '<button id="siTextBtn" onclick="sendInvTextPic()" style="'+big+';background:var(--grn)">💬 Text it</button>'+
+      '<button id="siEmailBtn" onclick="sendInvEmailPdf()" style="'+big+';background:#1565c0">✉ Email it</button>'+
+    '</div>'+
+    '<div style="font-size:11px;color:var(--tx3);margin-top:6px;line-height:1.4">Both send the message above (with the pay link) and the invoice attached. Email goes straight out from your Gmail. Text opens your phone’s share menu — pick Messages, then the customer.</div>'+
+    '<div class="mb" style="gap:6px;padding-top:8px">'+
+      '<button class="mc-btn" onclick="sendInvTextOnly()">Text link only</button>'+
+      (link?'<button class="mc-btn" onclick="sendInvCopy()">Copy link</button>':'')+
+      '<button class="mc-btn" onclick="closeM()">Close</button>'+
+    '</div>';
+  openM(h);
+}
+function siSetFmt(btn){
+  var f=btn.dataset.f;(window._sendInv||{}).fmt=f;
+  try{localStorage.setItem('dg_send_fmt',f);}catch(e){}
+  document.querySelectorAll('.qn-chip[data-f]').forEach(function(b){b.classList.toggle('on',b===btn);});
+}
+// The invoice as a file in the chosen format: {name, b64, blob, mime}.
+async function _siInvoiceFile(woId,invNum,fmt){
+  if(fmt==='jpg'){
+    var r=await saveInvoiceAsImage(woId,true);
+    if(!r||!r.canvas)throw new Error('Could not draw the invoice');
+    var url=r.canvas.toDataURL('image/jpeg',0.9);
+    var blob=await new Promise(function(res){r.canvas.toBlob(res,'image/jpeg',0.9);});
+    return {name:invNum+'.jpg',b64:url.split(',')[1],blob:blob,mime:'image/jpeg'};
+  }
+  var p=await invoicePdfBase64(woId);
+  var bin=atob(p.b64),arr=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+  return {name:invNum+'.pdf',b64:p.b64,blob:new Blob([arr],{type:'application/pdf'}),mime:'application/pdf'};
+}
+function _siFields(){
+  return {d:window._sendInv||{},email:((document.getElementById('siEmail')||{}).value||'').trim(),
+    phone:((document.getElementById('siPhone')||{}).value||'').replace(/[^\d+]/g,''),
+    msg:((document.getElementById('siMsg')||{}).value||'').trim()};
+}
+async function _siRemember(d,email,phone){
+  if(!d.custId)return;
+  var upd={};
+  if(email&&!d.hadEmail&&email.indexOf('@')>0)upd.email=email;
+  if(phone&&!d.hadPhone&&phone.replace(/\D/g,'').length>=10)upd.phone=phone;
+  if(!Object.keys(upd).length)return;
+  try{await patch('customers',upd,'?id=eq.'+d.custId);var cu=custs.find(function(x){return x.id===d.custId;});if(cu)Object.assign(cu,upd);}catch(e){}
+}
+function _siNote(html,err){var n=document.getElementById('siNote');if(n)n.innerHTML=html?'<div style="background:'+(err?'rgba(198,40,40,.1);border:1px solid var(--red);color:var(--red)':'var(--sf2);border:1px solid var(--bd2);color:var(--tx2)')+';border-radius:var(--rs);padding:9px 11px;font-size:12px;line-height:1.4">'+html+'</div>':'';}
+async function sendInvEmailPdf(){
+  var f=_siFields();if(!f.d.woId)return;
+  if(f.email.indexOf('@')<1){toast('Add an email address','er');return;}
+  var btn=document.getElementById('siEmailBtn');if(btn){btn.disabled=true;btn.textContent='Sending…';}
+  _siNote('');
+  try{
+    var tok=_restoreSession();
+    if(!tok||_tokenExpired(tok))throw new Error('Sign in again to send invoices');
+    var file=await _siInvoiceFile(f.d.woId,f.d.invNum,f.d.fmt||'pdf');
+    var res=await fetch(SU+'/functions/v1/send-invoice',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},
+      body:JSON.stringify({to:f.email,subject:f.d.invNum+' — DG Equipment Repair & Services',body:f.msg,filename:file.name,attachment_b64:file.b64})});
+    var d={};try{d=await res.json();}catch(e){}
+    if(!res.ok||!d.sent){
+      var e2=new Error([d.error||('Send failed ('+res.status+')'),d.hint||d.detail||''].filter(Boolean).join(' — '));e2.notConfigured=!!d.not_configured;throw e2;
+    }
+    _siRemember(f.d,f.email,'');_invMarkSent(f.d.woId);
+    closeM();toast('Emailed to '+f.email+' with '+(f.d.fmt==='jpg'?'the picture':'the PDF')+' ✓','ok');
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='✉ Email it';}
+    _siNote(esc(navigator.onLine?(e.message||'Send failed'):'No connection — nothing was sent')+
+      '<br><a href="#" onclick="event.preventDefault();sendInvGmailDraft()" style="color:var(--blu);font-weight:700">Open a Gmail draft instead</a>',true);
+  }
+}
+async function sendInvGmailDraft(){
+  var f=_siFields();
+  try{var p=await invoicePdfBase64(f.d.woId);var a=document.createElement('a');a.href='data:application/pdf;base64,'+p.b64;a.download=f.d.invNum+'.pdf';document.body.appendChild(a);a.click();a.remove();}catch(e){}
+  window.open(_gmailComposeUrl(f.email,f.d.invNum+' — DG Equipment Repair & Services',f.msg),'_blank');
+  toast('PDF saved — drag it into the draft','ok');
+}
+async function sendInvTextPic(){
+  var f=_siFields();if(!f.d.woId)return;
+  var btn=document.getElementById('siTextBtn');if(btn){btn.disabled=true;btn.textContent='Building…';}
+  try{
+    var inv=await _siInvoiceFile(f.d.woId,f.d.invNum,f.d.fmt||'pdf');
+    var blob=inv.blob;
+    var file=new File([blob],inv.name,{type:inv.mime});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      // The share sheet can't pick the contact for you: choose Messages, then
+      // the customer. The message (with the pay link) rides along with the picture.
+      if(f.phone&&navigator.clipboard)navigator.clipboard.writeText(f.msg).catch(function(){});
+      await navigator.share({files:[file],text:f.msg,title:f.d.invNum});
+      _siRemember(f.d,'',f.phone);_invMarkSent(f.d.woId);closeM();toast('Sent ✓','ok');
+    }else{
+      if(btn){btn.disabled=false;btn.textContent='💬 Text it';}
+      var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=inv.name;document.body.appendChild(a);a.click();a.remove();
+      _siNote('This device can’t attach a file to a text from the app. '+inv.name+' was saved — use “Text link only” and attach it, or send from your phone.');
+    }
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='💬 Text it';}
+    if(e&&e.name==='AbortError')return;
+    _siNote(esc(e.message||'Could not share'),true);
+  }
+}
+function sendInvTextOnly(){
+  var f=_siFields();
+  if(!f.phone){toast('Add their cell number','er');return;}
+  _siRemember(f.d,'',f.phone);_invMarkSent(f.d.woId);
+  window.open('sms:'+f.phone+'?body='+encodeURIComponent(f.msg),'_self');
+  closeM();toast('Opening Messages…','ok');
+}
+function sendInvCopy(){
+  var f=_siFields();var t=f.d.link||'';
+  if(!t){toast('No pay link','er');return;}
+  (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(function(){toast('Pay link copied','ok');}).catch(function(){prompt('Copy the pay link:',t);});
+}
+
 // ═══════════════════════════════════════════════════════
 // v27.83 — QuickBooks pay links and online payments
 // ═══════════════════════════════════════════════════════
 // Send pay link: makes sure the invoice is in QuickBooks with a pay link,
 // then opens the usual text/email screen with the link already written in.
-async function sendPayLink(woId){
+async function sendPayLink(woId){return openSendInvoice(woId);}
+async function _oldSendPayLink(woId){
   var w=wos.find(function(x){return x.id===woId;});
   if(!w){toast('Invoice not found','er');return;}
   var c=cMap[w.customer_id]||{};
@@ -15770,7 +15942,7 @@ function payLinkSend(how){
 async function _pushThenPayLink(woId){
   await pushToQBO(woId);
   var w=wos.find(function(x){return x.id===woId;});
-  if(w&&w.qbo_invoice_id)sendPayLink(woId);
+  if(w&&w.qbo_invoice_id)openSendInvoice(woId);
 }
 
 // Online payments: ask QuickBooks about every unpaid invoice that's in it.
@@ -16090,6 +16262,8 @@ async function saveInvoiceAsImage(woId,_returnCanvas){
     var invNum=wo&&wo.invoice_number?'INV-'+wo.invoice_number:'invoice';
 
     var inner=content.innerHTML;
+    // The ✎ edit marks are for the screen, not the customer's copy.
+    inner=inner.replace(/<span[^>]*>\s*\u270e\s*<\/span>/g,'').replace(/\u270e/g,'');
     // Replace CSS variables with plain values
     inner=inner.replace(/color:var\(--tx3\)/g,'color:#888');
     inner=inner.replace(/color:var\(--tx2\)/g,'color:#444');
