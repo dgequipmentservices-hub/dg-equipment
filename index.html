@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.84</title>
+<title>DG Equipment v27.85</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -941,7 +941,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-09 · V27.84</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-09 · V27.85</div>
   </div>
 </div>
 
@@ -11245,7 +11245,7 @@ function textReminderCust(id){
   var eq=eMap[r.equipment_id]||{};
   var mach=((eq.make||'')+' '+(eq.model||'')).trim()||'equipment';
   var first=(c.name||'').split(' ')[0]||'there';
-  var msg='Hi '+first+", it's Danny from DG Equipment. Your "+mach+' is due for '+(r.title||'service').toLowerCase()+'. Want me to get you on the schedule? I come to you. \u2014 516-350-8898';
+  var msg='Hi '+first+", it's Danny from DG Equipment Repair. Your "+mach+' is due for '+(r.title||'service').toLowerCase()+'. Want me to get you on the schedule? I come to you. \u2014 516-350-8898';
   var phone=(c.phone||'').replace(/[^\d+]/g,'');
   window.location.href='sms:'+phone+'?&body='+encodeURIComponent(msg);
 }
@@ -15562,16 +15562,31 @@ async function invoicePdfBase64(woId){
   // with a real, clickable "Pay online" line.
   var _w=(wos||[]).find(function(x){return x.id===woId;})||{};
   var _link=(_w.qbo_payment_link&&woBalance(_w)>0.01)?_w.qbo_payment_link:'';
-  var extra=_link?56:0;
+  var _z=(woBalance(_w)>0.01&&window._zelleTo)?window._zelleTo:'';
+  var _bal=woBalance(_w);
+  var extra=(_z||_link)?(22+(_z?42:0)+(_link?42:0)):0;
   var doc=new window.jspdf.jsPDF({unit:'pt',format:[pw,hpt+extra]});
   doc.addImage(r.canvas.toDataURL('image/jpeg',0.92),'JPEG',0,0,pw,hpt);
+  var y=hpt+6;
+  if(_z||_link){
+    doc.setTextColor(17,17,17);doc.setFont('helvetica','bold');doc.setFontSize(11);
+    doc.text('HOW TO PAY  \u2014  $'+_bal.toFixed(2)+' due',30,y+10);y+=18;
+  }
+  if(_z){
+    doc.setFillColor(237,231,246);doc.rect(28,y,pw-56,36,'F');
+    doc.setTextColor(106,27,154);doc.setFont('helvetica','bold');doc.setFontSize(12);
+    doc.text('1)  Zelle (preferred):  '+_z,40,y+15);
+    doc.setFont('helvetica','normal');doc.setFontSize(10);
+    doc.text('Memo: Invoice '+(_w.invoice_number||''),58,y+29);
+    y+=42;
+  }
   if(_link){
-    doc.setFillColor(232,245,233);doc.rect(28,hpt+8,pw-56,38,'F');
-    doc.setTextColor(46,125,50);doc.setFont('helvetica','bold');doc.setFontSize(13);
-    doc.text('Pay online by card or bank \u2014 $'+woBalance(_w).toFixed(2),40,hpt+25);
+    doc.setFillColor(232,245,233);doc.rect(28,y,pw-56,36,'F');
+    doc.setTextColor(46,125,50);doc.setFont('helvetica','bold');doc.setFontSize(12);
+    doc.text((_z?'2)':'1)')+'  Credit card',40,y+15);
     doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(21,101,192);
-    doc.textWithLink('Tap or click here to pay this invoice',40,hpt+39,{url:_link});
-    doc.link(28,hpt+8,pw-56,38,{url:_link});
+    doc.textWithLink('Tap or click here to pay securely online',58,y+29,{url:_link});
+    doc.link(28,y,pw-56,36,{url:_link});
   }
   var uri=doc.output('datauristring');
   return {b64:uri.substring(uri.indexOf(',')+1),invNum:r.invNum};
@@ -15745,11 +15760,21 @@ async function openSendInvoice(woId){
   var _biz=['Contractor','Commercial'].indexOf(c.customer_type)>=0;
   var hi=_biz?(c.name||'there'):((c.name||'').split(' ')[0]||'there');
   var owed=bal>0.01;
-  var msg='Hi '+hi+', here is invoice '+(w.invoice_number||'')+' from DG Equipment'+
-    (owed?' — $'+bal.toFixed(2)+' due.':' — paid in full, thank you!')+
-    (owed&&link?' Pay by card or bank here: '+link:'')+
-    (owed&&!link?' Call or text (516) 350-8898 to pay.':'')+
-    '\n\nThank you,\nDG Equipment Repair & Services\n(516) 350-8898';
+  var zelle=await getZelleTo();
+  var num=w.invoice_number||'';
+  var msg;
+  if(owed){
+    var ways=[],n=0;
+    if(zelle)ways.push((++n)+') Zelle (preferred): '+zelle+'\n   Memo: Invoice '+num);
+    if(link)ways.push((++n)+') Credit card: '+link);
+    if(!ways.length)ways.push('Call or text (516) 350-8898 and we\u2019ll take care of it.');
+    msg='Hi '+hi+',\n\nThank you for choosing DG Equipment Repair! Your invoice #'+num+' is attached.\n\n'+
+      'Amount due: $'+bal.toFixed(2)+'\n\nHow to pay:\n'+ways.join('\n')+
+      '\n\nQuestions? Call or text (516) 350-8898.\n\nThank you,\nDanny\nDG Equipment Repair & Services';
+  }else{
+    msg='Hi '+hi+',\n\nThank you for choosing DG Equipment Repair! Your invoice #'+num+' is attached \u2014 paid in full. We appreciate your business.'+
+      '\n\nQuestions? Call or text (516) 350-8898.\n\nThank you,\nDanny\nDG Equipment Repair & Services';
+  }
   window._sendInv={woId:woId,invNum:invNum,custId:c.id||'',hadEmail:!!(c.email||''),hadPhone:!!(c.phone||''),link:link};
   var big='flex:1;border:none;border-radius:var(--rs);padding:13px 6px;font-size:14px;font-weight:800;font-family:var(--fn);cursor:pointer;color:#fff';
   var _fmt='pdf';try{_fmt=localStorage.getItem('dg_send_fmt')||'pdf';}catch(e){}
@@ -15762,6 +15787,9 @@ async function openSendInvoice(woId){
       '<div><div class="mlbl">Email</div><input class="mi" id="siEmail" type="email" autocomplete="off" value="'+esc(c.email||'')+'" placeholder="customer@email.com"></div>'+
       '<div><div class="mlbl">Cell</div><input class="mi" id="siPhone" type="tel" autocomplete="off" value="'+esc(c.phone||'')+'" placeholder="516-555-1234"></div>'+
       '<div><div class="mlbl">Message</div><textarea class="mi" id="siMsg" rows="6" style="resize:none;font-size:13px;line-height:1.45">'+esc(msg)+'</textarea></div>'+
+      (owed?'<div id="siZelleRow">'+(zelle?
+        '<div style="font-size:12px;color:var(--tx3)">Zelle on the message: <b style="color:var(--tx2)">'+esc(zelle)+'</b> \u00b7 <a href="#" onclick="event.preventDefault();siEditZelle()" style="color:var(--blu)">change</a></div>':
+        '<div class="mlbl">Your Zelle (email or phone) \u2014 asked once</div><div style="display:flex;gap:6px"><input class="mi" id="siZelle" placeholder="e.g. your Zelle email or cell"><button class="mc-btn" style="flex:0 0 auto;padding:0 14px" onclick="siSaveZelle()">Add</button></div>')+'</div>':'')+
       '<div><div class="mlbl">Attach the invoice as</div><div style="display:flex;gap:6px">'+
         '<button class="qn-chip'+(_fmt==='pdf'?' on':'')+'" data-f="pdf" onclick="siSetFmt(this)" style="flex:1;padding:9px">PDF</button>'+
         '<button class="qn-chip'+(_fmt==='jpg'?' on':'')+'" data-f="jpg" onclick="siSetFmt(this)" style="flex:1;padding:9px">JPG picture</button>'+
@@ -15779,6 +15807,26 @@ async function openSendInvoice(woId){
       '<button class="mc-btn" onclick="closeM()">Close</button>'+
     '</div>';
   openM(h);
+}
+// Zelle: where customers send money. Kept in app_settings so every phone uses the same one.
+async function getZelleTo(){
+  if(window._zelleTo!==undefined)return window._zelleTo;
+  try{var r=await get('app_settings','?key=eq.zelle_to');window._zelleTo=(r&&r[0]&&r[0].value)||'';}catch(e){window._zelleTo='';}
+  return window._zelleTo;
+}
+async function siSaveZelle(){
+  var v=((document.getElementById('siZelle')||{}).value||'').trim();
+  if(!v){toast('Type your Zelle email or phone','er');return;}
+  try{
+    await fetch(SU+'/rest/v1/app_settings',{method:'POST',headers:Object.assign({},_getHeaders(),{'Prefer':'resolution=merge-duplicates'}),
+      body:JSON.stringify({key:'zelle_to',value:v,updated_at:new Date().toISOString()})});
+    window._zelleTo=v;toast('Zelle saved \u2713','ok');
+    var d=window._sendInv||{};if(d.woId)openSendInvoice(d.woId);
+  }catch(e){toast('Could not save: '+e.message,'er');}
+}
+function siEditZelle(){
+  var row=document.getElementById('siZelleRow');if(!row)return;
+  row.innerHTML='<div class="mlbl">Your Zelle (email or phone)</div><div style="display:flex;gap:6px"><input class="mi" id="siZelle" value="'+esc(window._zelleTo||'')+'"><button class="mc-btn" style="flex:0 0 auto;padding:0 14px" onclick="siSaveZelle()">Save</button></div>';
 }
 function siSetFmt(btn){
   var f=btn.dataset.f;(window._sendInv||{}).fmt=f;
@@ -15911,7 +15959,7 @@ async function _oldSendPayLink(woId){
   // A business is greeted by its name ("Hi Looks Wonderful Landscaping"), a person by first name.
   var _biz=['Contractor','Commercial'].indexOf(c.customer_type)>=0;
   var first=_biz?(c.name||'there'):((c.name||'').split(' ')[0]||'there');
-  var msg='Hi '+first+'! Invoice '+(w.invoice_number||'')+' from DG Equipment for $'+bal.toFixed(2)+' is ready. Pay by card or bank here: '+link+' — thank you!';
+  var msg='Hi '+first+'! Invoice '+(w.invoice_number||'')+' from DG Equipment Repair for $'+bal.toFixed(2)+' is ready. Pay by card or bank here: '+link+' — thank you!';
   window._payLinkData={phone:String(c.phone||'').replace(/\D/g,''),email:(c.email||'').trim(),subject:'Invoice '+(w.invoice_number||'')+' — DG Equipment',link:link};
   var btn='flex:1;border:none;border-radius:var(--rs);padding:12px 6px;font-size:14px;font-weight:800;font-family:var(--fn);cursor:pointer;color:#fff';
   var h='<div class="mt">💳 Pay link — '+esc(c.name||'')+'</div>'+
