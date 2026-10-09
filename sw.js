@@ -1,4 +1,4 @@
-const CACHE = 'dg-equipment-v3';
+const CACHE = 'dg-equipment-v4';
 const SHELL = [
   './',
   './index.html',
@@ -48,8 +48,15 @@ self.addEventListener('fetch', function(e) {
   // real bugs on real devices. Go to the network first for the app itself and
   // fall back to cache only when offline — which is what the fallback is for.
   if (isAppShell(e.request)) {
+    // cache:'no-cache' — GitHub Pages sends max-age=600, so a plain fetch
+    // could hand back the browser's 10-minute-old copy and a fresh deploy
+    // wouldn't show on reload. no-cache always checks with the server (a
+    // cheap 304 when nothing changed).
     e.respondWith(
-      fetch(e.request).then(function(r) {
+      fetch(e.request.url, { cache: 'no-cache', credentials: 'same-origin' }).then(function(r) {
+        // A redirect (e.g. /dg-equipment → /dg-equipment/) can't be handed
+        // back for a page load; let the browser fetch it the normal way.
+        if (r.redirected) return fetch(e.request);
         if (r.ok) {
           var clone = r.clone();
           caches.open(CACHE).then(function(c){ c.put(e.request, clone); });
@@ -57,6 +64,8 @@ self.addEventListener('fetch', function(e) {
         return r;
       }).catch(function() {
         return caches.match(e.request).then(function(cached) {
+          // The portal falls back to its own copy, never to the shop app.
+          if (new URL(e.request.url).pathname.endsWith('portal.html')) return cached;
           return cached || caches.match('./index.html');
         });
       })
