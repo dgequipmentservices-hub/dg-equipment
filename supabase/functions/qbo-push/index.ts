@@ -307,6 +307,58 @@ Deno.serve(async (req: Request) => {
     return r;
   }
 
+  // ── Pay links ─────────────────────────────────────────────────────────
+  // QuickBooks only makes an invoice's online pay link (InvoiceLink) when
+  // the invoice has a billing email and online payment turned on, and it
+  // only returns the link when asked with include=invoiceLink. Most of the
+  // shop's customers have no email on file, which is why only a handful of
+  // pushed invoices ever came back with a link. The fallback is the
+  // company's own email from QuickBooks: the link works the same, and the
+  // app texts it to the customer itself.
+  let _companyEmail: string | null | undefined;
+  async function companyEmail(): Promise<string | null> {
+    if (_companyEmail !== undefined) return _companyEmail;
+    try {
+      const r = await qboFetch(`${baseUrl}/companyinfo/${tok.realm_id}?minorversion=73`);
+      const d = await r.json();
+      const ci = d.CompanyInfo || {};
+      _companyEmail = ci.CustomerCommunicationEmailAddr?.Address || ci.Email?.Address || null;
+    } catch { _companyEmail = null; }
+    return _companyEmail;
+  }
+  async function readInvoice(id: string) {
+    const r = await qboFetch(`${baseUrl}/invoice/${id}?minorversion=73&include=invoiceLink`);
+    return await r.json();
+  }
+  // Returns { link, total_before, total_after }. Only touches the invoice
+  // when it is missing the billing email or online payment; the update is
+  // sparse and carries the existing tax detail back unchanged so the total
+  // can't move.
+  async function ensurePayLink(id: string, billEmail?: string) {
+    let d = await readInvoice(id);
+    if (!d.Invoice) throw new Error('Invoice ' + id + ' not found in QuickBooks: ' + qboErr(d));
+    const inv = d.Invoice;
+    const before = inv.TotalAmt;
+    if (inv.InvoiceLink) return { link: inv.InvoiceLink, total_before: before, total_after: before };
+    if (inv.Active === false) throw new Error('Invoice is voided in QuickBooks');
+    const needEmail = !inv.BillEmail?.Address;
+    const needOnline = inv.AllowOnlineCreditCardPayment !== true || inv.AllowOnlineACHPayment !== true;
+    if (needEmail || needOnline) {
+      const upd: any = { Id: inv.Id, SyncToken: inv.SyncToken, sparse: true, AllowOnlineCreditCardPayment: true, AllowOnlineACHPayment: true };
+      if (needEmail) {
+        const addr = (billEmail || '').trim() || await companyEmail();
+        if (!addr) throw new Error('No email to put on the invoice — add an email to the customer or to your QuickBooks company settings');
+        upd.BillEmail = { Address: addr };
+      }
+      if (inv.TxnTaxDetail) upd.TxnTaxDetail = { TxnTaxCodeRef: inv.TxnTaxDetail.TxnTaxCodeRef, TotalTax: inv.TxnTaxDetail.TotalTax };
+      const ur = await qboFetch(`${baseUrl}/invoice?minorversion=73`, { method: 'POST', body: JSON.stringify(upd) });
+      const ud = await ur.json();
+      if (!ud.Invoice?.Id) throw new Error(qboErr(ud));
+      d = await readInvoice(id);
+    }
+    return { link: d.Invoice?.InvoiceLink || '', total_before: before, total_after: d.Invoice?.TotalAmt };
+  }
+
   try {
     if (action === 'list_invoices') {
       const max = Math.min(parseInt(body.max_results) || 50, 200);
@@ -364,6 +416,9 @@ Deno.serve(async (req: Request) => {
         CustomerRef: { value: custId }, Line: lines, CustomerMemo: { value: invoice.memo || '' },
         AllowOnlineCreditCardPayment: true, AllowOnlineACHPayment: true
       };
+      // A billing email is what makes QuickBooks create the pay link.
+      const _billTo = String(invoice.bill_email || '').trim() || await companyEmail();
+      if (_billTo) invBody.BillEmail = { Address: _billTo };
 
       // Override QBO's automated tax calc with the app's exact dollar amount
       // so the invoice total matches the app exactly. AST honors an explicit
@@ -395,7 +450,9 @@ Deno.serve(async (req: Request) => {
           else pushedPayments.push({ error: qboErr(pd), amount: pmt.amount });
         } catch (pe: any) { pushedPayments.push({ error: pe.message, amount: pmt.amount }); }
       }
-      return ok({ success: true, qbo_invoice_id: qboInvId, qbo_total: invData.Invoice.TotalAmt, qbo_doc: invData.Invoice.DocNumber, payment_link: invData.Invoice.InvoiceLink || '', payments_pushed: pushedPayments, debug_sent_lines: lines, debug_sent_taxdetail: invBody.TxnTaxDetail || null, debug_returned_taxdetail: invData.Invoice.TxnTaxDetail || null, debug_returned_lines: invData.Invoice.Line });
+      let _link = invData.Invoice.InvoiceLink || '';
+      if (!_link) { try { _link = (await readInvoice(qboInvId)).Invoice?.InvoiceLink || ''; } catch { /* the app asks again */ } }
+      return ok({ success: true, qbo_invoice_id: qboInvId, qbo_total: invData.Invoice.TotalAmt, qbo_doc: invData.Invoice.DocNumber, payment_link: _link, payments_pushed: pushedPayments, debug_sent_lines: lines, debug_sent_taxdetail: invBody.TxnTaxDetail || null, debug_returned_taxdetail: invData.Invoice.TxnTaxDetail || null, debug_returned_lines: invData.Invoice.Line });
     }
 
     if (action === 'update_invoice') {
@@ -476,15 +533,55 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'get_payment_link') {
-      const { qbo_invoice_id: qboInvId } = body;
+      const { qbo_invoice_id: qboInvId, bill_email } = body;
       if (!qboInvId) return fail('qbo_invoice_id required');
-      const r = await qboFetch(`${baseUrl}/invoice/${qboInvId}?minorversion=73`);
-      const d = await r.json();
-      if (!d.Invoice) return fail('Invoice not found');
-      if (d.Invoice.InvoiceLink) return ok({ payment_link: d.Invoice.InvoiceLink });
-      const ur = await qboFetch(`${baseUrl}/invoice?minorversion=73`, { method: 'POST', body: JSON.stringify({ Id: d.Invoice.Id, SyncToken: d.Invoice.SyncToken, sparse: true, AllowOnlineCreditCardPayment: true, AllowOnlineACHPayment: true }) });
-      const ud = await ur.json();
-      return ok({ payment_link: ud.Invoice?.InvoiceLink || '' });
+      try {
+        const res = await ensurePayLink(String(qboInvId), bill_email);
+        if (!res.link) return fail('QuickBooks did not return a pay link — check that online payments are turned on in QuickBooks');
+        return ok({ payment_link: res.link, total_before: res.total_before, total_after: res.total_after });
+      } catch (e: any) { if (e?.qbo_disconnected || e?.qbo_bad_credentials) throw e; return fail(e.message || String(e)); }
+    }
+
+    // What QuickBooks knows that the app may not: the balance on each
+    // invoice and every payment applied to it, including the ones customers
+    // made online through the pay link. Read only — nothing is written.
+    if (action === 'sync_online_payments') {
+      const ids: string[] = (body.qbo_invoice_ids || []).map(String).slice(0, 50);
+      const pmtCache: Record<string, any> = {};
+      const out: any[] = [];
+      for (const id of ids) {
+        try {
+          const r = await qboFetch(`${baseUrl}/invoice/${id}?minorversion=73`);
+          const d = await r.json();
+          const inv = d.Invoice;
+          if (!inv) { out.push({ qbo_invoice_id: id, error: qboErr(d) }); continue; }
+          const pays: any[] = [];
+          for (const lt of (inv.LinkedTxn || [])) {
+            if (lt.TxnType !== 'Payment') continue;
+            if (!pmtCache[lt.TxnId]) {
+              const pr = await qboFetch(`${baseUrl}/payment/${lt.TxnId}?minorversion=73`);
+              pmtCache[lt.TxnId] = (await pr.json()).Payment || null;
+            }
+            const p = pmtCache[lt.TxnId];
+            if (!p) continue;
+            let applied = 0;
+            for (const ln of (p.Line || [])) {
+              if ((ln.LinkedTxn || []).some((x: any) => String(x.TxnId) === String(id) && x.TxnType === 'Invoice')) applied += Number(ln.Amount || 0);
+            }
+            pays.push({
+              id: p.Id, date: p.TxnDate, amount: Math.round(applied * 100) / 100, total: p.TotalAmt,
+              method: p.PaymentMethodRef?.name || (p.CreditCardPayment ? 'Credit Card' : ''),
+              online: !!(p.CreditCardPayment || p.TxnSource || p.PaymentType === 'CreditCard'),
+              memo: p.PrivateNote || '',
+            });
+          }
+          out.push({ qbo_invoice_id: id, doc: inv.DocNumber, total: inv.TotalAmt, balance: inv.Balance, active: inv.Active !== false, payments: pays });
+        } catch (e: any) {
+          if (e?.qbo_disconnected || e?.qbo_bad_credentials) throw e;
+          out.push({ qbo_invoice_id: id, error: e.message || String(e) });
+        }
+      }
+      return ok({ invoices: out });
     }
 
     return fail('Unknown action: ' + action);
