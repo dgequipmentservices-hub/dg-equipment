@@ -137,10 +137,11 @@ async function checkCode(){
 }
 
 // ── home ────────────────────────────────────────────────────────────
+function vTitle(v){return (v.title&&v.title!=='Service')?v.title:((v.groups[0]&&v.groups[0].machine)||'Service');}
 function invItem(v){
   var st=v.state==='paid'?'<span class="chip paid">Paid</span>':v.state==='partial'?'<span class="chip partial">Part paid</span>':'<span class="chip unpaid">Unpaid</span>';
   var sub=fd(v.date)+(v.state==='paid'?(v.payments.length?' · paid by '+esc(v.payments[v.payments.length-1].method||'payment'):' · paid'):'');
-  return '<a class="item" href="#/invoice/'+esc(v.id)+'"><span class="g"><span class="n">#'+esc(v.number)+' · '+esc(v.title)+'</span><span class="small muted">'+sub+'</span></span>'+
+  return '<a class="item" href="#/invoice/'+esc(v.id)+'"><span class="g"><span class="n">#'+esc(v.number)+' · '+esc(vTitle(v))+'</span><span class="small muted">'+sub+'</span></span>'+
     '<span class="r"><span class="money" style="'+(v.state==='paid'?'color:var(--tx2)':'')+'">'+money(v.state==='paid'?v.total:v.balance)+'</span>'+st+'</span></a>';
 }
 function contactCard(){
@@ -192,6 +193,9 @@ function viewHome(){
   var mItem=function(m){return '<a class="item" href="#/machine/'+esc(m.id)+'"><span class="ico">'+(isOther(m)?I.tool:I.mower)+'</span><span class="g"><span class="n">'+esc(m.name)+'</span><span class="small muted">'+(m.last_service?'Last service '+fd(m.last_service):'No service yet')+'</span></span>'+
       (m.reminder?'<span class="chip partial">Due '+fd(m.reminder.due,{month:'short',day:undefined,year:undefined})+'</span>':'')+'</a>';};
   var realM=D.machines.filter(function(m){return !isOther(m);}),otherM=D.machines.filter(isOther);
+  // Parts & supplies sold without a machine (e.g. "Shop supplies") list under Other too.
+  var mNames={};D.machines.forEach(function(m){mNames[m.name]=1;});
+  var sales=[];D.invoices.forEach(function(v){v.groups.forEach(function(g){if(g.machine&&!mNames[g.machine])sales.push({label:g.machine,v:v});});});
   h+='<div class="pad" style="padding-bottom:0"><h2 style="margin:8px 2px 0">Your machines</h2>';
   if(!realM.length)h+='<div class="card small muted">No machines on file yet.</div>';
   realM.slice(0,4).forEach(function(m){h+=mItem(m);});
@@ -201,9 +205,10 @@ function viewHome(){
     h+='</div><button class="btn line" id="moreMBtn">Show all '+realM.length+' machines</button>';
   }
   h+='</div>';
-  if(otherM.length){
+  if(otherM.length||sales.length){
     h+='<div class="pad" style="padding-bottom:0"><h2 style="margin:8px 2px 0">Other</h2>';
     otherM.forEach(function(m){h+=mItem(m);});
+    sales.slice(0,6).forEach(function(x){h+='<a class="item" href="#/invoice/'+esc(x.v.id)+'"><span class="ico">'+I.tool+'</span><span class="g"><span class="n">'+esc(x.label)+'</span><span class="small muted">Invoice #'+esc(x.v.number)+' · '+fd(x.v.date)+'</span></span></a>';});
     h+='</div>';
   }
 
@@ -275,7 +280,7 @@ function viewInvoice(id,scrollZelle){
      '<div style="font-size:36px;font-weight:700;line-height:1.1">'+money(owed?v.balance:v.total)+'</div>'+
      '<div class="small muted">'+esc(v.customer)+' · '+fdy(v.date)+(v.po?' · PO '+esc(v.po):'')+'</div></div>';
 
-  h+='<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="lbl">'+esc(v.title)+'</div>';
+  h+='<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="lbl">'+esc(vTitle(v))+'</div>';
   v.groups.forEach(function(g,gi){
     if(gi)h+='<div class="hr"></div>';
     if(g.machine)h+='<div style="font-weight:700;font-size:14px">'+esc(g.machine)+(g.serial?' <span class="muted" style="font-weight:400">· serial ···'+esc(g.serial)+'</span>':'')+'</div>';
