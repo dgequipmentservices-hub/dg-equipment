@@ -18,7 +18,7 @@
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>DG Equipment v27.94</title>
+<title>DG Equipment v27.95</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -941,7 +941,7 @@ window.addEventListener('offline',function(){
     <div class="ham-user" id="hamUser"></div>
     <button id="installBtn" onclick="installApp()" style="display:none;width:100%;background:var(--red);border:none;border-radius:var(--rs);padding:10px;font-size:14px;font-weight:700;font-family:var(--fn);color:#fff;cursor:pointer;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><polyline points="9 8 12 5 15 8"/><line x1="12" y1="5" x2="12" y2="13"/></svg> Install App</button>
     <button onclick="logOut()" style="width:100%;background:var(--sf2);border:1.5px solid var(--bd2);border-radius:var(--rs);padding:10px;font-size:14px;font-weight:600;font-family:var(--fn);color:var(--tx2);cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Lock App</button>
-    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-09 · V27.94</div>
+    <div style="text-align:center;font-size:10px;color:var(--tx3);font-family:var(--mo);padding-top:8px;letter-spacing:.05em">BUILD 2026-10-09 · V27.95</div>
   </div>
 </div>
 
@@ -20172,12 +20172,12 @@ async function portalCfg(){
 }
 var PORTAL_EV={
   code_sent:'Asked for a sign-in code',sign_in:'Signed in',opened:'Opened their account',sign_out:'Signed out',
-  view_invoice:'Looked at invoice',download_invoice:'Downloaded invoice',print_invoice:'Printed / saved invoice',open_card:'Opened the card payment for invoice',
+  view_invoice:'Looked at invoice',download_invoice:'Downloaded invoice',pdf_requested:'Asked for an invoice PDF (open it in the app once)',print_invoice:'Printed / saved invoice',open_card:'Opened the card payment for invoice',
   copy_zelle:'Copied your Zelle number for invoice',zelle_sent:'Says they sent Zelle',view_statement:'Looked at their statement',
   print_statement:'Printed / saved their statement',view_machine:'Looked at machine',service_request:'Sent a service request',
   bad_code:'Several wrong codes',code_failed:'A sign-in code could not be sent',unknown_contact:'Someone tried a contact that isn’t on file'
 };
-var PORTAL_HOT={zelle_sent:'var(--pur)',service_request:'var(--red)',bad_code:'var(--amb)',code_failed:'var(--amb)'};
+var PORTAL_HOT={pdf_requested:'var(--amb)',zelle_sent:'var(--pur)',service_request:'var(--red)',bad_code:'var(--amb)',code_failed:'var(--amb)'};
 function portalEvText(l){
   var d=l.detail||{},t=PORTAL_EV[l.event]||l.event;
   if(l.event==='zelle_sent')return t+' $'+(parseFloat(d.amount)||0).toFixed(2)+(d.invoice?' for #'+d.invoice:'');

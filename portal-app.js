@@ -275,7 +275,7 @@ function viewInvoice(id,scrollZelle){
   track('view_invoice',v.number);
   var owed=v.balance>0.01;
   var chip=v.state==='paid'?'<span class="chip paid">Paid</span>':v.state==='partial'?'<span class="chip partial">Part paid</span>':'<span class="chip unpaid">Unpaid</span>';
-  var h=bar('Invoice #'+v.number,v.has_pdf?'Download invoice':'')+'<div class="pad">';
+  var h=bar('Invoice #'+v.number,'Download invoice')+'<div class="pad">';
   h+='<div class="card" style="display:flex;flex-direction:column;gap:6px"><div class="row" style="align-items:center"><span class="muted">'+(owed?'Amount due':'Total')+'</span>'+chip+'</div>'+
      '<div style="font-size:36px;font-weight:700;line-height:1.1">'+money(owed?v.balance:v.total)+'</div>'+
      '<div class="small muted">'+esc(v.customer)+' · '+fdy(v.date)+(v.po?' · PO '+esc(v.po):'')+'</div></div>';
@@ -295,7 +295,7 @@ function viewInvoice(id,scrollZelle){
   v.payments.forEach(function(p){h+='<div class="row" style="color:var(--grn)"><span>Paid '+fd(p.date)+(p.method?' · '+esc(p.method):'')+'</span><span class="money">'+money(-p.amount)+'</span></div>';});
   if(v.payments.length||v.state==='paid')h+='<div class="row" style="font-weight:700"><span>Balance</span><span class="money">'+money(v.balance)+'</span></div>';
   h+='</div>';
-  if(v.has_pdf)h+='<button class="btn line" id="dlInv">Download invoice (PDF)</button>';
+  h+='<button class="btn line" id="dlInv">Download invoice (PDF)</button>';
 
   if(owed){
     var zDigits=String(D.zelle).replace(/\D/g,'');
@@ -319,7 +319,7 @@ function viewInvoice(id,scrollZelle){
   app.innerHTML=h;
   var dl=async function(){
     var d=await call('invoice_pdf',{invoice_id:v.id});
-    if(d.error||!d.url){toast(d.error||'Couldn’t get the invoice');return;}
+    if(d.error||!d.url){alert(d.error||'Couldn’t get the invoice. Call or text '+SHOP.phone+'.');return;}
     location.href=d.url;
   };
   wireBar(dl);if($('dlInv'))$('dlInv').onclick=dl;
