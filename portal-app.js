@@ -377,7 +377,8 @@ async function downloadInvoice(v){
     var r=v.raw,eMap=r.eq||{};
     var out=dgInvoiceHtml(r.w,r.c,eMap,r.pmts||[]);
     var canvas=await dgInvoiceCanvas(out.html,out.invNum);
-    var blob=await dgInvoicePdfBlob(canvas,r.w.invoice_number||v.number,v.balance,v.card_link,v.balance>0.01?D.zelle:'');
+    // Just the invoice itself — no added payment box.
+    var blob=await dgInvoicePdfBlob(canvas,r.w.invoice_number||v.number,0,'','');
     saveBlob(blob,out.invNum+'.pdf');
     track('download_invoice',v.number);
   }catch(e){
