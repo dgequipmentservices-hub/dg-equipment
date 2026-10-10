@@ -339,7 +339,7 @@ const OPEN_LABEL: Record<string, string> = {
 async function data(s: any, req: Request) {
   const ids: string[] = s.ids;
   const [{ data: custs }, { data: wos }, { data: eqs }, { data: rems }, { data: zrow }] = await Promise.all([
-    db.from('customers').select('id,name,address,tax_exempt,customer_type').in('id', ids),
+    db.from('customers').select('id,name,address,phone,email,tax_exempt,customer_type').in('id', ids),
     db.from('work_orders').select('id,customer_id,equipment_id,status,problem,scheduled_date,machines_data,extra_equipment_ids,invoice_status,invoice_number,cc_fee,adjustments,invoiced_at,created_at,qbo_payment_link,po_number').in('customer_id', ids),
     db.from('equipment').select('id,customer_id,make,model,serial,equipment_type,year,last_service_date').in('customer_id', ids),
     db.from('maintenance_reminders').select('equipment_id,customer_id,title,next_due_date,active').in('customer_id', ids).eq('active', true),
@@ -347,7 +347,7 @@ async function data(s: any, req: Request) {
   ]);
   const woIds = (wos || []).map((w: any) => w.id);
   const { data: pays } = woIds.length
-    ? await db.from('payments').select('id,work_order_id,amount,method,payment_date,created_at').in('work_order_id', woIds)
+    ? await db.from('payments').select('id,work_order_id,amount,method,note,payment_date,created_at').in('work_order_id', woIds)
     : { data: [] as any[] };
   // Which invoices have the PDF the shop sent (saved by the app when it builds one).
   const pdfs = new Set<string>();
@@ -398,6 +398,16 @@ async function data(s: any, req: Request) {
       payments: plist.map((p) => ({ amount: parseFloat(p.amount || 0), method: p.method || '', date: pmtDate(p).toISOString() })),
       card_link: balance > 0.01 && w.qbo_payment_link ? w.qbo_payment_link : '',
       has_pdf: pdfs.has(w.id),
+      // Exactly what the shop app's invoice layout reads, so the portal can
+      // draw the same invoice (invoice-render.js) and the customer can save it.
+      raw: {
+        w: (({ id, customer_id, invoice_number, invoiced_at, scheduled_date, machines_data, extra_equipment_ids, equipment_id, cc_fee, adjustments, invoice_status, po_number, problem }) =>
+          ({ id, customer_id, invoice_number, invoiced_at, scheduled_date, machines_data, extra_equipment_ids, equipment_id, cc_fee, adjustments, invoice_status, po_number, problem }))(w),
+        c: (({ name, address, phone, email, customer_type, tax_exempt }) => ({ name, address, phone, email, customer_type, tax_exempt }))(cMap[w.customer_id] || {}),
+        eq: Object.fromEntries((eqs || []).filter((e: any) => e.customer_id === w.customer_id).map((e: any) => [e.id, { make: e.make, model: e.model, serial: e.serial }])),
+        pmts: (byWo[w.id] || []).slice().sort((a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at)))
+          .map((p: any) => ({ id: p.id, amount: p.amount, method: p.method, note: p.note, payment_date: p.payment_date, created_at: p.created_at })),
+      },
     });
     // Statement ledger — openStmt's rules.
     ledger.push({ type: 'invoice', id: w.id, date: dt.toISOString(), sort: dt.getTime(), number: num, title: w.problem || 'Service', amount: m.total, paidOff: state === 'paid', amountPaid: paid });
@@ -466,7 +476,7 @@ async function data(s: any, req: Request) {
   });
 }
 
-const LOGGABLE = new Set(['view_invoice', 'open_card', 'view_statement', 'print_statement', 'copy_zelle', 'view_machine']);
+const LOGGABLE = new Set(['download_invoice', 'view_invoice', 'open_card', 'view_statement', 'print_statement', 'copy_zelle', 'view_machine']);
 
 async function handle(req: Request) {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });

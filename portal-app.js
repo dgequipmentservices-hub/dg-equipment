@@ -317,11 +317,7 @@ function viewInvoice(id,scrollZelle){
   }
   h+='<div class="small muted" style="text-align:center;padding:4px 0 20px">Questions about this invoice? <a href="sms:'+esc(SHOP.phone_digits)+'">Text '+esc(SHOP.phone)+'</a></div></div>';
   app.innerHTML=h;
-  var dl=async function(){
-    var d=await call('invoice_pdf',{invoice_id:v.id});
-    if(d.error||!d.url){alert(d.error||'Couldn’t get the invoice. Call or text '+SHOP.phone+'.');return;}
-    location.href=d.url;
-  };
+  var dl=function(){downloadInvoice(v);};
   wireBar(dl);if($('dlInv'))$('dlInv').onclick=dl;
   Array.prototype.forEach.call(document.querySelectorAll('.zcp'),function(b){b.onclick=function(){
     var t=b.getAttribute('data-copy');copy(t);b.textContent='Copied ✓';b.classList.add('on');
@@ -364,6 +360,33 @@ function zfield(label,show,val,key){
 function zrow(show,val,key,label){
   return '<div class="zrow"><div class="zv">'+esc(show)+'</div>'+
     '<button class="zcp noprint" data-copy="'+esc(val)+'" data-k="'+esc(key)+'" aria-label="Copy '+esc(label)+'">Copy</button></div>';
+}
+// The same invoice the shop app saves and sends: drawn here with the app's
+// own layout code (invoice-render.js), turned into a PDF and saved.
+var _irLoad=null;
+function loadRenderer(){
+  if(window.dgInvoiceHtml)return Promise.resolve();
+  if(!_irLoad)_irLoad=new Promise(function(res,rej){var s=document.createElement('script');s.src='invoice-render.js?t='+Date.now();s.onload=res;s.onerror=function(){_irLoad=null;rej(new Error('load'));};document.body.appendChild(s);});
+  return _irLoad;
+}
+async function downloadInvoice(v){
+  var b=$('dlInv'),old=b?b.textContent:'';
+  if(b){if(b.disabled)return;b.disabled=true;b.textContent='Preparing your invoice…';}
+  try{
+    await loadRenderer();
+    var r=v.raw,eMap=r.eq||{};
+    var out=dgInvoiceHtml(r.w,r.c,eMap,r.pmts||[]);
+    var canvas=await dgInvoiceCanvas(out.html,out.invNum);
+    var blob=await dgInvoicePdfBlob(canvas,r.w.invoice_number||v.number,v.balance,v.card_link,v.balance>0.01?D.zelle:'');
+    saveBlob(blob,out.invNum+'.pdf');
+    track('download_invoice',v.number);
+  }catch(e){
+    alert('Couldn’t make the invoice just now. Call or text '+SHOP.phone+' and Danny will send a copy.');
+  }finally{if(b){b.disabled=false;b.textContent=old||'Download invoice (PDF)';}}
+}
+function saveBlob(blob,name){
+  var u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(u);},60000);
 }
 function copy(t){
   if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){toast('Copied '+t);},function(){toast(t);});}
