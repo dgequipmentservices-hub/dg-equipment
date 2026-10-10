@@ -503,7 +503,17 @@ async function handle(req: Request) {
     if (!w || !w[0]) return json({ error: 'Invoice not found' }, 404);
     const name = 'INV-' + (w[0].invoice_number || w[0].id.slice(0, 6)) + '.pdf';
     const { data: signed, error } = await db.storage.from('invoice-pdfs').createSignedUrl(`${w[0].customer_id}/${w[0].id}.pdf`, 300, { download: name });
-    if (error || !signed) return json({ error: 'That invoice isn’t available to download yet. Call or text ' + SHOP.phone + ' for a copy.' }, 404);
+    if (error || !signed) {
+      // No saved copy yet (the app saves one when Danny opens or sends the
+      // invoice). Tell him once, so he can open it and the button works.
+      const { data: c } = await db.from('customers').select('name').eq('id', w[0].customer_id).limit(1);
+      await log(w[0].customer_id, 'pdf_requested', { ref: String(w[0].invoice_number || '') }, req);
+      await tellShop(`Invoice PDF requested: ${(c && c[0] && c[0].name) || 'Customer'} — #${w[0].invoice_number}`, [
+        `${(c && c[0] && c[0].name) || 'A customer'} tapped Download on invoice #${w[0].invoice_number} in the portal, but there’s no saved copy yet.`,
+        '', 'Open that invoice in the app once (or send it) and the download will work.',
+      ]);
+      return json({ error: 'Your invoice is being prepared. Danny’s been notified and it’ll be ready to download shortly.' }, 404);
+    }
     await log(w[0].customer_id, 'download_invoice', { ref: String(w[0].invoice_number || '') }, req);
     return json({ ok: true, url: signed.signedUrl, filename: name });
   }
