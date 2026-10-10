@@ -160,7 +160,7 @@ function viewHome(){
   if(owed){
     h+='<div class="row" style="align-items:baseline"><span style="font-weight:600;color:var(--tx2)">You owe</span><span class="small muted">'+openInv.length+' open invoice'+(openInv.length===1?'':'s')+'</span></div>'+
       '<div class="big">'+money(s.balance)+'</div>'+
-      '<a class="btn pur" href="#/invoice/'+esc(openInv[0]?openInv[0].id:'')+'/zelle" style="height:52px">Pay with Zelle</a>'+
+      homeZelle(openInv,s.balance)+
       (openInv.some(function(v){return v.card_link;})?'<a class="btn line" href="#/invoice/'+esc((openInv.find(function(v){return v.card_link;})||{}).id)+'">Pay by card</a>':'');
   }else{
     h+='<div style="font-weight:600;color:var(--tx2)">Your balance</div><div class="big" style="color:var(--grn)">'+money(0)+'</div><div class="small muted">You’re all paid up — thank you!'+(s.credit>0.01?' You have a '+money(s.credit)+' credit.':'')+'</div>';
@@ -210,6 +210,15 @@ function viewHome(){
   h+='<div class="pad"><a class="btn red" href="#/request">'+I.plus+' Request service</a>'+contactCard()+'</div>';
   app.innerHTML=h;
   $('acct').onclick=accountSheet;
+  bindCopy(openInv.map(function(v){return v.number;}).join(','));
+  if($('sentZh'))$('sentZh').onclick=async function(){
+    var b=this;
+    if(!confirm('Did you send '+money(s.balance)+' by Zelle?'))return;
+    b.disabled=true;
+    // One note per open invoice so Danny sees exactly what it covers.
+    for(var i=0;i<openInv.length;i++){var d=await call('zelle_sent',{invoice_id:openInv[i].id,amount:openInv[i].balance});if(d.error){toast(d.error);b.disabled=false;return;}}
+    b.textContent='Thanks! Got it ✓';
+  };
   if($('moreMBtn'))$('moreMBtn').onclick=function(){$('moreM').classList.remove('hide');this.remove();};
 }
 function allPayments(){
@@ -323,6 +332,25 @@ function viewInvoice(id,scrollZelle){
     this.textContent='Thanks! Got it ✓';
   };
   if($('card'))$('card').onclick=function(){track('open_card',v.number);};
+}
+// Zelle details right on the home screen: number, the total owed, and a memo
+// naming the open invoice(s). No extra screen to find.
+function homeZelle(openInv,total){
+  var zd=String(D.zelle).replace(/\D/g,'');
+  var nums=openInv.map(function(v){return v.number;});
+  var memo=(nums.length===1?'Invoice ':'Invoices ')+nums.join(', ');
+  return '<div class="zbox" style="margin-top:2px"><b style="font-size:17px;color:var(--pur2)">Pay with Zelle</b>'+
+    zfield('Zelle',fphone(D.zelle)||D.zelle,zd.length===10?zd:D.zelle,'number')+
+    zfield('Amount',money(total),total.toFixed(2),'amount')+
+    zfield('Memo',memo,memo,'memo')+
+    '<button class="btn pur" id="sentZh" style="height:50px">I sent it</button></div>';
+}
+function bindCopy(ref){
+  Array.prototype.forEach.call(document.querySelectorAll('.zcp'),function(b){b.onclick=function(){
+    var t=b.getAttribute('data-copy');copy(t);b.textContent='Copied ✓';b.classList.add('on');
+    setTimeout(function(){b.textContent='Copy';b.classList.remove('on');},1800);
+    if(b.getAttribute('data-k')==='number')track('copy_zelle',ref||'');
+  };});
 }
 function zfield(label,show,val,key){
   return '<div class="zrow"><div class="zv"><div class="zl">'+esc(label)+'</div>'+esc(show)+'</div>'+
